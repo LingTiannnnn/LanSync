@@ -24,6 +24,7 @@ import java.util.Locale
 fun FileListScreen(
     files: List<AppListClient.DownloadedFileInfo>,
     onInstall: (String) -> Unit,
+    onSave: (String) -> Unit,
     onDelete: (List<String>) -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
@@ -121,6 +122,7 @@ fun FileListScreen(
                                 selectedFiles.value + file.fileName
                             }
                         },
+                        onSave = { onSave(file.fileName) },
                         onInstall = { onInstall(file.fileName) }
                     )
                 }
@@ -162,6 +164,7 @@ private fun DownloadedFileItem(
     file: AppListClient.DownloadedFileInfo,
     isSelected: Boolean,
     onSelect: () -> Unit,
+    onSave: () -> Unit,
     onInstall: () -> Unit
 ) {
     Card(
@@ -243,6 +246,18 @@ private fun DownloadedFileItem(
             }
 
             Spacer(Modifier.width(8.dp))
+
+            OutlinedButton(
+                onClick = onSave,
+                modifier = Modifier.height(36.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp)
+            ) {
+                Icon(Icons.Default.SaveAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("储存", style = MaterialTheme.typography.labelMedium)
+            }
+
+            Spacer(Modifier.width(6.dp))
 
             FilledTonalButton(
                 onClick = onInstall,
