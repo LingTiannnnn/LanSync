@@ -134,6 +134,6 @@ class AppPacker(private val context: Context) {
     }
 
     fun clearCache() {
-        apksDir.listFiles()?.forEach { it.delete() }
+        apksDir.listFiles()?.forEach { it.deleteRecursively() }
     }
 }
