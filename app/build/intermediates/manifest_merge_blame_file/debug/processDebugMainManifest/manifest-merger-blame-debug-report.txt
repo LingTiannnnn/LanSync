@@ -90,14 +90,14 @@
 48-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
 49        android:debuggable="true"
 50        android:extractNativeLibs="true"
-51        android:icon="@drawable/ic_launcher"
-51-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:31:9-45
+51        android:icon="@mipmap/ic_launcher"
+51-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:31:9-43
 52        android:label="@string/app_name"
 52-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:32:9-41
 53        android:networkSecurityConfig="@xml/network_security_config"
 53-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:37:9-69
-54        android:roundIcon="@drawable/ic_launcher_round"
-54-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:33:9-56
+54        android:roundIcon="@mipmap/ic_launcher_round"
+54-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:33:9-54
 55        android:supportsRtl="true"
 55-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:34:9-35
 56        android:theme="@style/Theme.LanSync"

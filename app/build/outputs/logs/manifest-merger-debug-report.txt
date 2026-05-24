@@ -170,9 +170,9 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\LingTian\.gradle\c
 	android:label
 		ADDED from C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:32:9-41
 	android:roundIcon
-		ADDED from C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:33:9-56
+		ADDED from C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:33:9-54
 	android:icon
-		ADDED from C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:31:9-45
+		ADDED from C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:31:9-43
 	android:allowBackup
 		ADDED from C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:30:9-35
 	android:theme
