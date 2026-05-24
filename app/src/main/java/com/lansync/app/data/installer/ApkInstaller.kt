@@ -13,11 +13,12 @@ class ApkInstaller(private val context: Context) {
     fun installApks(file: File): InstallationResult {
         FileLogger.i("ApkInstaller", "installApks called: ${file.absolutePath} (exists=${file.exists()}, size=${file.length()})")
 
+        if (!file.exists()) {
+            FileLogger.e("ApkInstaller", "installApks: file not found! ${file.absolutePath}")
+            return InstallationResult.Error("File not found")
+        }
+
         return try {
-            if (!file.exists()) {
-                FileLogger.e("ApkInstaller", "installApks: file not found! ${file.absolutePath}")
-                return InstallationResult.Error("File not found")
-            }
 
             val authority = "${context.packageName}.fileprovider"
             val uri = FileProvider.getUriForFile(context, authority, file)

@@ -129,11 +129,18 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
                     isRunning = uiState.isRunning,
                     isScanningApps = uiState.isScanningApps,
                     serverPort = uiState.serverPort,
+                    isConnecting = uiState.isConnecting,
+                    connectingDeviceName = uiState.connectingDeviceName,
+                    isStarting = uiState.isStarting,
+                    isStopping = uiState.isStopping,
+                    operationMessage = uiState.operationMessage,
+                    connectionError = uiState.connectionError,
                     onToggleRunning = { viewModel.toggleRunning() },
                     onForceStartSync = { viewModel.forceStartSync() },
                     onRefresh = { viewModel.refreshDevices() },
                     onConnect = { viewModel.connectDevice(it) },
                     onDisconnect = { viewModel.disconnectDevice(it) },
+                    onDismissError = { viewModel.dismissConnectionError() },
                     modifier = Modifier.padding(paddingValues)
                 )
             }
@@ -183,6 +190,7 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
                     RemoteAppListScreen(
                         connectedDevices = uiState.connectedDevices,
                         selectedPackages = uiState.remoteAppSelections,
+                        isRefreshing = uiState.isFetchingRemoteApps,
                         onToggleSelected = { viewModel.toggleRemoteAppSelection(it) },
                         onSelectAll = { viewModel.selectAllRemoteApps(it) },
                         onClearSelection = { viewModel.clearRemoteAppSelection() },

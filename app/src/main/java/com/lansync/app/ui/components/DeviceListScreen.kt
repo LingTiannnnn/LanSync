@@ -23,11 +23,18 @@ fun DeviceListScreen(
     isRunning: Boolean,
     isScanningApps: Boolean,
     serverPort: Int,
+    isConnecting: Boolean = false,
+    connectingDeviceName: String? = null,
+    isStarting: Boolean = false,
+    isStopping: Boolean = false,
+    operationMessage: String? = null,
+    connectionError: String? = null,
     onToggleRunning: () -> Unit,
     onForceStartSync: () -> Unit,
     onRefresh: () -> Unit,
     onConnect: (DeviceInfo) -> Unit,
     onDisconnect: (DeviceInfo) -> Unit,
+    onDismissError: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -39,11 +46,77 @@ fun DeviceListScreen(
             isRunning = isRunning,
             isScanningApps = isScanningApps,
             serverPort = serverPort,
+            isStarting = isStarting,
+            isStopping = isStopping,
+            operationMessage = operationMessage,
             onToggleRunning = onToggleRunning,
             onForceStartSync = onForceStartSync
         )
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        if (isConnecting && connectingDeviceName != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "正在连接 $connectingDeviceName...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        if (connectionError != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = connectionError,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismissError, modifier = Modifier.size(24.dp)) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "关闭",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -112,6 +185,9 @@ fun StatusCard(
     isRunning: Boolean,
     isScanningApps: Boolean,
     serverPort: Int,
+    isStarting: Boolean = false,
+    isStopping: Boolean = false,
+    operationMessage: String? = null,
     onToggleRunning: () -> Unit,
     onForceStartSync: () -> Unit,
     modifier: Modifier = Modifier
@@ -155,10 +231,25 @@ fun StatusCard(
                         }
                     }
                 }
-                Switch(
-                    checked = isRunning,
-                    onCheckedChange = { onToggleRunning() }
-                )
+                if (isStarting || isStopping) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = operationMessage ?: "处理中...",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                } else {
+                    Switch(
+                        checked = isRunning,
+                        onCheckedChange = { onToggleRunning() }
+                    )
+                }
             }
 
             if (isScanningApps && !isRunning) {

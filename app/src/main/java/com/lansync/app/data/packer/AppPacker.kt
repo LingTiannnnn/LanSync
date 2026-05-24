@@ -1,7 +1,6 @@
 package com.lansync.app.data.packer
 
 import android.content.Context
-import android.util.Log
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.model.AppInfo
 import kotlinx.coroutines.Dispatchers

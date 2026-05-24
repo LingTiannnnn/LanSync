@@ -1,22 +1,22 @@
 [
     {
-        "merged": "C:\\Users\\LingTian\\.gradle\\daemon\\8.13\\com.lansync.app-debug-49:\\drawable_ic_launcher_foreground.xml.flat",
-        "source": "C:\\Users\\LingTian\\.gradle\\daemon\\8.13\\com.lansync.app-main-51:\\drawable\\ic_launcher_foreground.xml"
-    },
-    {
         "merged": "com.lansync.app-debug-49:/xml_network_security_config.xml.flat",
         "source": "com.lansync.app-main-51:/xml/network_security_config.xml"
     },
     {
-        "merged": "C:\\Users\\LingTian\\.gradle\\daemon\\8.13\\com.lansync.app-debug-49:\\xml_file_paths.xml.flat",
-        "source": "C:\\Users\\LingTian\\.gradle\\daemon\\8.13\\com.lansync.app-main-51:\\xml\\file_paths.xml"
+        "merged": "com.lansync.app-debug-49:/drawable_ic_launcher_round.xml.flat",
+        "source": "com.lansync.app-main-51:/drawable/ic_launcher_round.xml"
     },
     {
-        "merged": "C:\\Users\\LingTian\\.gradle\\daemon\\8.13\\com.lansync.app-debug-49:\\drawable_ic_launcher.xml.flat",
-        "source": "C:\\Users\\LingTian\\.gradle\\daemon\\8.13\\com.lansync.app-main-51:\\drawable\\ic_launcher.xml"
+        "merged": "com.lansync.app-debug-49:/xml_file_paths.xml.flat",
+        "source": "com.lansync.app-main-51:/xml/file_paths.xml"
     },
     {
-        "merged": "C:\\Users\\LingTian\\.gradle\\daemon\\8.13\\com.lansync.app-debug-49:\\drawable_ic_launcher_round.xml.flat",
-        "source": "C:\\Users\\LingTian\\.gradle\\daemon\\8.13\\com.lansync.app-main-51:\\drawable\\ic_launcher_round.xml"
+        "merged": "com.lansync.app-debug-49:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.lansync.app-main-51:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.lansync.app-debug-49:/drawable_ic_launcher.xml.flat",
+        "source": "com.lansync.app-main-51:/drawable/ic_launcher.xml"
     }
 ]

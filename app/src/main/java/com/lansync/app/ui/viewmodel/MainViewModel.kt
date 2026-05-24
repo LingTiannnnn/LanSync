@@ -33,6 +33,13 @@ data class UiState(
     val installStatus: AppRepository.InstallStatus? = null,
     val serverPort: Int = 0,
     val isLoading: Boolean = false,
+    val isConnecting: Boolean = false,
+    val connectingDeviceName: String? = null,
+    val connectionError: String? = null,
+    val isStarting: Boolean = false,
+    val isStopping: Boolean = false,
+    val isFetchingRemoteApps: Boolean = false,
+    val operationMessage: String? = null,
     val incomingRequests: List<IncomingConnectRequest> = emptyList(),
     val downloadedFiles: List<AppListClient.DownloadedFileInfo> = emptyList()
 )
@@ -149,9 +156,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleRunning() {
         viewModelScope.launch {
             if (_uiState.value.isRunning) {
-                repository.stop()
+                _uiState.value = _uiState.value.copy(
+                    isStopping = true,
+                    operationMessage = "正在停止服务..."
+                )
+                try {
+                    repository.stop()
+                } finally {
+                    _uiState.value = _uiState.value.copy(
+                        isStopping = false,
+                        operationMessage = null
+                    )
+                }
             } else {
-                repository.start()
+                _uiState.value = _uiState.value.copy(
+                    isStarting = true,
+                    operationMessage = "正在启动服务..."
+                )
+                try {
+                    repository.start()
+                } finally {
+                    _uiState.value = _uiState.value.copy(
+                        isStarting = false,
+                        operationMessage = null
+                    )
+                }
             }
         }
     }
@@ -168,8 +197,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connectDevice(device: DeviceInfo) {
         viewModelScope.launch {
-            repository.connectDevice(device)
+            _uiState.value = _uiState.value.copy(
+                isConnecting = true,
+                connectingDeviceName = device.deviceName,
+                connectionError = null,
+                operationMessage = "正在连接 ${device.deviceName}..."
+            )
+            try {
+                val success = repository.connectDevice(device)
+                if (!success) {
+                    _uiState.value = _uiState.value.copy(
+                        connectionError = "连接 ${device.deviceName} 失败"
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    connectionError = "连接异常: ${e.message}"
+                )
+            } finally {
+                _uiState.value = _uiState.value.copy(
+                    isConnecting = false,
+                    connectingDeviceName = null,
+                    operationMessage = null
+                )
+            }
         }
+    }
+
+    fun dismissConnectionError() {
+        _uiState.value = _uiState.value.copy(connectionError = null)
     }
 
     fun disconnectDevice(device: DeviceInfo) {
@@ -189,11 +245,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshDevices() {
-        repository.refreshDeviceAppLists()
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isFetchingRemoteApps = true,
+                operationMessage = "正在刷新..."
+            )
+            try {
+                repository.refreshDeviceAppLists()
+            } finally {
+                _uiState.value = _uiState.value.copy(
+                    isFetchingRemoteApps = false,
+                    operationMessage = null
+                )
+            }
+        }
     }
 
     fun refreshConnectedDevice(device: DeviceInfo) {
-        repository.refreshConnectedDevice(device)
+        viewModelScope.launch {
+            repository.refreshConnectedDevice(device)
+        }
     }
 
     fun checkForUpdates() {
@@ -234,8 +305,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             updates.forEach { update ->
                 Log.d(TAG, "Batch: downloading/installing ${update.remoteApp.packageName}")
-                repository.downloadApp(update)
-                repository.installApp(update)
+                _lastDownloadedUpdateInfo = update
+                repository.downloadAndInstallApp(update)
             }
             Log.i(TAG, "startBatchUpdate: completed")
         }
@@ -245,8 +316,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             Log.i(TAG, "installSelectedUpdate: pkg=${updateInfo.remoteApp.packageName} from=${updateInfo.providerDevice.deviceName}")
             _lastDownloadedUpdateInfo = updateInfo
-            repository.downloadApp(updateInfo)
-            repository.installApp(updateInfo)
+            repository.downloadAndInstallApp(updateInfo)
         }
     }
 
@@ -323,8 +393,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 Log.d(TAG, "Pulling remote app: ${entry.app.packageName} from ${entry.sourceDevice.deviceName}")
                 _lastDownloadedUpdateInfo = updateInfo
-                repository.downloadApp(updateInfo)
-                repository.installApp(updateInfo)
+                repository.downloadAndInstallApp(updateInfo)
             }
             Log.i(TAG, "pullSelectedRemoteApps: completed")
             clearRemoteAppSelection()
@@ -341,8 +410,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             Log.i(TAG, "pullRemoteApp: ${entry.app.packageName} from ${entry.sourceDevice.deviceName}")
             _lastDownloadedUpdateInfo = updateInfo
-            repository.downloadApp(updateInfo)
-            repository.installApp(updateInfo)
+            repository.downloadAndInstallApp(updateInfo)
         }
     }
 }
