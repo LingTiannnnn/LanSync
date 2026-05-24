@@ -113,22 +113,21 @@
 
 ---
 
-### P3-2：网络明文流量限制
+### P3-2：网络明文流量限制 ⚠️ 已调整
 
-**问题**：`network_security_config.xml` 的 `base-config` 允许所有明文流量。
+**原始问题**：`base-config` 允许所有明文流量。
 
-**重构方法**：
-- `base-config` 设置 `cleartextTrafficPermitted="false"`
-- `domain-config` 仅对 RFC 1918 私有 IP 段和 localhost 允许明文：
-  - `10.` → 覆盖 10.0.0.0/8
-  - `172.` → 覆盖 172.16.0.0/12（及更广的 172.0.0.0/8）
-  - `192.168.` → 覆盖 192.168.0.0/16
-  - `localhost`
-- **注意**：Android `domain` 标签使用字符串前缀匹配而非 CIDR 匹配，因此必须使用 IP 前缀（如 `172.`）而非网络地址（如 `172.16.0.0`）
+**第一次尝试**（Round 1）：`domain-config` 域名白名单（`10.`/`172.`/`192.168.`）。
+- ❌ 失败：Android `domain` 标签仅匹配域名，不匹配直连 IP 地址
+- App 通过 JmDNS 发现设备后直接连接 `http://172.30.x.x:PORT`，绕过 domain-config
 
-**🔥 紧急修复 (2025-05-25)**：初始版本使用 `172.16.0.0` 导致 `172.30.x.x` 子网连接失败（详见 `debug-cleartext-lan-connect-fail.md`）。已修正为 `172.` 前缀模式。
+**🔥 第二次修复**（Round 2）：还原 `base-config cleartextTrafficPermitted="true"`。
+- **理由**：LAN-only 应用通过直连 IP 通信，`domain-config` 对此场景无效
+- **安全性**：仅限局域网内通信，JmDNS 发现 + 用户显式操作限制范围
 
 **影响文件**：`res/xml/network_security_config.xml`
+
+**调试详情**：[debug-cleartext-lan-connect-fail.md](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/debug-cleartext-lan-connect-fail.md)
 
 ---
 
