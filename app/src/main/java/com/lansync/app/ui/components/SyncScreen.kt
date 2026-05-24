@@ -97,6 +97,7 @@ fun SyncScreen(
                     derivedStateOf {
                         syncDiffs.filter { diff ->
                             diff.sourceDevice.displayKey == currentDevice.displayKey &&
+                                diff.diffType == SyncDiff.DiffType.NEWER_ON_REMOTE &&
                                 (searchQuery.isEmpty() ||
                                     diff.appInfo.appName.contains(searchQuery, ignoreCase = true))
                         }
@@ -281,7 +282,7 @@ fun DiffItem(diff: SyncDiff) {
                 color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.15f)
             ) {
                 Text(
-                    "远程版本更新",
+                    "远程版本号更高",
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer
