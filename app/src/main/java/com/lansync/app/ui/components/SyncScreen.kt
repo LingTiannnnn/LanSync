@@ -30,6 +30,7 @@ fun SyncScreen(
     onSelectAll: () -> Unit,
     onClearSelection: () -> Unit,
     onInstallUpdate: (UpdateInfo) -> Unit,
+    onInstallSelectedUpdates: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedDevice by remember { mutableStateOf<DeviceInfo?>(connectedDevices.firstOrNull()) }
@@ -40,130 +41,165 @@ fun SyncScreen(
             EmptySyncState()
         }
     } else {
-        Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-            ConnectedDeviceChips(
-                devices = connectedDevices,
-                selectedDevice = selectedDevice,
-                onSelectDevice = { selectedDevice = it }
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            val currentDevice = selectedDevice ?: connectedDevices.firstOrNull()
-
-            if (currentDevice != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "${currentDevice.deviceName} 的同步对比",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    IconButton(onClick = { onRefreshDevice(currentDevice) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新", modifier = Modifier.size(20.dp))
-                    }
-                }
-
-                SearchBar(
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    placeholder = "搜索用户应用..."
+        Column(modifier = modifier.fillMaxSize()) {
+            Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+                ConnectedDeviceChips(
+                    devices = connectedDevices,
+                    selectedDevice = selectedDevice,
+                    onSelectDevice = { selectedDevice = it }
                 )
 
-                SectionHeader(
-                    title = "用户应用",
-                    icon = Icons.Default.Person,
-                    count = currentDevice.appList.count { !it.isSystemApp }
-                )
+                Spacer(Modifier.height(8.dp))
 
-                val deviceUpdates by remember(searchQuery, currentDevice, availableUpdates) {
-                    derivedStateOf {
-                        availableUpdates.filter { update ->
-                            update.providerDevice.displayKey == currentDevice.displayKey &&
-                                (searchQuery.isEmpty() ||
-                                    update.remoteApp.appName.contains(searchQuery, ignoreCase = true))
-                        }
-                    }
-                }
+                val currentDevice = selectedDevice ?: connectedDevices.firstOrNull()
 
-                val deviceDiffs by remember(searchQuery, currentDevice, syncDiffs) {
-                    derivedStateOf {
-                        syncDiffs.filter { diff ->
-                            diff.sourceDevice.displayKey == currentDevice.displayKey &&
-                                diff.diffType == SyncDiff.DiffType.NEWER_ON_REMOTE &&
-                                (searchQuery.isEmpty() ||
-                                    diff.appInfo.appName.contains(searchQuery, ignoreCase = true))
-                        }
-                    }
-                }
-
-                if (deviceUpdates.isEmpty() && deviceDiffs.isEmpty() && currentDevice.appList.isNotEmpty() && searchQuery.isEmpty()) {
-                    Card(
+                if (currentDevice != null) {
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text("应用版本已同步，无差异", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "${currentDevice.deviceName} 的同步对比",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+
+                    SearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        placeholder = "搜索用户应用..."
+                    )
+
+                    SectionHeader(
+                        title = "用户应用",
+                        icon = Icons.Default.Person,
+                        count = currentDevice.appList.count { !it.isSystemApp }
+                    )
+
+                    val deviceUpdates by remember(searchQuery, currentDevice, availableUpdates) {
+                        derivedStateOf {
+                            availableUpdates.filter { update ->
+                                update.providerDevice.displayKey == currentDevice.displayKey &&
+                                    (searchQuery.isEmpty() ||
+                                        update.remoteApp.appName.contains(searchQuery, ignoreCase = true))
+                            }
+                        }
+                    }
+
+                    val deviceDiffs by remember(searchQuery, currentDevice, syncDiffs) {
+                        derivedStateOf {
+                            syncDiffs.filter { diff ->
+                                diff.sourceDevice.displayKey == currentDevice.displayKey &&
+                                    diff.diffType == SyncDiff.DiffType.NEWER_ON_REMOTE &&
+                                    (searchQuery.isEmpty() ||
+                                        diff.appInfo.appName.contains(searchQuery, ignoreCase = true))
+                            }
+                        }
+                    }
+
+                    if (deviceUpdates.isEmpty() && deviceDiffs.isEmpty() && currentDevice.appList.isNotEmpty() && searchQuery.isEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
+                                Spacer(Modifier.height(8.dp))
+                                Text("应用版本已同步，无差异", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (deviceUpdates.isNotEmpty()) {
+                                item(key = "header_updates") {
+                                    SectionHeader(
+                                        title = "可更新",
+                                        icon = Icons.Default.NewReleases,
+                                        count = deviceUpdates.size,
+                                        showSelectButtons = true,
+                                        areAllSelected = deviceUpdates.all { it.remoteApp.packageName in selectedUpdates },
+                                        onSelectAll = onSelectAll,
+                                        onClearSelection = onClearSelection
+                                    )
+                                }
+                                items(deviceUpdates, key = { "sync_update_${it.remoteApp.packageName}" }) { update ->
+                                    UpdateItem(
+                                        updateInfo = update,
+                                        isSelected = update.remoteApp.packageName in selectedUpdates,
+                                        onToggleSelected = onToggleSelected,
+                                        onInstall = { onInstallUpdate(update) }
+                                    )
+                                }
+                            }
+
+                            if (deviceDiffs.isNotEmpty()) {
+                                item(key = "header_diffs") {
+                                    SectionHeader(
+                                        title = "版本差异",
+                                        icon = Icons.Default.CompareArrows,
+                                        count = deviceDiffs.size
+                                    )
+                                }
+                                items(deviceDiffs, key = { "diff_${it.appInfo.packageName}" }) { diff ->
+                                    DiffItem(diff = diff)
+                                }
+                            }
+
+                            if (deviceUpdates.isEmpty() && deviceDiffs.isEmpty()) {
+                                item(key = "empty") {
+                                    EmptyStateCard(
+                                        message = if (searchQuery.isNotEmpty()) "未找到匹配「$searchQuery」的用户应用"
+                                        else "该设备暂无用户应用"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (selectedUpdates.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (deviceUpdates.isNotEmpty()) {
-                            item(key = "header_updates") {
-                                SectionHeader(
-                                    title = "可更新",
-                                    icon = Icons.Default.NewReleases,
-                                    count = deviceUpdates.size,
-                                    showSelectButtons = true,
-                                    areAllSelected = deviceUpdates.all { it.remoteApp.packageName in selectedUpdates },
-                                    onSelectAll = onSelectAll,
-                                    onClearSelection = onClearSelection
-                                )
-                            }
-                            items(deviceUpdates, key = { "sync_update_${it.remoteApp.packageName}" }) { update ->
-                                UpdateItem(
-                                    updateInfo = update,
-                                    isSelected = update.remoteApp.packageName in selectedUpdates,
-                                    onToggleSelected = onToggleSelected,
-                                    onInstall = { onInstallUpdate(update) }
-                                )
-                            }
-                        }
-
-                        if (deviceDiffs.isNotEmpty()) {
-                            item(key = "header_diffs") {
-                                SectionHeader(
-                                    title = "版本差异",
-                                    icon = Icons.Default.CompareArrows,
-                                    count = deviceDiffs.size
-                                )
-                            }
-                            items(deviceDiffs, key = { "diff_${it.appInfo.packageName}" }) { diff ->
-                                DiffItem(diff = diff)
-                            }
-                        }
-
-                        if (deviceUpdates.isEmpty() && deviceDiffs.isEmpty()) {
-                            item(key = "empty") {
-                                EmptyStateCard(
-                                    message = if (searchQuery.isNotEmpty()) "未找到匹配「$searchQuery」的用户应用"
-                                    else "该设备暂无用户应用"
-                                )
-                            }
+                        Text(
+                            text = "已选择 ${selectedUpdates.size} 个应用",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Button(
+                            onClick = onInstallSelectedUpdates,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("一键更新", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
