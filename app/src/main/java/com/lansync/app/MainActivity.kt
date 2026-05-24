@@ -242,6 +242,7 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
                     onSelectAll = { viewModel.selectAllUpdates() },
                     onClearSelection = { viewModel.clearSelection() },
                     onInstallUpdate = { viewModel.installSelectedUpdate(it) },
+                    onInstallSelectedUpdates = { viewModel.startBatchUpdate() },
                     modifier = Modifier.padding(paddingValues)
                 )
             }
