@@ -99,14 +99,10 @@ class AppPacker(private val context: Context) {
 
                     zos.closeEntry()
                 } catch (e: SecurityException) {
-                    // Skip files that cannot be read
                 } catch (e: Exception) {
-                    // Skip problematic files
                 }
             }
         }
-    }
-        return apksDir.listFiles()?.sumOf { it.length() } ?: 0L
     }
 
     fun clearCache() {
