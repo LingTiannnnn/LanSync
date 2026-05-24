@@ -5,7 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
+import com.lansync.app.data.FileLogger
 import com.lansync.app.data.model.AppInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,7 +29,7 @@ class AppScanner(private val context: Context) {
             packageManager.getInstalledPackages(PackageManager.GET_META_DATA)
         }
 
-        Log.i(TAG, "getInstalledPackages returned ${packages.size} total packages")
+        FileLogger.i(TAG, "getInstalledPackages returned ${packages.size} total packages")
 
         val results = packages.mapNotNull { packageInfo ->
             extractAppInfo(packageInfo, packageManager)
@@ -37,10 +37,10 @@ class AppScanner(private val context: Context) {
 
         val userCount = results.count { !it.isSystemApp }
         val systemCount = results.count { it.isSystemApp }
-        Log.i(TAG, "Scan complete: ${results.size} apps (user=$userCount, system=$systemCount)")
+        FileLogger.i(TAG, "Scan complete: ${results.size} apps (user=$userCount, system=$systemCount)")
 
         if (results.size < packages.size) {
-            Log.w(TAG, "${packages.size - results.size} packages were filtered out during extraction")
+            FileLogger.w(TAG, "${packages.size - results.size} packages were filtered out during extraction")
         }
 
         results

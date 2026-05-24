@@ -5,8 +5,12 @@ import com.lansync.app.data.connection.ConnectionManager
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.ConnectRequestPayload
-import com.lansync.app.data.model.ConnectResponsePayload
+import com.lansync.app.data.model.ConnectResponseBody
+import com.lansync.app.data.model.ConnectStatusResponse
+import com.lansync.app.data.model.DeviceInfoResponse
 import com.lansync.app.data.model.DisconnectPayload
+import com.lansync.app.data.model.GenericStatusResponse
+import com.lansync.app.data.model.RefreshAppListPayload
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
@@ -69,6 +73,10 @@ class KtorServer(private val context: Context) {
             }
 
             routing {
+                get("/api/ping") {
+                    call.respond(GenericStatusResponse(status = "pong"))
+                }
+
                 get("/api/applist") {
                     val apps = appListProvider?.invoke() ?: emptyList()
                     FileLogger.d("KtorServer", "GET /api/applist -> returning ${apps.size} apps")
@@ -93,7 +101,7 @@ class KtorServer(private val context: Context) {
 
                             if (received) {
                                 FileLogger.d("KtorServer", "POST /api/connect/request -> 200 OK, id=${payload.requestId}")
-                                call.respondText("""{"status":"pending","requestId":"${payload.requestId}"}""", ContentType.Application.Json)
+                                call.respond(ConnectStatusResponse(status = "pending", requestId = payload.requestId))
                             } else {
                                 FileLogger.w("KtorServer", "POST /api/connect/request -> 409 Conflict (duplicate), id=${payload.requestId}")
                                 call.respondText("Duplicate request", status = HttpStatusCode.Conflict)
@@ -111,26 +119,29 @@ class KtorServer(private val context: Context) {
                         val manager = connectionManager
 
                         if (manager == null || requestId.isEmpty()) {
-                            call.respondText("""{"status":"pending"}""", ContentType.Application.Json)
+                            call.respond(ConnectStatusResponse(status = "pending"))
                             return@get
                         }
 
                         val response = manager.getStatus(requestId)
 
                         if (response == null) {
-                            call.respondText("""{"status":"pending"}""", ContentType.Application.Json)
+                            call.respond(ConnectStatusResponse(status = "pending"))
                         } else {
                             val status = if (response.accepted) "accepted" else "rejected"
-                            val escapedName = (response.responderName ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
-                            val escapedMsg = (response.message ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
-                            call.respondText(
-                                """{"status":"$status","accepted":${response.accepted},"responderName":"$escapedName","message":"$escapedMsg"}""",
-                                ContentType.Application.Json
+                            call.respond(
+                                ConnectStatusResponse(
+                                    status = status,
+                                    requestId = requestId,
+                                    accepted = response.accepted,
+                                    responderName = response.responderName,
+                                    message = response.message
+                                )
                             )
                         }
                     } catch (e: Exception) {
                         FileLogger.e("KtorServer", "GET /api/connect/status error: ${e.message}", e)
-                        call.respondText("""{"status":"pending"}""", ContentType.Application.Json)
+                        call.respond(ConnectStatusResponse(status = "pending"))
                     }
                 }
 
@@ -145,8 +156,8 @@ class KtorServer(private val context: Context) {
                                 return@withContext
                             }
 
-                            val body = call.receiveText()
-                            val accepted = body.contains("\"accepted\"\\s*:\\s*true".toRegex())
+                            val body = call.receive<ConnectResponseBody>()
+                            val accepted = body.accepted
 
                             val response = manager.respondToRequest(requestId, accepted)
 
@@ -273,9 +284,10 @@ class KtorServer(private val context: Context) {
                         withContext(Dispatchers.IO) {
                             try {
                                 val payload = call.receive<DisconnectPayload>()
-                                FileLogger.i("KtorServer", "POST /api/disconnect from=${payload.displayKey}")
-                                disconnectHandler?.invoke(payload.displayKey)
-                                call.respondText("""{"status":"ok"}""", ContentType.Application.Json)
+                                val key = if (payload.identityKey.isNotEmpty()) payload.identityKey else payload.displayKey
+                                FileLogger.i("KtorServer", "POST /api/disconnect from=$key")
+                                disconnectHandler?.invoke(key)
+                                call.respond(GenericStatusResponse())
                             } catch (e: Exception) {
                                 FileLogger.e("KtorServer", "POST /api/disconnect error: ${e.message}", e)
                                 call.respondText("Invalid request", status = HttpStatusCode.BadRequest)
@@ -286,13 +298,12 @@ class KtorServer(private val context: Context) {
                     post("/api/refresh-applist") {
                         withContext(Dispatchers.IO) {
                             try {
-                                val body = call.receiveText()
-                                val pattern = """"displayKey"\s*:\s*"([^"]+)"""".toRegex()
-                                val displayKey = pattern.find(body)?.groupValues?.get(1) ?: ""
+                                val payload = call.receive<RefreshAppListPayload>()
+                                val displayKey = payload.displayKey
                                 if (displayKey.isNotEmpty()) {
                                     refreshAppListHandler?.invoke(displayKey)
                                 }
-                                call.respondText("""{"status":"ok"}""", ContentType.Application.Json)
+                                call.respond(GenericStatusResponse())
                             } catch (e: Exception) {
                                 call.respondText("Invalid request", status = HttpStatusCode.BadRequest)
                             }
@@ -300,8 +311,7 @@ class KtorServer(private val context: Context) {
                     }
 
                     get("/api/deviceinfo") {
-                    val escapedName = android.os.Build.MODEL.replace("\\", "\\\\").replace("\"", "\\\"")
-                    call.respondText("""{"deviceName":"$escapedName","version":"1.0"}""", ContentType.Application.Json)
+                    call.respond(DeviceInfoResponse(deviceName = android.os.Build.MODEL))
                 }
             }
         }

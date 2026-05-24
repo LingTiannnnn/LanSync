@@ -24,6 +24,7 @@ import com.lansync.app.data.model.UpdateInfo
 fun RemoteAppListScreen(
     connectedDevices: List<DeviceInfo>,
     selectedPackages: Set<String>,
+    isRefreshing: Boolean = false,
     onToggleSelected: (String) -> Unit,
     onSelectAll: (List<RemoteAppEntry>) -> Unit,
     onClearSelection: () -> Unit,
@@ -34,6 +35,7 @@ fun RemoteAppListScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(AppCategory.ALL) }
+    var hasTriggeredInitialRefresh by remember { mutableStateOf(false) }
 
     val remoteEntries by remember(connectedDevices) {
         derivedStateOf {
@@ -50,11 +52,19 @@ fun RemoteAppListScreen(
         }
     }
 
+    val connectedDeviceCount = connectedDevices.count {
+        it.connectionState == ConnectionState.CONNECTED || it.connectionState == ConnectionState.RECONNECTING
+    }
+
     LaunchedEffect(connectedDevices) {
         val hasEmptyAppList = connectedDevices.isNotEmpty() &&
             connectedDevices.any { it.connectionState == ConnectionState.CONNECTED && it.appList.isEmpty() }
-        if (hasEmptyAppList) {
+        if (hasEmptyAppList && !hasTriggeredInitialRefresh) {
+            hasTriggeredInitialRefresh = true
             onRefresh()
+        }
+        if (connectedDevices.all { it.appList.isNotEmpty() || it.connectionState != ConnectionState.CONNECTED }) {
+            hasTriggeredInitialRefresh = false
         }
     }
 
@@ -132,7 +142,16 @@ fun RemoteAppListScreen(
                     )
                 }
             }
-        } else if (remoteEntries.isEmpty()) {
+        } else {
+            MultiDeviceSummary(
+                connectedCount = connectedDeviceCount,
+                totalApps = remoteEntries.size,
+                isRefreshing = isRefreshing,
+                onRefresh = onRefresh
+            )
+        }
+
+        if (connectedDevices.isNotEmpty() && remoteEntries.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -244,6 +263,78 @@ fun RemoteAppListScreen(
             }
         }
     }
+}
+
+@Composable
+fun MultiDeviceSummary(
+    connectedCount: Int,
+    totalApps: Int,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Devices,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Column {
+                    Text(
+                        text = "已连接 $connectedCount 台设备",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "共 $totalApps 个远程应用",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (isRefreshing) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "刷新中...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "刷新",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(4.dp))
 }
 
 @Composable

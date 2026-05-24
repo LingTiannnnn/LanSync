@@ -1,6 +1,5 @@
 package com.lansync.app.data.connection
 
-import android.util.Log
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.model.ConnectRequestPayload
 import com.lansync.app.data.model.ConnectResponsePayload
@@ -38,6 +37,7 @@ class ConnectionManager(private val localDeviceName: String) {
             requesterName = payload.requesterName,
             requesterIp = payload.requesterIp,
             requesterPort = payload.requesterPort,
+            requesterInstanceId = payload.requesterInstanceId,
             timestamp = payload.timestamp
         )
 
@@ -50,7 +50,7 @@ class ConnectionManager(private val localDeviceName: String) {
         }
         timeoutJobs[payload.requestId] = timeoutJob
 
-        Log.i(TAG, "Received connection request from ${payload.requesterName} (${payload.requesterIp}:${payload.requesterPort}), id=${payload.requestId}")
+        FileLogger.i(TAG, "Received connection request from ${payload.requesterName} (${payload.requesterIp}:${payload.requesterPort}), id=${payload.requestId}")
         FileLogger.i(TAG, "REQUEST_RECEIVED id=${payload.requestId} from=${payload.requesterName} ip=${payload.requesterIp}:${payload.requesterPort}")
         return true
     }
@@ -70,7 +70,6 @@ class ConnectionManager(private val localDeviceName: String) {
             IncomingConnectRequest.RequestStatus.REJECTED
         }
 
-        Log.i(TAG, "Request $requestId from ${request.requesterName}: $oldStatus -> ${request.status}")
         FileLogger.i(TAG, "REQUEST_RESPONDED id=$requestId from=${request.requesterName} old=$oldStatus new=${request.status} accepted=$accepted")
 
         refreshIncomingList()
@@ -130,7 +129,7 @@ class ConnectionManager(private val localDeviceName: String) {
         val request = pendingRequests[requestId]
         if (request != null && request.status == IncomingConnectRequest.RequestStatus.PENDING) {
             request.status = IncomingConnectRequest.RequestStatus.TIMEOUT
-            Log.i(TAG, "Request $requestId from ${request.requesterName}: auto-rejected (timeout)")
+            FileLogger.i(TAG, "Request $requestId from ${request.requesterName}: auto-rejected (timeout)")
             refreshIncomingList()
         }
         timeoutJobs.remove(requestId)

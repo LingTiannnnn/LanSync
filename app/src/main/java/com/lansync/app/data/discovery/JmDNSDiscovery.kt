@@ -3,10 +3,11 @@ package com.lansync.app.data.discovery
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.text.format.Formatter
-import android.util.Log
+import com.lansync.app.data.FileLogger
 import com.lansync.app.data.model.DeviceInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,9 +28,9 @@ class JmDNSDiscovery(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val TAG = "JmDNSDiscovery"
     private var jmdns: JmDNS? = null
     private var registeredService: ServiceInfo? = null
+    private var refreshJob: Job? = null
     private val _discoveredDevices = MutableStateFlow<List<DeviceInfo>>(emptyList())
     val discoveredDevices: Flow<List<DeviceInfo>> = _discoveredDevices.asStateFlow()
 
@@ -38,13 +39,28 @@ class JmDNSDiscovery(
     private var isRunning = false
     private var multicastLock: WifiManager.MulticastLock? = null
 
-    private val instanceId = UUID.randomUUID().toString()
+    private val instanceId = loadOrGenerateInstanceId()
+
+    fun getInstanceId(): String = instanceId
+
+    private fun loadOrGenerateInstanceId(): String {
+        val prefs = context.getSharedPreferences("lansync_device", Context.MODE_PRIVATE)
+        val existing = prefs.getString("device_instance_id", null)
+        if (existing != null) {
+            FileLogger.d(TAG, "Loaded persistent instanceId: ${existing.take(8)}...")
+            return existing
+        }
+        val newId = UUID.randomUUID().toString()
+        prefs.edit().putString("device_instance_id", newId).apply()
+        FileLogger.i(TAG, "Generated new persistent instanceId: ${newId.take(8)}...")
+        return newId
+    }
 
     fun isRunning(): Boolean = isRunning
 
     suspend fun startDiscovery(port: Int) {
         if (isRunning) {
-            Log.w(TAG, "Discovery already running")
+            FileLogger.w(TAG, "Discovery already running")
             return
         }
 
@@ -62,9 +78,9 @@ class JmDNSDiscovery(
             registerService(port, hostname)
             startListening()
 
-            Log.i(TAG, "JmDNS discovery started on ${localAddress.hostAddress}:$port, instanceId=$instanceId")
+            FileLogger.i(TAG, "JmDNS discovery started on ${localAddress.hostAddress}:$port, instanceId=$instanceId")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start JmDNS discovery", e)
+            FileLogger.e(TAG, "Failed to start JmDNS discovery", e)
             stopDiscovery()
             throw e
         }
@@ -76,17 +92,19 @@ class JmDNSDiscovery(
             setReferenceCounted(true)
             acquire()
         }
-        Log.i(TAG, "Multicast lock acquired")
+        FileLogger.i(TAG, "Multicast lock acquired")
     }
 
     fun stopDiscovery() {
         isRunning = false
+        refreshJob?.cancel()
+        refreshJob = null
 
         try {
             registeredService?.let { jmdns?.unregisterService(it) }
             jmdns?.close()
         } catch (e: IOException) {
-            Log.e(TAG, "Error stopping JmDNS", e)
+            FileLogger.e(TAG, "Error stopping JmDNS", e)
         }
 
         multicastLock?.let {
@@ -96,7 +114,7 @@ class JmDNSDiscovery(
 
         deviceMap.clear()
         _discoveredDevices.value = emptyList()
-        Log.i(TAG, "JmDNS discovery stopped")
+        FileLogger.i(TAG, "JmDNS discovery stopped")
     }
 
     private fun registerService(port: Int, hostname: String) {
@@ -113,25 +131,25 @@ class JmDNSDiscovery(
         )
         jmdns?.registerService(serviceInfo)
         registeredService = serviceInfo
-        Log.i(TAG, "Registered service: ${serviceInfo.name} on port $port")
+        FileLogger.i(TAG, "Registered service: ${serviceInfo.name} on port $port")
     }
 
     private fun addOrUpdateDevice(info: ServiceInfo): Boolean {
         val remoteInstanceId = info.getPropertyString("instanceId")
 
         if (remoteInstanceId.isNullOrEmpty()) {
-            Log.d(TAG, "Ignoring service without instanceId: ${info.name} (not a LanSync device)")
+            FileLogger.d(TAG, "Ignoring service without instanceId: ${info.name} (not a LanSync device)")
             return false
         }
 
         if (remoteInstanceId == instanceId) {
-            Log.d(TAG, "Ignoring local device (same instanceId=$instanceId)")
+            FileLogger.d(TAG, "Ignoring local device (same instanceId=$instanceId)")
             return false
         }
 
         val addresses = info.inetAddresses
         if (addresses.isEmpty()) {
-            Log.w(TAG, "No addresses for service: ${info.name}")
+            FileLogger.w(TAG, "No addresses for service: ${info.name}")
             return false
         }
 
@@ -150,6 +168,7 @@ class JmDNSDiscovery(
             ipAddress = ipAddress,
             deviceName = deviceName,
             port = port,
+            instanceId = remoteInstanceId,
             appList = emptyList()
         )
 
@@ -157,7 +176,7 @@ class JmDNSDiscovery(
         if (existing == null || existing.deviceName != deviceName) {
             deviceMap[key] = newDevice
             _discoveredDevices.value = deviceMap.values.toList()
-            Log.i(TAG, "Device discovered: $deviceName ($ipAddress:$port)")
+            FileLogger.i(TAG, "Device discovered: $deviceName ($ipAddress:$port)")
             return true
         }
         return false
@@ -166,7 +185,7 @@ class JmDNSDiscovery(
     private fun removeDeviceByKey(key: DeviceKey) {
         if (deviceMap.remove(key) != null) {
             _discoveredDevices.value = deviceMap.values.toList()
-            Log.i(TAG, "Device removed: $key")
+            FileLogger.i(TAG, "Device removed: $key")
         }
     }
 
@@ -183,7 +202,7 @@ class JmDNSDiscovery(
         jmdns?.addServiceListener(serviceType, object : javax.jmdns.ServiceListener {
             override fun serviceAdded(event: javax.jmdns.ServiceEvent?) {
                 event?.let {
-                    Log.d(TAG, "Service added: ${it.name}, requesting info")
+                    FileLogger.d(TAG, "Service added: ${it.name}, requesting info")
                     jmdns?.requestServiceInfo(it.type, it.name, true, 3000)
                 }
             }
@@ -209,12 +228,12 @@ class JmDNSDiscovery(
             }
         })
 
-        scope.launch {
+        refreshJob = scope.launch {
             while (isActive && isRunning) {
                 kotlinx.coroutines.delay(15000)
                 jmdns?.let { dns ->
                     try {
-                        Log.d(TAG, "Refreshing services...")
+                        FileLogger.d(TAG, "Refreshing services...")
                         val services = dns.list(serviceType)
                         val currentKeys = mutableSetOf<DeviceKey>()
                         for (si in services) {
@@ -236,7 +255,7 @@ class JmDNSDiscovery(
                             removeDeviceByKey(key)
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "Error refreshing services", e)
+                        FileLogger.w(TAG, "Error refreshing services", e)
                     }
                 }
             }
@@ -247,7 +266,7 @@ class JmDNSDiscovery(
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val ipInt = wifiManager.connectionInfo.ipAddress
         if (ipInt == 0) {
-            Log.w(TAG, "WiFi ipAddress is 0, trying network interface")
+            FileLogger.w(TAG, "WiFi ipAddress is 0, trying network interface")
             try {
                 val interfaces = NetworkInterface.getNetworkInterfaces()
                 while (interfaces.hasMoreElements()) {
@@ -259,11 +278,11 @@ class JmDNSDiscovery(
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error finding fallback IP", e)
+                FileLogger.e(TAG, "Error finding fallback IP", e)
             }
         }
         val ipAddress = Formatter.formatIpAddress(ipInt)
-        Log.d(TAG, "Local IP Address: $ipAddress")
+        FileLogger.d(TAG, "Local IP Address: $ipAddress")
         return InetAddress.getByName(ipAddress)
     }
 
@@ -271,5 +290,9 @@ class JmDNSDiscovery(
         android.os.Build.MODEL
     } catch (e: Exception) {
         "UnknownDevice"
+    }
+
+    companion object {
+        private const val TAG = "JmDNSDiscovery"
     }
 }

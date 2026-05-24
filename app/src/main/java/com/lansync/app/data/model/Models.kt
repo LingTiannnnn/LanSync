@@ -30,12 +30,17 @@ data class DeviceInfo(
     val ipAddress: String,
     val deviceName: String,
     val port: Int,
+    val instanceId: String = "",
     val appList: List<AppInfo> = emptyList(),
     val connectionState: ConnectionState = ConnectionState.DISCOVERED,
     val lastSeenTimeMs: Long = System.currentTimeMillis(),
     val connectionError: String? = null
 ) {
     val displayKey: String get() = "$ipAddress:$port"
+
+    val identityKey: String get() =
+        if (instanceId.isNotEmpty()) instanceId
+        else "$deviceName@$ipAddress"
 }
 
 data class UpdateInfo(
@@ -66,6 +71,7 @@ data class ConnectRequestPayload(
     val requesterName: String,
     val requesterIp: String,
     val requesterPort: Int,
+    val requesterInstanceId: String = "",
     val timestamp: Long
 )
 
@@ -82,13 +88,49 @@ data class IncomingConnectRequest(
     val requesterName: String,
     val requesterIp: String,
     val requesterPort: Int,
+    val requesterInstanceId: String = "",
     val timestamp: Long,
     var status: RequestStatus = RequestStatus.PENDING
 ) {
     enum class RequestStatus { PENDING, ACCEPTED, REJECTED, TIMEOUT }
+
+    val identityKey: String get() =
+        if (requesterInstanceId.isNotEmpty()) requesterInstanceId
+        else "$requesterName@$requesterIp"
 }
 
 @Serializable
 data class DisconnectPayload(
+    val displayKey: String,
+    val identityKey: String = ""
+)
+
+@Serializable
+data class ConnectStatusResponse(
+    val status: String,
+    val requestId: String? = null,
+    val accepted: Boolean = false,
+    val responderName: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class DeviceInfoResponse(
+    val deviceName: String,
+    val version: String = "1.0"
+)
+
+@Serializable
+data class GenericStatusResponse(
+    val status: String = "ok"
+)
+
+@Serializable
+data class ConnectResponseBody(
+    val accepted: Boolean
+)
+
+@Serializable
+data class RefreshAppListPayload(
     val displayKey: String
 )

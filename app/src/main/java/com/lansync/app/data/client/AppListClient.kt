@@ -1,19 +1,21 @@
 package com.lansync.app.data.client
 
 import android.content.Context
-import android.util.Log
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.connection.ConnectionManager
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.ConnectRequestPayload
-import com.lansync.app.data.model.ConnectResponsePayload
+import com.lansync.app.data.model.ConnectResponseBody
+import com.lansync.app.data.model.ConnectStatusResponse
 import com.lansync.app.data.model.DisconnectPayload
+import com.lansync.app.data.model.RefreshAppListPayload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -27,9 +29,11 @@ import java.util.concurrent.TimeUnit
 class AppListClient(private val context: Context) {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
+        .connectionPool(ConnectionPool(maxIdleConnections = 5, keepAliveDuration = 5, TimeUnit.MINUTES))
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
@@ -48,7 +52,8 @@ class AppListClient(private val context: Context) {
         targetIp: String,
         targetPort: Int,
         localDeviceName: String,
-        localPort: Int
+        localPort: Int,
+        localInstanceId: String = ""
     ): String? {
         return withContext(Dispatchers.IO) {
             try {
@@ -58,6 +63,7 @@ class AppListClient(private val context: Context) {
                     requesterName = localDeviceName,
                     requesterIp = getLocalIpAddress(),
                     requesterPort = localPort,
+                    requesterInstanceId = localInstanceId,
                     timestamp = System.currentTimeMillis()
                 )
 
@@ -78,7 +84,7 @@ class AppListClient(private val context: Context) {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to send connect request to $targetIp:$targetPort", e)
+                FileLogger.e(TAG, "Failed to send connect request to $targetIp:$targetPort", e)
                 null
             }
         }
@@ -139,33 +145,9 @@ class AppListClient(private val context: Context) {
                     return null
                 }
 
-                if (body.contains("\"status\"") && body.contains("\"pending\"")) {
-                    delay(pollIntervalMs)
-                    return null
-                }
-
-                if (body.contains("\"status\"") && body.contains("\"accepted\"")) {
-                    val responderName = extractJsonValue(body, "responderName") ?: "Unknown"
-                    FileLogger.i(TAG, "Poll ACCEPTED: responder=$responderName")
-                    return ConnectResult.Accepted(responderName)
-                }
-
-                if (body.contains("\"status\"") && body.contains("\"rejected\"")) {
-                    val message = extractJsonValue(body, "message") ?: "Rejected"
-                    FileLogger.i(TAG, "Poll REJECTED: message=$message")
-                    return ConnectResult.Rejected(message)
-                }
-
-                if (body.contains("\"accepted\"") && body.contains("true")) {
-                    val responderName = extractJsonValue(body, "responderName") ?: "Unknown"
-                    FileLogger.i(TAG, "Poll ACCEPTED (legacy): responder=$responderName")
-                    return ConnectResult.Accepted(responderName)
-                }
-
-                if (body.contains("\"accepted\"") && body.contains("false")) {
-                    val message = extractJsonValue(body, "message") ?: "Rejected"
-                    FileLogger.i(TAG, "Poll REJECTED (legacy): message=$message")
-                    return ConnectResult.Rejected(message)
+                val pollResult = tryParseConnectStatus(body)
+                if (pollResult != null) {
+                    return pollResult
                 }
 
                 delay(pollIntervalMs)
@@ -178,9 +160,25 @@ class AppListClient(private val context: Context) {
         }
     }
 
-    private fun extractJsonValue(json: String, key: String): String? {
-        val pattern = """"$key"\s*:\s*"?([^",}]+)"?""".toRegex()
-        return pattern.find(json)?.groupValues?.get(1)?.trim()
+    private fun tryParseConnectStatus(body: String): ConnectResult? {
+        try {
+            val statusResponse = json.decodeFromString<ConnectStatusResponse>(body)
+            when (statusResponse.status) {
+                "pending" -> return null
+                "accepted" -> {
+                    val responderName = statusResponse.responderName ?: "Unknown"
+                    FileLogger.i(TAG, "Poll ACCEPTED: responder=$responderName")
+                    return ConnectResult.Accepted(responderName)
+                }
+                "rejected" -> {
+                    val message = statusResponse.message ?: "Rejected"
+                    FileLogger.i(TAG, "Poll REJECTED: message=$message")
+                    return ConnectResult.Rejected(message)
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return null
     }
 
     suspend fun sendConnectResponse(
@@ -191,7 +189,7 @@ class AppListClient(private val context: Context) {
     ): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val jsonBody = """{"accepted":$accepted}"""
+                val jsonBody = json.encodeToString(ConnectResponseBody(accepted))
                     .toRequestBody("application/json".toMediaType())
 
                 val url = "http://$targetIp:$targetPort/api/connect/response/$requestId"
@@ -204,7 +202,7 @@ class AppListClient(private val context: Context) {
                     response.isSuccessful
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to send connect response to $targetIp:$targetPort", e)
+                FileLogger.e(TAG, "Failed to send connect response to $targetIp:$targetPort", e)
                 false
             }
         }
@@ -239,7 +237,7 @@ class AppListClient(private val context: Context) {
                     json.decodeFromString<List<AppInfo>>(responseBody)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch app list from $ipAddress:$port", e)
+                FileLogger.e(TAG, "Failed to fetch app list from $ipAddress:$port", e)
                 null
             }
         }
@@ -272,15 +270,39 @@ class AppListClient(private val context: Context) {
         }
     }
 
+    suspend fun pingDevice(ipAddress: String, port: Int, timeoutMs: Long = 3000L): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = "http://$ipAddress:$port/api/ping"
+                val request = Request.Builder()
+                    .url(url)
+                    .get()
+                    .build()
+
+                val pingClient = client.newBuilder()
+                    .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .build()
+
+                pingClient.newCall(request).execute().use { response ->
+                    response.isSuccessful
+                }
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
+
     suspend fun sendDisconnectNotification(
         targetIp: String,
         targetPort: Int,
-        localDisplayKey: String
+        localDisplayKey: String,
+        localIdentityKey: String = ""
     ): Boolean {
         return withContext(Dispatchers.IO) {
             try {
                 val url = "http://$targetIp:$targetPort/api/disconnect"
-                val payload = DisconnectPayload(displayKey = localDisplayKey)
+                val payload = DisconnectPayload(displayKey = localDisplayKey, identityKey = localIdentityKey)
                 val jsonBody = json.encodeToString(payload)
                     .toRequestBody("application/json".toMediaType())
 
@@ -306,7 +328,7 @@ class AppListClient(private val context: Context) {
         return withContext(Dispatchers.IO) {
             try {
                 val url = "http://$targetIp:$targetPort/api/refresh-applist"
-                val jsonBody = """{"displayKey":"$localDisplayKey"}"""
+                val jsonBody = json.encodeToString(RefreshAppListPayload(localDisplayKey))
                     .toRequestBody("application/json".toMediaType())
 
                 val request = Request.Builder()

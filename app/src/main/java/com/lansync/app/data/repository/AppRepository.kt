@@ -1,7 +1,6 @@
-package com.lansync.app.data.repository
+﻿package com.lansync.app.data.repository
 
 import android.content.Context
-import android.util.Log
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.client.AppListClient
 import com.lansync.app.data.connection.ConnectionManager
@@ -77,6 +76,9 @@ class AppRepository(context: Context) {
 
     private var connectionManagerJob: Job? = null
     private val heartbeatJobs = ConcurrentHashMap<String, Job>()
+    private val syncJobs = ConcurrentHashMap<String, Job>()
+    private val heartbeatFailCounts = ConcurrentHashMap<String, Int>()
+    private val connectingDevices = ConcurrentHashMap<String, Boolean>()
 
     private fun getLocalDisplayKey(): String {
         val port = _serverPort.value
@@ -94,97 +96,179 @@ class AppRepository(context: Context) {
 
     fun handleRemoteDisconnect(remoteDisplayKey: String) {
         scope.launch {
-            Log.i(TAG, "Remote disconnect notification from $remoteDisplayKey")
-            stopHeartbeat(remoteDisplayKey)
-
-            val connected = _connectedDevices.value.toMutableList()
-            val idx = connected.indexOfFirst { it.displayKey == remoteDisplayKey }
-            if (idx >= 0) {
-                val disconnected = connected.removeAt(idx).copy(
-                    connectionState = ConnectionState.DISCONNECTED,
-                    appList = emptyList()
-                )
-                _connectedDevices.value = connected
-                addOrUpdateInEnriched(disconnected)
-                Log.i(TAG, "Device $remoteDisplayKey marked as DISCONNECTED (remote initiated)")
-            }
-
-            val enriched = _enrichedDevices.value.toMutableList()
-            val eidx = enriched.indexOfFirst { it.displayKey == remoteDisplayKey }
-            if (eidx >= 0 && enriched[eidx].connectionState != ConnectionState.DISCONNECTED) {
-                enriched[eidx] = enriched[eidx].copy(
-                    connectionState = ConnectionState.DISCONNECTED,
-                    appList = emptyList()
-                )
-                _enrichedDevices.value = enriched
+            FileLogger.i(TAG, "Remote disconnect notification from $remoteDisplayKey")
+            handleDisconnectByKey { device ->
+                device.displayKey == remoteDisplayKey || device.identityKey == remoteDisplayKey
             }
         }
+    }
+
+    private suspend fun handleDisconnectByKey(matchFn: (DeviceInfo) -> Boolean) {
+        val connected = _connectedDevices.value.toMutableList()
+        val matchingConnected = connected.filter(matchFn)
+        if (matchingConnected.isEmpty()) {
+            FileLogger.d(TAG, "handleDisconnect: no matching connected device found")
+            return
+        }
+
+        for (device in matchingConnected) {
+            stopHeartbeat(device.displayKey)
+            stopSyncJob(device.displayKey)
+            heartbeatFailCounts.remove(device.displayKey)
+
+            connected.removeAll { it.displayKey == device.displayKey }
+            FileLogger.i(TAG, "Device ${device.deviceName} (${device.displayKey}) marked as DISCONNECTED (remote initiated), appList preserved (${device.appList.size} apps)")
+        }
+        _connectedDevices.value = connected
+
+        val enriched = _enrichedDevices.value.toMutableList()
+        for (device in matchingConnected) {
+            val eidx = enriched.indexOfFirst { it.displayKey == device.displayKey }
+            if (eidx >= 0) {
+                enriched[eidx] = enriched[eidx].copy(
+                    connectionState = ConnectionState.DISCONNECTED,
+                    appList = enriched[eidx].appList
+                )
+            }
+        }
+        _enrichedDevices.value = enriched
     }
 
     private fun startHeartbeat(device: DeviceInfo) {
         val key = device.displayKey
         heartbeatJobs[key]?.cancel()
+        heartbeatFailCounts.remove(key)
+
         heartbeatJobs[key] = scope.launch {
-            delay(HEARTBEAT_INTERVAL_MS)
+            delay(HEARTBEAT_PING_INTERVAL_MS)
             while (isActive) {
                 try {
-                    runHeartbeatCycle(device)
+                    runHeartbeatPing(device)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Heartbeat error for ${device.deviceName}: ${e.message}")
+                    FileLogger.w(TAG, "Heartbeat ping error for ${device.deviceName}: ${e.message}")
                 }
-                delay(HEARTBEAT_INTERVAL_MS)
+                delay(HEARTBEAT_PING_INTERVAL_MS)
+            }
+        }
+
+        startSyncSchedule(device)
+    }
+
+    private fun startSyncSchedule(device: DeviceInfo) {
+        val key = device.displayKey
+        syncJobs[key]?.cancel()
+        syncJobs[key] = scope.launch {
+            delay(HEARTBEAT_SYNC_INTERVAL_MS)
+            while (isActive) {
+                try {
+                    val connected = _connectedDevices.value.find { it.displayKey == key }
+                    if (connected != null && connected.connectionState == ConnectionState.CONNECTED) {
+                        FileLogger.d(TAG, "Scheduled sync for ${device.deviceName}")
+                        fetchAndEnrichDevice(connected)
+                    }
+                } catch (e: Exception) {
+                    FileLogger.w(TAG, "Sync error for ${device.deviceName}: ${e.message}")
+                }
+                delay(HEARTBEAT_SYNC_INTERVAL_MS)
             }
         }
     }
 
-    private suspend fun runHeartbeatCycle(device: DeviceInfo) {
+    private fun stopSyncJob(displayKey: String) {
+        syncJobs[displayKey]?.cancel()
+        syncJobs.remove(displayKey)
+    }
+
+    private suspend fun runHeartbeatPing(device: DeviceInfo) {
         val key = device.displayKey
-        var currentDevice = device
 
-        for (retry in 0..HEARTBEAT_MAX_RETRIES) {
-            try {
-                val info = appListClient.fetchDeviceInfo(device.ipAddress, device.port)
-                if (info != null) {
-                    if (retry > 0) {
-                        val recovered = currentDevice.copy(
-                            connectionState = ConnectionState.CONNECTED,
-                            lastSeenTimeMs = System.currentTimeMillis()
-                        )
-                        addOrUpdateInConnected(recovered)
-                        addOrUpdateInEnriched(recovered)
-                        Log.i(TAG, "Heartbeat recovered for ${device.deviceName} after $retry retries")
-                        scope.launch { fetchAndEnrichDevice(device) }
-                    } else {
-                        val refreshed = currentDevice.copy(lastSeenTimeMs = System.currentTimeMillis())
-                        addOrUpdateInConnected(refreshed)
-                        addOrUpdateInEnriched(refreshed)
-                    }
-                    return
+        val isAlive = try {
+            appListClient.pingDevice(device.ipAddress, device.port)
+        } catch (e: Exception) {
+            FileLogger.d(TAG, "Ping failed for ${device.deviceName}: ${e.message}")
+            false
+        }
+
+        if (isAlive) {
+            heartbeatFailCounts.remove(key)
+
+            val current = _connectedDevices.value.find { it.displayKey == key }
+            if (current != null) {
+                val shouldUpdateState = current.connectionState != ConnectionState.CONNECTED
+                val refreshed = current.copy(
+                    connectionState = ConnectionState.CONNECTED,
+                    lastSeenTimeMs = System.currentTimeMillis(),
+                    connectionError = null
+                )
+                addOrUpdateInConnected(refreshed)
+                addOrUpdateInEnriched(refreshed)
+                if (shouldUpdateState) {
+                    FileLogger.i(TAG, "Ping recovered for ${device.deviceName}, state restored to CONNECTED")
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Heartbeat attempt ${retry + 1} failed for ${device.deviceName}: ${e.message}")
             }
+            return
+        }
 
-            if (retry < HEARTBEAT_MAX_RETRIES) {
-                val reconnecting = currentDevice.copy(
+        val failCount = (heartbeatFailCounts.getOrDefault(key, 0) + 1)
+        heartbeatFailCounts[key] = failCount
+
+        val current = _connectedDevices.value.find { it.displayKey == key } ?: return
+
+        when {
+            failCount <= HEARTBEAT_PING_TOLERANCE -> {
+                val unstable = current.copy(
                     connectionState = ConnectionState.RECONNECTING,
-                    connectionError = "正在尝试重新连接... (${retry + 1}/$HEARTBEAT_MAX_RETRIES)"
+                    connectionError = "连接不稳定... (${failCount}/${HEARTBEAT_PING_MAX_FAILURES})",
+                    lastSeenTimeMs = System.currentTimeMillis()
+                )
+                addOrUpdateInConnected(unstable)
+                addOrUpdateInEnriched(unstable)
+                FileLogger.d(TAG, "Ping unstable for ${device.deviceName}: $failCount/${HEARTBEAT_PING_MAX_FAILURES}")
+            }
+            failCount < HEARTBEAT_PING_MAX_FAILURES -> {
+                val reconnecting = current.copy(
+                    connectionState = ConnectionState.RECONNECTING,
+                    connectionError = "正在尝试重新连接... (${failCount}/${HEARTBEAT_PING_MAX_FAILURES})",
+                    lastSeenTimeMs = System.currentTimeMillis()
                 )
                 addOrUpdateInConnected(reconnecting)
                 addOrUpdateInEnriched(reconnecting)
-                currentDevice = reconnecting
-                delay(HEARTBEAT_RETRY_DELAY_MS)
+                FileLogger.i(TAG, "Ping reconnecting for ${device.deviceName}: $failCount/${HEARTBEAT_PING_MAX_FAILURES}")
+                scope.launch { tryFastReconnect(current) }
+            }
+            else -> {
+                val timedOut = current.copy(
+                    connectionState = ConnectionState.CONNECTION_TIMEOUT,
+                    connectionError = "连接超时，设备已离线"
+                )
+                removeFromConnected(timedOut)
+                addOrUpdateInEnriched(timedOut)
+                stopHeartbeat(key)
+                stopSyncJob(key)
+                heartbeatFailCounts.remove(key)
+                FileLogger.w(TAG, "Heartbeat timeout for ${device.deviceName} after $failCount consecutive failures")
             }
         }
+    }
 
-        val timedOut = currentDevice.copy(
-            connectionState = ConnectionState.CONNECTION_TIMEOUT,
-            connectionError = "连接超时"
-        )
-        removeFromConnected(timedOut)
-        addOrUpdateInEnriched(timedOut)
-        stopHeartbeat(key)
-        Log.w(TAG, "Heartbeat timeout for ${device.deviceName} after $HEARTBEAT_MAX_RETRIES retries")
+    private suspend fun tryFastReconnect(device: DeviceInfo) {
+        try {
+            val info = appListClient.fetchDeviceInfo(device.ipAddress, device.port)
+            if (info != null) {
+                heartbeatFailCounts.remove(device.displayKey)
+                val recovered = device.copy(
+                    connectionState = ConnectionState.CONNECTED,
+                    lastSeenTimeMs = System.currentTimeMillis(),
+                    connectionError = null
+                )
+                addOrUpdateInConnected(recovered)
+                addOrUpdateInEnriched(recovered)
+                FileLogger.i(TAG, "Fast reconnect successful for ${device.deviceName}")
+                scope.launch { fetchAndEnrichDevice(device) }
+            }
+        } catch (e: Exception) {
+            FileLogger.d(TAG, "Fast reconnect failed for ${device.deviceName}: ${e.message}")
+        }
     }
 
     private fun stopHeartbeat(displayKey: String) {
@@ -195,6 +279,9 @@ class AppRepository(context: Context) {
     private fun stopAllHeartbeats() {
         heartbeatJobs.values.forEach { it.cancel() }
         heartbeatJobs.clear()
+        syncJobs.values.forEach { it.cancel() }
+        syncJobs.clear()
+        heartbeatFailCounts.clear()
     }
 
     init {
@@ -204,31 +291,57 @@ class AppRepository(context: Context) {
 
     private fun observeRawDevicesAndManageConnections() {
         scope.launch {
-            var lastRefreshKeys = emptySet<String>()
             jmdnsDiscovery.discoveredDevices.collect { rawDevices ->
                 _rawDiscoveredDevices.value = rawDevices
 
                 val currentKeys = rawDevices.map { it.displayKey }.toSet()
 
-                val newConnectedKeys = currentKeys - lastRefreshKeys
-                val existingConnected = _connectedDevices.value.filter { d ->
-                    d.displayKey in newConnectedKeys && d.connectionState == ConnectionState.CONNECTED
-                }
-                for (existing in existingConnected) {
-                    launch { fetchAndEnrichDevice(existing) }
-                }
-                lastRefreshKeys = currentKeys
-
                 val enriched = _enrichedDevices.value.toMutableList()
-                enriched.removeAll { device ->
-                    device.displayKey !in currentKeys &&
-                    device.connectionState != ConnectionState.CONNECTED &&
-                    device.connectionState != ConnectionState.RECONNECTING &&
-                    device.connectionState != ConnectionState.CONNECTION_TIMEOUT
-                }
+
                 for (raw in rawDevices) {
-                    val existingIdx = enriched.indexOfFirst { it.displayKey == raw.displayKey }
-                    if (existingIdx >= 0) {
+                    val existingByIdentity = enriched.indexOfFirst {
+                        it.identityKey.isNotEmpty() && it.identityKey == raw.identityKey
+                    }
+                    val existingByDisplayKey = enriched.indexOfFirst { it.displayKey == raw.displayKey }
+
+                    if (existingByIdentity >= 0 && existingByIdentity != existingByDisplayKey) {
+                        val oldDevice = enriched[existingByIdentity]
+                        if (oldDevice.displayKey != raw.displayKey) {
+                            FileLogger.i(TAG, "Port migration detected: ${oldDevice.deviceName} ${oldDevice.displayKey} -> ${raw.displayKey} (identityKey=${raw.identityKey})")
+                            enriched[existingByIdentity] = raw.copy(
+                                connectionState = oldDevice.connectionState,
+                                appList = oldDevice.appList,
+                                lastSeenTimeMs = System.currentTimeMillis()
+                            )
+                            val connected = _connectedDevices.value.toMutableList()
+                            val cIdx = connected.indexOfFirst { it.displayKey == oldDevice.displayKey }
+                            if (cIdx >= 0) {
+                                val migratedConnected = raw.copy(
+                                    connectionState = connected[cIdx].connectionState,
+                                    appList = connected[cIdx].appList,
+                                    lastSeenTimeMs = System.currentTimeMillis()
+                                )
+                                connected[cIdx] = migratedConnected
+                                _connectedDevices.value = connected
+
+                                if (migratedConnected.connectionState == ConnectionState.CONNECTED ||
+                                    migratedConnected.connectionState == ConnectionState.RECONNECTING) {
+                                    scope.launch {
+                                        stopHeartbeat(oldDevice.displayKey)
+                                        stopSyncJob(oldDevice.displayKey)
+                                        heartbeatFailCounts.remove(oldDevice.displayKey)
+                                        startHeartbeat(migratedConnected)
+                                        FileLogger.i(TAG, "Port migration: restarting heartbeat for ${raw.deviceName} at new port ${raw.port}")
+                                    }
+                                }
+                                FileLogger.i(TAG, "Port migration: updated connected device ${raw.deviceName} ${oldDevice.displayKey} -> ${raw.displayKey}")
+                            }
+                            continue
+                        }
+                    }
+
+                    val existingIdx = if (existingByDisplayKey >= 0) existingByDisplayKey else existingByIdentity
+                    if (existingIdx >= 0 && existingIdx < enriched.size) {
                         val existing = enriched[existingIdx]
                         if (existing.connectionState == ConnectionState.DISCOVERED ||
                             existing.connectionState == ConnectionState.DISCONNECTED) {
@@ -241,6 +354,7 @@ class AppRepository(context: Context) {
                                 deviceName = raw.deviceName,
                                 ipAddress = raw.ipAddress,
                                 port = raw.port,
+                                instanceId = raw.instanceId,
                                 lastSeenTimeMs = System.currentTimeMillis()
                             )
                         }
@@ -248,6 +362,16 @@ class AppRepository(context: Context) {
                         enriched.add(raw.copy(connectionState = ConnectionState.DISCOVERED))
                     }
                 }
+
+                val staleKeys = enriched.filter { device ->
+                    device.displayKey !in currentKeys &&
+                    device.identityKey !in rawDevices.map { it.identityKey } &&
+                    device.connectionState != ConnectionState.CONNECTED &&
+                    device.connectionState != ConnectionState.RECONNECTING &&
+                    device.connectionState != ConnectionState.CONNECTION_TIMEOUT
+                }
+                enriched.removeAll(staleKeys)
+
                 _enrichedDevices.value = enriched
             }
         }
@@ -263,104 +387,112 @@ class AppRepository(context: Context) {
     }
 
     suspend fun connectDevice(device: DeviceInfo): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                FileLogger.i(TAG, "=== CONNECT START === target=${device.deviceName} (${device.displayKey})")
-                Log.i(TAG, "Connecting to ${device.deviceName} (${device.displayKey})...")
+        val key = device.displayKey
+        if (connectingDevices.putIfAbsent(key, true) != null) {
+            FileLogger.w(TAG, "Already connecting to ${device.deviceName}, skipping duplicate request")
+            return false
+        }
+        try {
+            return withContext(Dispatchers.IO) {
+                try {
+                    FileLogger.i(TAG, "=== CONNECT START === target=${device.deviceName} (${device.displayKey})")
 
-                updateDeviceConnectionState(device, ConnectionState.CONNECTING)
-
-                val localPort = _serverPort.value
-                val localName = android.os.Build.MODEL
-
-                FileLogger.i(TAG, "Sending POST /connect/request to ${device.ipAddress}:${device.port}, localPort=$localPort localName=$localName")
-                Log.d(TAG, "Sending connect request to ${device.ipAddress}:${device.port}")
-                val requestId = appListClient.sendConnectRequest(
-                    targetIp = device.ipAddress,
-                    targetPort = device.port,
-                    localDeviceName = localName,
-                    localPort = localPort
-                )
-
-                if (requestId == null) {
-                    FileLogger.e(TAG, "=== CONNECT FAIL === sendConnectRequest returned null, target unresponsive")
-                    Log.e(TAG, "Failed to send connect request - no response from target")
-                    updateDeviceConnectionState(device, ConnectionState.ERROR, "无法发送连接请求，目标设备无响应")
-                    return@withContext false
-                }
-
-                FileLogger.i(TAG, "Request sent, requestId=$requestId, starting poll...")
-                Log.i(TAG, "Connect request sent, requestId=$requestId, polling for response...")
-
-                val result = appListClient.pollConnectStatus(
-                    targetIp = device.ipAddress,
-                    targetPort = device.port,
-                    requestId = requestId,
-                    timeoutMs = ConnectionManager.CONNECT_TIMEOUT_MS
-                )
-
-                when (result) {
-                    is AppListClient.ConnectResult.Accepted -> {
-                        FileLogger.i(TAG, "=== CONNECT SUCCESS === accepted by=${result.responderName} id=$requestId")
-                        Log.i(TAG, "Connection accepted by ${result.responderName}, marking as connected...")
-                        val existingAppList = _enrichedDevices.value
-                                    .find { it.displayKey == device.displayKey }
-                                    ?.appList.orEmpty()
-
-                                val connected = device.copy(
-                                    connectionState = ConnectionState.CONNECTED,
-                                    appList = if (existingAppList.isNotEmpty()) existingAppList else emptyList(),
-                                    lastSeenTimeMs = System.currentTimeMillis(),
-                                    connectionError = null
-                                )
-                        addOrUpdateInConnected(connected)
-                        addOrUpdateInEnriched(connected)
-                        startHeartbeat(connected)
-                        Log.i(TAG, "Connected to ${device.deviceName}, fetching app list in background...")
-
-                        scope.launch {
-                            fetchAppListWithRetry(connected, device.ipAddress, device.port, isInitiator = true)
-                        }
-                        true
+                    val existingConnected = _connectedDevices.value.find { it.displayKey == key }
+                    if (existingConnected != null && existingConnected.connectionState == ConnectionState.CONNECTED) {
+                        FileLogger.i(TAG, "Already connected to ${device.deviceName}")
+                        return@withContext true
                     }
-                    is AppListClient.ConnectResult.Rejected -> {
-                        FileLogger.w(TAG, "=== CONNECT REJECTED === reason=${result.message}")
-                        Log.w(TAG, "Connection rejected by target: ${result.message}")
-                        updateDeviceConnectionState(device, ConnectionState.ERROR, "对方拒绝连接")
-                        false
+
+                    updateDeviceConnectionState(device, ConnectionState.CONNECTING)
+
+                    val localPort = _serverPort.value
+                    val localName = android.os.Build.MODEL
+
+                    FileLogger.i(TAG, "Sending POST /connect/request to ${device.ipAddress}:${device.port}, localPort=$localPort localName=$localName")
+                    val localInstanceId = jmdnsDiscovery.getInstanceId()
+                    val requestId = appListClient.sendConnectRequest(
+                        targetIp = device.ipAddress,
+                        targetPort = device.port,
+                        localDeviceName = localName,
+                        localPort = localPort,
+                        localInstanceId = localInstanceId
+                    )
+
+                    if (requestId == null) {
+                        FileLogger.e(TAG, "=== CONNECT FAIL === sendConnectRequest returned null, target unresponsive")
+                        updateDeviceConnectionState(device, ConnectionState.ERROR, "无法发送连接请求，目标设备无响应")
+                        return@withContext false
                     }
-                    is AppListClient.ConnectResult.Timeout -> {
-                        val alreadyConnected = _connectedDevices.value.any {
-                            it.displayKey == device.displayKey && it.connectionState == ConnectionState.CONNECTED
-                        }
-                        if (alreadyConnected) {
-                            FileLogger.i(TAG, "=== CONNECT TIMEOUT but already connected via reverse === device=${device.deviceName}")
+
+                    FileLogger.i(TAG, "Request sent, requestId=$requestId, starting poll...")
+
+                    val result = appListClient.pollConnectStatus(
+                        targetIp = device.ipAddress,
+                        targetPort = device.port,
+                        requestId = requestId,
+                        timeoutMs = ConnectionManager.CONNECT_TIMEOUT_MS
+                    )
+
+                    when (result) {
+                        is AppListClient.ConnectResult.Accepted -> {
+                            FileLogger.i(TAG, "=== CONNECT SUCCESS === accepted by=${result.responderName} id=$requestId")
+                            val existingAppList = _enrichedDevices.value
+                                .find { it.displayKey == device.displayKey }
+                                ?.appList.orEmpty()
+
+                            val connected = device.copy(
+                                connectionState = ConnectionState.CONNECTED,
+                                appList = if (existingAppList.isNotEmpty()) existingAppList else emptyList(),
+                                lastSeenTimeMs = System.currentTimeMillis(),
+                                connectionError = null
+                            )
+                            addOrUpdateInConnected(connected)
+                            addOrUpdateInEnriched(connected)
+                            startHeartbeat(connected)
+                            FileLogger.i(TAG, "Connected to ${device.deviceName}, fetching app list in background...")
+
+                            scope.launch {
+                                fetchAppListWithRetry(connected, device.ipAddress, device.port, isInitiator = true)
+                            }
                             true
-                        } else {
-                            FileLogger.e(TAG, "=== CONNECT TIMEOUT === ${result.message}")
-                            Log.w(TAG, "Connection timeout: ${result.message}")
+                        }
+                        is AppListClient.ConnectResult.Rejected -> {
+                            FileLogger.w(TAG, "=== CONNECT REJECTED === reason=${result.message}")
+                            updateDeviceConnectionState(device, ConnectionState.ERROR, "对方拒绝连接")
+                            false
+                        }
+                        is AppListClient.ConnectResult.Timeout -> {
+                            val alreadyConnected = _connectedDevices.value.any {
+                                it.displayKey == device.displayKey && it.connectionState == ConnectionState.CONNECTED
+                            }
+                            if (alreadyConnected) {
+                                FileLogger.i(TAG, "=== CONNECT TIMEOUT but already connected via reverse === device=${device.deviceName}")
+                                true
+                            } else {
+                                FileLogger.e(TAG, "=== CONNECT TIMEOUT === ${result.message}")
+                                updateDeviceConnectionState(device, ConnectionState.ERROR, result.message)
+                                false
+                            }
+                        }
+                        is AppListClient.ConnectResult.Error -> {
+                            FileLogger.e(TAG, "=== CONNECT ERROR === ${result.message}")
                             updateDeviceConnectionState(device, ConnectionState.ERROR, result.message)
                             false
                         }
                     }
-                    is AppListClient.ConnectResult.Error -> {
-                        FileLogger.e(TAG, "=== CONNECT ERROR === ${result.message}")
-                        Log.e(TAG, "Connection error: ${result.message}")
-                        updateDeviceConnectionState(device, ConnectionState.ERROR, result.message)
-                        false
-                    }
+                } catch (e: Exception) {
+                    FileLogger.e(TAG, "=== CONNECT EXCEPTION === ${e.javaClass.simpleName}: ${e.message}", e)
+                    updateDeviceConnectionState(device, ConnectionState.ERROR, e.message ?: "连接异常")
+                    false
                 }
-            } catch (e: Exception) {
-                FileLogger.e(TAG, "=== CONNECT EXCEPTION === ${e.javaClass.simpleName}: ${e.message}", e)
-                Log.e(TAG, "Exception connecting to ${device.deviceName}", e)
-                updateDeviceConnectionState(device, ConnectionState.ERROR, e.message ?: "连接异常")
-                false
             }
+        } finally {
+            connectingDevices.remove(key)
         }
     }
 
-    fun handleIncomingRequest(requestId: String, accepted: Boolean): Boolean {
-        FileLogger.i(TAG, "=== HANDLE_INCOMING === requestId=$requestId accepted=$accepted")
+    fun handleIncomingRequest(requestId: String, accepted: Boolean, autoAcceptKnown: Boolean = true): Boolean {
+        FileLogger.i(TAG, "=== HANDLE_INCOMING === requestId=$requestId accepted=$accepted autoAcceptKnown=$autoAcceptKnown")
         val manager = ktorServer.connectionManager ?: run {
             FileLogger.e(TAG, "HANDLE_INCOMING: connectionManager is NULL!")
             return false
@@ -368,39 +500,95 @@ class AppRepository(context: Context) {
         val pendingReq = manager.getPendingRequest(requestId)
         if (pendingReq == null) {
             FileLogger.e(TAG, "HANDLE_INCOMING: pendingReq not found for $requestId")
-        } else {
-            FileLogger.i(TAG, "HANDLE_INCOMING: from=${pendingReq.requesterName} (${pendingReq.requesterIp}:${pendingReq.requesterPort})")
+            return false
         }
 
-        val response = manager.respondToRequest(requestId, accepted)
-        FileLogger.i(TAG, "HANDLE_INCOMING: respondToRequest returned ${if (response != null) "OK" else "NULL"}")
+        FileLogger.i(TAG, "HANDLE_INCOMING: from=${pendingReq.requesterName} (${pendingReq.requesterIp}:${pendingReq.requesterPort}) identityKey=${pendingReq.identityKey}")
 
-        if (response != null && accepted && pendingReq != null) {
-            FileLogger.i(TAG, "HANDLE_INCOMING: marking CONNECTED for ${pendingReq.requesterName}")
-            val connectedDevice = DeviceInfo(
-                ipAddress = pendingReq.requesterIp,
-                deviceName = pendingReq.requesterName,
-                port = pendingReq.requesterPort,
-                appList = emptyList(),
-                connectionState = ConnectionState.CONNECTED,
-                lastSeenTimeMs = System.currentTimeMillis()
-            )
-            addOrUpdateInConnected(connectedDevice)
-            addOrUpdateInEnriched(connectedDevice)
-            startHeartbeat(connectedDevice)
+        if (accepted || autoAcceptKnown) {
+            val knownDevice = findKnownDevice(pendingReq.requesterIp, pendingReq.requesterName, pendingReq.requesterInstanceId)
+            val shouldAutoAccept = accepted || knownDevice != null
 
-            scope.launch {
-                try {
-                    fetchAppListWithRetry(connectedDevice, pendingReq.requesterIp, pendingReq.requesterPort, isInitiator = false)
-                } finally {
-                    manager.removeRequest(requestId)
+            if (!accepted && knownDevice != null) {
+                FileLogger.i(TAG, "HANDLE_INCOMING: auto-accepting, matched known device=${knownDevice.deviceName} (${knownDevice.displayKey})")
+            }
+
+            if (!shouldAutoAccept) {
+                manager.removeRequest(requestId)
+                return false
+            }
+
+            val response = manager.respondToRequest(requestId, accepted = true)
+            FileLogger.i(TAG, "HANDLE_INCOMING: respondToRequest returned ${if (response != null) "OK" else "NULL"}")
+
+            if (response != null) {
+                val existingAppList = if (knownDevice != null) knownDevice.appList else emptyList()
+
+                val connectedDevice = DeviceInfo(
+                    ipAddress = pendingReq.requesterIp,
+                    deviceName = pendingReq.requesterName,
+                    port = pendingReq.requesterPort,
+                    instanceId = pendingReq.requesterInstanceId,
+                    appList = existingAppList,
+                    connectionState = ConnectionState.CONNECTED,
+                    lastSeenTimeMs = System.currentTimeMillis()
+                )
+
+                if (knownDevice != null && knownDevice.displayKey != connectedDevice.displayKey) {
+                    FileLogger.i(TAG, "HANDLE_INCOMING: port migration for ${connectedDevice.deviceName} ${knownDevice.displayKey} -> ${connectedDevice.displayKey}")
+                    migrateDeviceConnection(knownDevice, connectedDevice)
+                } else {
+                    addOrUpdateInConnected(connectedDevice)
+                    addOrUpdateInEnriched(connectedDevice)
                 }
+                startHeartbeat(connectedDevice)
+
+                scope.launch {
+                    try {
+                        fetchAppListWithRetry(connectedDevice, pendingReq.requesterIp, pendingReq.requesterPort, isInitiator = false)
+                    } finally {
+                        manager.removeRequest(requestId)
+                    }
+                }
+                return true
             }
         } else {
-            manager.removeRequest(requestId)
+            val response = manager.respondToRequest(requestId, accepted = false)
+            FileLogger.i(TAG, "HANDLE_INCOMING: rejected, respondToRequest returned ${if (response != null) "OK" else "NULL"}")
         }
 
-        return response != null
+        manager.removeRequest(requestId)
+        return false
+    }
+
+    private fun findKnownDevice(ip: String, name: String, instanceId: String): DeviceInfo? {
+        if (instanceId.isNotEmpty()) {
+            _connectedDevices.value.find { it.instanceId == instanceId }?.let { return it }
+            _enrichedDevices.value.find { it.instanceId == instanceId }?.let { return it }
+        }
+        _connectedDevices.value.find { it.deviceName == name && it.ipAddress == ip }?.let { return it }
+        _enrichedDevices.value.find { it.deviceName == name && it.ipAddress == ip }?.let { return it }
+        return null
+    }
+
+    private fun migrateDeviceConnection(oldDevice: DeviceInfo, newDevice: DeviceInfo) {
+        stopHeartbeat(oldDevice.displayKey)
+        stopSyncJob(oldDevice.displayKey)
+        heartbeatFailCounts.remove(oldDevice.displayKey)
+
+        removeFromConnected(oldDevice)
+
+        val enriched = _enrichedDevices.value.toMutableList()
+        val idx = enriched.indexOfFirst { it.displayKey == oldDevice.displayKey }
+        if (idx >= 0) {
+            enriched[idx] = newDevice
+        } else {
+            enriched.add(newDevice)
+        }
+        _enrichedDevices.value = enriched
+
+        addOrUpdateInConnected(newDevice)
+        FileLogger.i(TAG, "Port migration complete: ${oldDevice.displayKey} -> ${newDevice.displayKey}, appList preserved (${newDevice.appList.size} apps)")
     }
 
     fun dismissIncomingRequest(requestId: String) {
@@ -410,18 +598,24 @@ class AppRepository(context: Context) {
     fun disconnectDevice(device: DeviceInfo) {
         scope.launch {
             stopHeartbeat(device.displayKey)
+            stopSyncJob(device.displayKey)
+            heartbeatFailCounts.remove(device.displayKey)
 
             try {
                 val localKey = getLocalDisplayKey()
-                appListClient.sendDisconnectNotification(device.ipAddress, device.port, localKey)
-                Log.i(TAG, "Sent disconnect notification to ${device.deviceName}")
+                val localIdentity = jmdnsDiscovery.getInstanceId()
+                appListClient.sendDisconnectNotification(device.ipAddress, device.port, localKey, localIdentity)
+                FileLogger.i(TAG, "Sent disconnect notification to ${device.deviceName}")
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to send disconnect notification to ${device.deviceName}: ${e.message}")
+                FileLogger.w(TAG, "Failed to send disconnect notification to ${device.deviceName}: ${e.message}")
             }
+
+            val existingAppList = _connectedDevices.value
+                .find { it.displayKey == device.displayKey }?.appList.orEmpty()
 
             val disconnected = device.copy(
                 connectionState = ConnectionState.DISCONNECTED,
-                appList = emptyList()
+                appList = existingAppList
             )
             removeFromConnected(disconnected)
 
@@ -431,7 +625,7 @@ class AppRepository(context: Context) {
                 enriched[idx] = disconnected
                 _enrichedDevices.value = enriched
             }
-            Log.i(TAG, "Disconnected from ${device.deviceName}")
+            FileLogger.i(TAG, "Disconnected from ${device.deviceName}, appList preserved (${existingAppList.size} apps)")
         }
     }
 
@@ -449,13 +643,13 @@ class AppRepository(context: Context) {
 
                 val port = ktorServer.start()
                 _serverPort.value = port
-                Log.i(TAG, "Server started on port $port (forced)")
+                FileLogger.i(TAG, "Server started on port $port (forced)")
 
                 startObservingConnectionManager()
 
                 jmdnsDiscovery.startDiscovery(port)
                 _isRunning.value = true
-                Log.i(TAG, "Discovery started on port $port (forced)")
+                FileLogger.i(TAG, "Discovery started on port $port (forced)")
             }
         }
     }
@@ -464,7 +658,7 @@ class AppRepository(context: Context) {
         scope.launch {
             val device = _connectedDevices.value.find { it.displayKey == remoteDisplayKey }
             if (device != null) {
-                Log.i(TAG, "Remote refresh notification from $remoteDisplayKey, re-fetching app list")
+                FileLogger.i(TAG, "Remote refresh notification from $remoteDisplayKey, re-fetching app list")
                 fetchAndEnrichDevice(device)
             }
         }
@@ -527,7 +721,7 @@ class AppRepository(context: Context) {
                 addOrUpdateInConnected(enriched)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Error refreshing app list from ${rawDevice.deviceName}: ${e.message}")
+            FileLogger.w(TAG, "Error refreshing app list from ${rawDevice.deviceName}: ${e.message}")
         }
     }
 
@@ -551,7 +745,6 @@ class AppRepository(context: Context) {
                     addOrUpdateInConnected(enriched)
                     addOrUpdateInEnriched(enriched)
                     FileLogger.i(TAG, "$tag: fetchAppList SUCCESS on attempt #$attempt: ${remoteApps.size} apps")
-                    Log.i(TAG, "Fetched ${remoteApps.size} apps from ${baseDevice.deviceName}")
                     return
                 }
 
@@ -564,7 +757,6 @@ class AppRepository(context: Context) {
                 }
             } catch (e: Exception) {
                 FileLogger.e(TAG, "$tag: fetchAppList attempt #$attempt exception", e)
-                Log.e(TAG, "App list fetch error (attempt $attempt): ${e.message}", e)
                 if (attempt < maxRetries) {
                     kotlinx.coroutines.delay(retryDelayMs)
                 }
@@ -601,7 +793,7 @@ class AppRepository(context: Context) {
             val allUpdates = updateManager.findUpdates(localApps, devicesWithApps)
             val deduplicated = updateManager.deduplicateUpdates(allUpdates)
             _availableUpdates.value = deduplicated
-            Log.i(TAG, "Recalculated updates: ${deduplicated.size} available")
+            FileLogger.i(TAG, "Recalculated updates: ${deduplicated.size} available")
             deduplicated
         }
     }
@@ -640,17 +832,17 @@ class AppRepository(context: Context) {
                 val cached = loadLocalAppsFromFile()
                 if (cached.isNotEmpty()) {
                     _localApps.value = cached
-                    Log.i(TAG, "Loaded ${cached.size} apps from cache")
+                    FileLogger.i(TAG, "Loaded ${cached.size} apps from cache")
                 }
 
                 val apps = appScanner.scanInstalledApps()
                 _localApps.value = apps
                 saveLocalAppsToFile(apps)
-                Log.i(TAG, "Scanned ${apps.size} local apps, saved to cache")
+                FileLogger.i(TAG, "Scanned ${apps.size} local apps, saved to cache")
 
                 notifyConnectedDevicesToRefresh()
             } catch (e: Exception) {
-                Log.e(TAG, "scanLocalApps failed", e)
+                FileLogger.e(TAG, "scanLocalApps failed", e)
             } finally {
                 _isScanningApps.value = false
             }
@@ -663,9 +855,9 @@ class AppRepository(context: Context) {
         for (device in connected) {
             try {
                 appListClient.sendRefreshAppListNotification(device.ipAddress, device.port, localKey)
-                Log.d(TAG, "Sent refresh notification to ${device.deviceName}")
+                FileLogger.d(TAG, "Sent refresh notification to ${device.deviceName}")
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to send refresh notification to ${device.deviceName}: ${e.message}")
+                FileLogger.w(TAG, "Failed to send refresh notification to ${device.deviceName}: ${e.message}")
             }
         }
     }
@@ -675,7 +867,7 @@ class AppRepository(context: Context) {
             val jsonStr = json.encodeToString(apps)
             appCacheFile.writeText(jsonStr)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to save local apps cache", e)
+            FileLogger.e(TAG, "Failed to save local apps cache", e)
         }
     }
 
@@ -688,7 +880,7 @@ class AppRepository(context: Context) {
                 emptyList()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load local apps cache", e)
+            FileLogger.e(TAG, "Failed to load local apps cache", e)
             appCacheFile.delete()
             emptyList()
         }
@@ -727,13 +919,13 @@ class AppRepository(context: Context) {
 
             val port = ktorServer.start()
             _serverPort.value = port
-            Log.i(TAG, "Server started on port $port")
+            FileLogger.i(TAG, "Server started on port $port")
 
             startObservingConnectionManager()
 
             jmdnsDiscovery.startDiscovery(port)
             _isRunning.value = true
-            Log.i(TAG, "Discovery started with server port $port")
+            FileLogger.i(TAG, "Discovery started with server port $port")
         }
     }
 
@@ -746,17 +938,17 @@ class AppRepository(context: Context) {
                 try {
                     ktorServer.connectionManager?.clearAll()
                 } catch (e: Exception) {
-                    Log.w(TAG, "Error clearing connection manager", e)
+                    FileLogger.w(TAG, "Error clearing connection manager", e)
                 }
                 try {
                     jmdnsDiscovery.stopDiscovery()
                 } catch (e: Exception) {
-                    Log.w(TAG, "Error stopping discovery", e)
+                    FileLogger.w(TAG, "Error stopping discovery", e)
                 }
                 try {
                     ktorServer.stop()
                 } catch (e: Exception) {
-                    Log.w(TAG, "Error stopping server", e)
+                    FileLogger.w(TAG, "Error stopping server", e)
                 }
             } finally {
                 _serverPort.value = 0
@@ -767,7 +959,7 @@ class AppRepository(context: Context) {
                 _availableUpdates.value = emptyList()
                 _syncDiffs.value = emptyList()
                 _incomingRequests.value = emptyList()
-                Log.i(TAG, "Server and discovery stopped")
+                FileLogger.i(TAG, "Server and discovery stopped")
             }
         }
     }
@@ -839,26 +1031,43 @@ class AppRepository(context: Context) {
             updateInfo.remoteApp.packageName,
             updateInfo.remoteApp.versionCode
         )
-        _installStatus.value = InstallStatus.Installing(updateInfo.remoteApp.packageName)
 
         return if (file != null) {
-            FileLogger.d(TAG, "installApp: file found, calling installApks(${file.absolutePath}, size=${file.length()})")
-            apkInstaller.installApks(file).also { result ->
-                _installStatus.value = when (result) {
-                    is ApkInstaller.InstallationResult.Success -> {
-                        FileLogger.i(TAG, "installApp SUCCESS: ${updateInfo.remoteApp.packageName}")
-                        InstallStatus.Success(updateInfo.remoteApp.packageName)
-                    }
-                    is ApkInstaller.InstallationResult.Error -> {
-                        FileLogger.e(TAG, "installApp FAILED: ${updateInfo.remoteApp.packageName} -> ${result.message}")
-                        InstallStatus.Failed(updateInfo.remoteApp.packageName, result.message)
-                    }
-                }
-            }
+            installApp(updateInfo, file)
         } else {
             FileLogger.e(TAG, "installApp: Downloaded file NOT FOUND for ${updateInfo.remoteApp.packageName} v${updateInfo.remoteApp.versionCode}. Was download successful?")
             _installStatus.value = InstallStatus.Failed(updateInfo.remoteApp.packageName, "Downloaded file not found")
             ApkInstaller.InstallationResult.Error("Downloaded file not found")
+        }
+    }
+
+    fun installApp(updateInfo: UpdateInfo, file: File): ApkInstaller.InstallationResult {
+        FileLogger.i(TAG, "=== installApp START === pkg=${updateInfo.remoteApp.packageName} v${updateInfo.remoteApp.versionCode} file=${file.name}")
+        _installStatus.value = InstallStatus.Installing(updateInfo.remoteApp.packageName)
+        FileLogger.d(TAG, "installApp: calling installApks(${file.absolutePath}, size=${file.length()})")
+
+        return apkInstaller.installApks(file).also { result ->
+            _installStatus.value = when (result) {
+                is ApkInstaller.InstallationResult.Success -> {
+                    FileLogger.i(TAG, "installApp SUCCESS: ${updateInfo.remoteApp.packageName}")
+                    InstallStatus.Success(updateInfo.remoteApp.packageName)
+                }
+                is ApkInstaller.InstallationResult.Error -> {
+                    FileLogger.e(TAG, "installApp FAILED: ${updateInfo.remoteApp.packageName} -> ${result.message}")
+                    InstallStatus.Failed(updateInfo.remoteApp.packageName, result.message)
+                }
+            }
+        }
+    }
+
+    suspend fun downloadAndInstallApp(updateInfo: UpdateInfo): ApkInstaller.InstallationResult {
+        val downloadResult = downloadApp(updateInfo)
+        return when (downloadResult) {
+            is AppListClient.DownloadResult.Success -> installApp(updateInfo, downloadResult.file)
+            is AppListClient.DownloadResult.Error -> {
+                _installStatus.value = InstallStatus.Failed(updateInfo.remoteApp.packageName, downloadResult.message)
+                ApkInstaller.InstallationResult.Error(downloadResult.message)
+            }
         }
     }
 
@@ -932,9 +1141,10 @@ class AppRepository(context: Context) {
 
     companion object {
         private const val TAG = "AppRepository"
-        const val HEARTBEAT_INTERVAL_MS = 60_000L
-        const val HEARTBEAT_RETRY_DELAY_MS = 5_000L
-        const val HEARTBEAT_MAX_RETRIES = 3
+        const val HEARTBEAT_PING_INTERVAL_MS = 20_000L
+        const val HEARTBEAT_SYNC_INTERVAL_MS = 120_000L
+        const val HEARTBEAT_PING_TOLERANCE = 1
+        const val HEARTBEAT_PING_MAX_FAILURES = 4
 
         @Volatile
         private var instance: AppRepository? = null
