@@ -119,8 +119,14 @@
 
 **重构方法**：
 - `base-config` 设置 `cleartextTrafficPermitted="false"`
-- `domain-config` 仅对私有 IP 段（`10.x`, `192.168.x`, `172.16.x`）和 `localhost` 允许明文
-- 符合 Android 网络安全最佳实践
+- `domain-config` 仅对 RFC 1918 私有 IP 段和 localhost 允许明文：
+  - `10.` → 覆盖 10.0.0.0/8
+  - `172.` → 覆盖 172.16.0.0/12（及更广的 172.0.0.0/8）
+  - `192.168.` → 覆盖 192.168.0.0/16
+  - `localhost`
+- **注意**：Android `domain` 标签使用字符串前缀匹配而非 CIDR 匹配，因此必须使用 IP 前缀（如 `172.`）而非网络地址（如 `172.16.0.0`）
+
+**🔥 紧急修复 (2025-05-25)**：初始版本使用 `172.16.0.0` 导致 `172.30.x.x` 子网连接失败（详见 `debug-cleartext-lan-connect-fail.md`）。已修正为 `172.` 前缀模式。
 
 **影响文件**：`res/xml/network_security_config.xml`
 
