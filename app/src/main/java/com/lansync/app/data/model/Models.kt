@@ -12,7 +12,8 @@ data class AppInfo(
     val md5: String,
     val isExtractable: Boolean,
     val fileSize: Long,
-    val isSystemApp: Boolean = false
+    val isSystemApp: Boolean = false,
+    val isSplitApk: Boolean = false
 )
 
 enum class ConnectionState {

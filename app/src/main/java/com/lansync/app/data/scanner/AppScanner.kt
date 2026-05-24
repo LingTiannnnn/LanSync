@@ -87,7 +87,8 @@ class AppScanner(private val context: Context) {
                 md5 = md5,
                 isExtractable = true,
                 fileSize = fileSize,
-                isSystemApp = isSystemApp
+                isSystemApp = isSystemApp,
+                isSplitApk = sourcePaths.size > 1
             )
         } catch (e: SecurityException) {
             return createNonExtractableAppInfo(applicationInfo, packageInfo, packageManager)
