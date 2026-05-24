@@ -1086,19 +1086,6 @@ class AppRepository(context: Context) {
     fun getDownloadedFile(packageName: String, versionCode: Long): File? =
         appListClient.getDownloadedFile(packageName, versionCode)
 
-    fun canInstall(file: File): Boolean = apkInstaller.canHandleInstall(file)
-
-    fun cleanupOldDownloads() = appListClient.cleanupOldDownloads()
-
-    fun clearDownloads() = appListClient.clearDownloads()
-
-    fun cleanupOldPacks() = appPacker.cleanupOldPacks()
-
-    fun clearCache() {
-        appPacker.clearCache()
-        appListClient.clearDownloads()
-    }
-
     fun clearDownloadProgress() { _downloadProgress.value = null }
 
     fun getDownloadedFiles(): List<AppListClient.DownloadedFileInfo> {

@@ -536,21 +536,8 @@ class AppListClient(private val context: Context) {
         return null
     }
 
-    fun cleanupOldDownloads(maxAgeMs: Long = 24 * 60 * 60 * 1000) {
-        val cutoffTime = System.currentTimeMillis() - maxAgeMs
-        downloadsDir.listFiles()?.forEach { file ->
-            if (file.lastModified() < cutoffTime) {
-                file.delete()
-            }
-        }
-    }
-
     fun clearDownloads() {
         downloadsDir.listFiles()?.forEach { it.delete() }
-    }
-
-    fun getDownloadsSize(): Long {
-        return downloadsDir.listFiles()?.sumOf { it.length() } ?: 0L
     }
 
     data class DownloadedFileInfo(

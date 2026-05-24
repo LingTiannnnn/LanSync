@@ -63,12 +63,6 @@ fun AppIcon(
 object AppIconCache {
     private val cache = ConcurrentHashMap<String, Bitmap>()
 
-    fun preloadAll(context: Context, packageNames: List<String>) {
-        for (pkg in packageNames) {
-            getOrLoad(context, pkg)
-        }
-    }
-
     fun get(packageName: String): Bitmap? = cache[packageName]
 
     fun getOrLoad(context: Context, packageName: String, size: Int = 96): Bitmap? {

@@ -2,7 +2,6 @@ package com.lansync.app.data.packer
 
 import android.content.Context
 import com.lansync.app.data.FileLogger
-import com.lansync.app.data.HashUtils
 import com.lansync.app.data.model.AppInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -107,29 +106,6 @@ class AppPacker(private val context: Context) {
             }
         }
     }
-
-    fun getMd5OfPackedFile(file: File): String {
-        return HashUtils.md5(file)
-    }
-
-    fun getPackedFile(packageName: String, versionCode: Long): File? {
-        val sanitizedPackageName = packageName.replace(".", "_")
-        val apksFile = File(apksDir, "${sanitizedPackageName}_${versionCode}.apks")
-        if (apksFile.exists()) return apksFile
-        val apkFile = File(apksDir, "${sanitizedPackageName}_${versionCode}.apk")
-        return if (apkFile.exists()) apkFile else null
-    }
-
-    fun cleanupOldPacks(maxAgeMs: Long = 24 * 60 * 60 * 1000) {
-        val cutoffTime = System.currentTimeMillis() - maxAgeMs
-        apksDir.listFiles()?.forEach { file ->
-            if (file.lastModified() < cutoffTime) {
-                file.delete()
-            }
-        }
-    }
-
-    fun getCacheSize(): Long {
         return apksDir.listFiles()?.sumOf { it.length() } ?: 0L
     }
 

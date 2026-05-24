@@ -283,7 +283,3 @@ private fun formatFileSize(bytes: Long): String {
 private fun formatTime(timestamp: Long): String {
     return SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
 }
-
-private fun formatPackageName(rawName: String): String {
-    return rawName.replace("_", ".")
-}
