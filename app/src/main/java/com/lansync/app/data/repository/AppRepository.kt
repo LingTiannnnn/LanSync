@@ -910,6 +910,9 @@ class AppRepository(context: Context) {
         withContext(Dispatchers.IO) {
             if (_isRunning.value) return@withContext
 
+            appPacker.clearCache()
+            FileLogger.i(TAG, "Cleared apks cache on startup")
+
             ktorServer.initConnectionManager(android.os.Build.MODEL)
             ktorServer.setAppListProvider { _localApps.value }
             ktorServer.setPacker { appPacker.packApp(it) }
