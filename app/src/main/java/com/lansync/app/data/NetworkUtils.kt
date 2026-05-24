@@ -52,14 +52,5 @@ object NetworkUtils {
         return InetAddress.getByName("127.0.0.1")
     }
 
-    fun getLocalDisplayKey(context: Context, port: Int = 0): String {
-        val ipAddress = getLocalIpAddress()
-        return if (ipAddress.isNotEmpty()) {
-            "$ipAddress:$port"
-        } else {
-            ""
-        }
-    }
-
     private const val TAG = "NetworkUtils"
 }

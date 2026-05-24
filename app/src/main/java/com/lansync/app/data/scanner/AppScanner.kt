@@ -67,12 +67,7 @@ class AppScanner(private val context: Context) {
 
             val appName = applicationInfo.loadLabel(packageManager).toString()
             val versionName = packageInfo.versionName ?: "unknown"
-            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode.toLong()
-            }
+            val versionCode = packageInfo.longVersionCode
 
             val fileSize = calculateTotalFileSize(sourcePaths)
             val md5 = HashUtils.md5(sourcePaths)
@@ -109,12 +104,7 @@ class AppScanner(private val context: Context) {
         }
 
         val versionName = packageInfo.versionName ?: "unknown"
-        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.versionCode.toLong()
-        }
+        val versionCode = packageInfo.longVersionCode
 
         val isSystemApp = (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
