@@ -21,6 +21,8 @@ import com.lansync.app.data.model.UpdateInfo
 
 enum class AppCategory { ALL, USER, SYSTEM }
 
+private const val ITEM_TYPE_APP = "app_item"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppListScreen(
@@ -46,6 +48,10 @@ fun AppListScreen(
         }
     }
 
+    val totalCount by remember(localApps) { derivedStateOf { localApps.size } }
+    val userCount by remember(localApps) { derivedStateOf { localApps.count { !it.isSystemApp } } }
+    val systemCount by remember(localApps) { derivedStateOf { localApps.count { it.isSystemApp } } }
+
     Column(modifier = modifier.fillMaxSize()) {
         SearchBar(
             query = searchQuery,
@@ -56,9 +62,9 @@ fun AppListScreen(
         CategoryTabs(
             selectedCategory = category,
             onCategoryChange = { category = it },
-            totalCount = localApps.size,
-            userCount = localApps.count { !it.isSystemApp },
-            systemCount = localApps.count { it.isSystemApp }
+            totalCount = totalCount,
+            userCount = userCount,
+            systemCount = systemCount
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -102,7 +108,11 @@ fun AppListScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(filteredApps, key = { it.packageName }) { app ->
+                items(
+                    items = filteredApps,
+                    key = { it.packageName },
+                    contentType = { ITEM_TYPE_APP }
+                ) { app ->
                     AppItem(appInfo = app)
                 }
             }
@@ -170,15 +180,16 @@ internal fun TabItem(
     selected: AppCategory,
     onClick: (AppCategory) -> Unit
 ) {
+    val isSelected = selected == category
     Tab(
-        selected = selected == category,
+        selected = isSelected,
         onClick = { onClick(category) },
         text = {
             Text(
                 text = label,
-                style = if (selected == category) MaterialTheme.typography.labelLarge
+                style = if (isSelected) MaterialTheme.typography.labelLarge
                 else MaterialTheme.typography.labelMedium,
-                fontWeight = if (selected == category) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1
             )
         },
@@ -263,7 +274,7 @@ fun AppItem(appInfo: AppInfo) {
                         overflow = TextOverflow.Ellipsis
                     )
                     if (appInfo.fileSize > 0) {
-                        val sizeMb = appInfo.fileSize / (1024 * 1024)
+                        val sizeMb = remember(appInfo.fileSize) { appInfo.fileSize / (1024 * 1024) }
                         Text(
                             text = "${sizeMb} MB",
                             style = MaterialTheme.typography.labelSmall,
@@ -380,7 +391,9 @@ fun UpdateItem(
                     )
                     if (updateInfo.remoteApp.fileSize > 0) {
                         Spacer(modifier = Modifier.width(6.dp))
-                        val sizeMb = updateInfo.remoteApp.fileSize / (1024 * 1024)
+                        val sizeMb = remember(updateInfo.remoteApp.fileSize) {
+                            updateInfo.remoteApp.fileSize / (1024 * 1024)
+                        }
                         Text(
                             text = "${sizeMb}MB",
                             style = MaterialTheme.typography.labelSmall,

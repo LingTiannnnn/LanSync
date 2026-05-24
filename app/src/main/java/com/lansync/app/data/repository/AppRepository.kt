@@ -3,6 +3,7 @@ package com.lansync.app.data.repository
 import android.content.Context
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.NetworkUtils
+import com.lansync.app.data.cache.AppIconDiskCache
 import com.lansync.app.data.client.AppListClient
 import com.lansync.app.data.connection.ConnectionManager
 import com.lansync.app.data.discovery.JmDNSDiscovery
@@ -17,6 +18,7 @@ import com.lansync.app.data.packer.AppPacker
 import com.lansync.app.data.scanner.AppScanner
 import com.lansync.app.data.server.KtorServer
 import com.lansync.app.data.update.UpdateManager
+import com.lansync.app.ui.components.preloadIcon
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -36,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class AppRepository(context: Context) {
 
+    private val appContext = context.applicationContext
     private val appScanner = AppScanner(context)
     private val appPacker = AppPacker(context)
     private val ktorServer = KtorServer(context)
@@ -829,6 +832,9 @@ class AppRepository(context: Context) {
             _isScanningApps.value = true
             try {
                 val cached = loadLocalAppsFromFile()
+                val previousPackages = (cached.ifEmpty { _localApps.value })
+                    .map { it.packageName }.toSet()
+
                 if (cached.isNotEmpty()) {
                     _localApps.value = cached
                     FileLogger.i(TAG, "Loaded ${cached.size} apps from cache")
@@ -839,12 +845,38 @@ class AppRepository(context: Context) {
                 saveLocalAppsToFile(apps)
                 FileLogger.i(TAG, "Scanned ${apps.size} local apps, saved to cache")
 
+                val currentPackages = apps.map { it.packageName }.toSet()
+                val newPackages = currentPackages - previousPackages
+                val removedPackages = previousPackages - currentPackages
+
+                if (removedPackages.isNotEmpty()) {
+                    val diskCache = AppIconDiskCache.getInstance(appContext)
+                    for (pkg in removedPackages) {
+                        diskCache.remove(pkg)
+                    }
+                    FileLogger.d(TAG, "Removed ${removedPackages.size} stale icon caches")
+                }
+
+                if (newPackages.isNotEmpty()) {
+                    FileLogger.i(TAG, "Preloading icons for ${newPackages.size} new apps")
+                    preloadIconsBatch(newPackages.toList())
+                }
+
                 notifyConnectedDevicesToRefresh()
             } catch (e: Exception) {
                 FileLogger.e(TAG, "scanLocalApps failed", e)
             } finally {
                 _isScanningApps.value = false
             }
+        }
+    }
+
+    private fun preloadIconsBatch(packages: List<String>) {
+        scope.launch(Dispatchers.IO) {
+            for (pkg in packages) {
+                preloadIcon(appContext, pkg)
+            }
+            FileLogger.i(TAG, "Icon preloading completed for ${packages.size} apps")
         }
     }
 

@@ -19,6 +19,8 @@ import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.RemoteAppEntry
 import com.lansync.app.data.model.UpdateInfo
 
+private const val ITEM_TYPE_REMOTE = "remote_app_item"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteAppListScreen(
@@ -52,8 +54,12 @@ fun RemoteAppListScreen(
         }
     }
 
-    val connectedDeviceCount = connectedDevices.count {
-        it.connectionState == ConnectionState.CONNECTED || it.connectionState == ConnectionState.RECONNECTING
+    val connectedDeviceCount by remember(connectedDevices) {
+        derivedStateOf {
+            connectedDevices.count {
+                it.connectionState == ConnectionState.CONNECTED || it.connectionState == ConnectionState.RECONNECTING
+            }
+        }
     }
 
     LaunchedEffect(connectedDevices) {
@@ -84,8 +90,15 @@ fun RemoteAppListScreen(
         }
     }
 
-    val isAllSelected = filteredApps.isNotEmpty() &&
-        filteredApps.all { it.app.packageName in selectedPackages }
+    val totalAppCount by remember(remoteEntries) { derivedStateOf { remoteEntries.size } }
+    val userAppCount by remember(remoteEntries) { derivedStateOf { remoteEntries.count { !it.app.isSystemApp } } }
+    val systemAppCount by remember(remoteEntries) { derivedStateOf { remoteEntries.count { it.app.isSystemApp } } }
+
+    val isAllSelected by remember(filteredApps, selectedPackages) {
+        derivedStateOf {
+            filteredApps.isNotEmpty() && filteredApps.all { it.app.packageName in selectedPackages }
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         SearchBar(
@@ -97,9 +110,9 @@ fun RemoteAppListScreen(
         CategoryTabs(
             selectedCategory = category,
             onCategoryChange = { category = it },
-            totalCount = remoteEntries.size,
-            userCount = remoteEntries.count { !it.app.isSystemApp },
-            systemCount = remoteEntries.count { it.app.isSystemApp }
+            totalCount = totalAppCount,
+            userCount = userAppCount,
+            systemCount = systemAppCount
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -145,7 +158,7 @@ fun RemoteAppListScreen(
         } else {
             MultiDeviceSummary(
                 connectedCount = connectedDeviceCount,
-                totalApps = remoteEntries.size,
+                totalApps = totalAppCount,
                 isRefreshing = isRefreshing,
                 onRefresh = onRefresh
             )
@@ -216,7 +229,11 @@ fun RemoteAppListScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(filteredApps, key = { "remote_${it.app.packageName}" }) { entry ->
+                items(
+                    items = filteredApps,
+                    key = { "remote_${it.app.packageName}" },
+                    contentType = { ITEM_TYPE_REMOTE }
+                ) { entry ->
                     RemoteAppItem(
                         entry = entry,
                         isSelected = entry.app.packageName in selectedPackages,
@@ -413,7 +430,7 @@ fun RemoteAppItem(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (entry.app.fileSize > 0) {
-                        val sizeMb = entry.app.fileSize / (1024 * 1024)
+                        val sizeMb = remember(entry.app.fileSize) { entry.app.fileSize / (1024 * 1024) }
                         Text(
                             text = "${sizeMb}MB",
                             style = MaterialTheme.typography.labelSmall,

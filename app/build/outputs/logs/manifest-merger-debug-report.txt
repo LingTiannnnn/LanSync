@@ -63,6 +63,7 @@ MERGED from [androidx.core:core-ktx:1.12.0] C:\Users\LingTian\.gradle\caches\8.1
 MERGED from [androidx.annotation:annotation-experimental:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\17252d579680fb0e566482d71ba7f179\transformed\jetified-annotation-experimental-1.3.0\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.compose.runtime:runtime-saveable-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\1445d62709bb1d1c5daae58c541a3d5d\transformed\jetified-runtime-saveable-release\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.runtime:runtime-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\b9bec9836bfb35c0403c2b148d44228d\transformed\jetified-runtime-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.documentfile:documentfile:1.0.1] C:\Users\LingTian\.gradle\caches\8.13\transforms\c26a3816052ce7a040b04be883cf5ff8\transformed\documentfile-1.0.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\34908de4fe726acd66d1e5a7b0ccbe99\transformed\interpolator-1.0.0\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\LingTian\.gradle\caches\8.13\transforms\23ff0d7cf638794f372506be9a63a6f5\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:17:1-27:12
 MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\3d26dbd529ba0fde1b747e88a937e482\transformed\core-runtime-2.2.0\AndroidManifest.xml:17:1-22:12
@@ -288,6 +289,8 @@ MERGED from [androidx.compose.runtime:runtime-saveable-android:1.5.4] C:\Users\L
 MERGED from [androidx.compose.runtime:runtime-saveable-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\1445d62709bb1d1c5daae58c541a3d5d\transformed\jetified-runtime-saveable-release\AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.runtime:runtime-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\b9bec9836bfb35c0403c2b148d44228d\transformed\jetified-runtime-release\AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.runtime:runtime-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\b9bec9836bfb35c0403c2b148d44228d\transformed\jetified-runtime-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.documentfile:documentfile:1.0.1] C:\Users\LingTian\.gradle\caches\8.13\transforms\c26a3816052ce7a040b04be883cf5ff8\transformed\documentfile-1.0.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.documentfile:documentfile:1.0.1] C:\Users\LingTian\.gradle\caches\8.13\transforms\c26a3816052ce7a040b04be883cf5ff8\transformed\documentfile-1.0.1\AndroidManifest.xml:20:5-44
 MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\34908de4fe726acd66d1e5a7b0ccbe99\transformed\interpolator-1.0.0\AndroidManifest.xml:20:5-44
 MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\34908de4fe726acd66d1e5a7b0ccbe99\transformed\interpolator-1.0.0\AndroidManifest.xml:20:5-44
 MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\LingTian\.gradle\caches\8.13\transforms\23ff0d7cf638794f372506be9a63a6f5\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:20:5-22:41
