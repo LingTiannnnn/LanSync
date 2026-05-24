@@ -39,6 +39,16 @@ class AppListClient(private val context: Context) {
         .followSslRedirects(true)
         .build()
 
+    private val downloadClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
+        .callTimeout(0, TimeUnit.MILLISECONDS)
+        .connectionPool(ConnectionPool(maxIdleConnections = 2, keepAliveDuration = 1, TimeUnit.MINUTES))
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
     private val json = Json {
         prettyPrint = true
         isLenient = true
@@ -366,7 +376,7 @@ class AppListClient(private val context: Context) {
                     .get()
                     .build()
 
-                client.newCall(request).execute().use { response ->
+                downloadClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         val errorBody = response.body?.string()?.take(200) ?: ""
                         FileLogger.e(TAG, "downloadApksFile HTTP ${response.code}: $errorBody")
@@ -437,7 +447,7 @@ class AppListClient(private val context: Context) {
                     .get()
                     .build()
 
-                client.newCall(request).execute().use { response ->
+                downloadClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         val errorBody = response.body?.string()?.take(200) ?: ""
                         FileLogger.e(TAG, "downloadLatestApksFile HTTP ${response.code}: $errorBody")

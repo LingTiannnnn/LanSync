@@ -229,7 +229,7 @@ class JmDNSDiscovery(
 
         refreshJob = scope.launch {
             while (isActive && isRunning) {
-                kotlinx.coroutines.delay(15000)
+                kotlinx.coroutines.delay(REFRESH_INTERVAL_MS)
                 jmdns?.let { dns ->
                     try {
                         FileLogger.d(TAG, "Refreshing services...")
@@ -269,5 +269,6 @@ class JmDNSDiscovery(
 
     companion object {
         private const val TAG = "JmDNSDiscovery"
+        private const val REFRESH_INTERVAL_MS = 60_000L
     }
 }
