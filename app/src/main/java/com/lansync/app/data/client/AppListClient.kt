@@ -2,6 +2,8 @@ package com.lansync.app.data.client
 
 import android.content.Context
 import com.lansync.app.data.FileLogger
+import com.lansync.app.data.HashUtils
+import com.lansync.app.data.NetworkUtils
 import com.lansync.app.data.connection.ConnectionManager
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.ConnectRequestPayload
@@ -22,7 +24,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
-import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -61,7 +62,7 @@ class AppListClient(private val context: Context) {
                 val payload = ConnectRequestPayload(
                     requestId = requestId,
                     requesterName = localDeviceName,
-                    requesterIp = getLocalIpAddress(),
+                    requesterIp = NetworkUtils.getLocalIpAddress(),
                     requesterPort = localPort,
                     requesterInstanceId = localInstanceId,
                     timestamp = System.currentTimeMillis()
@@ -398,7 +399,7 @@ class AppListClient(private val context: Context) {
                         return@withContext DownloadResult.Error("Downloaded file is empty")
                     }
 
-                    val actualMd5 = calculateMd5(destination)
+                    val actualMd5 = HashUtils.md5(destination)
                     val verifyMd5 = serverMd5.ifEmpty { expectedMd5 }
                     FileLogger.d(TAG, "downloadApksFile: size=${destination.length()} actualMd5=${actualMd5.take(8)}... verifyAgainst=${verifyMd5.take(8)}... (source=${if (serverMd5.isNotEmpty()) "server-header" else "expected-param"})")
                     if (actualMd5 != verifyMd5 && verifyMd5.isNotEmpty()) {
@@ -470,7 +471,7 @@ class AppListClient(private val context: Context) {
                         return@withContext DownloadResult.Error("Downloaded file is empty")
                     }
 
-                    val actualMd5 = calculateMd5(destination)
+                    val actualMd5 = HashUtils.md5(destination)
                     val verifyMd5 = serverMd5.ifEmpty { expectedMd5 }
                     if (actualMd5 != verifyMd5 && verifyMd5.isNotEmpty()) {
                         FileLogger.w(TAG, "downloadLatestApksFile: MD5 MISMATCH! actual=$actualMd5 expected=$verifyMd5")
@@ -504,22 +505,6 @@ class AppListClient(private val context: Context) {
                 val percent = ((totalBytesRead * 100 / contentLength).toInt().coerceIn(0, 100))
                 onProgress(percent)
             }
-        }
-    }
-
-    private fun calculateMd5(file: File): String {
-        return try {
-            val digest = MessageDigest.getInstance("MD5")
-            file.inputStream().use { fis ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (fis.read(buffer).also { bytesRead = it } != -1) {
-                    digest.update(buffer, 0, bytesRead)
-                }
-            }
-            digest.digest().joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            ""
         }
     }
 
@@ -611,25 +596,5 @@ class AppListClient(private val context: Context) {
 
     companion object {
         private const val TAG = "AppListClient"
-        private fun getLocalIpAddress(): String {
-            return try {
-                val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
-                while (interfaces.hasMoreElements()) {
-                    val networkInterface = interfaces.nextElement()
-                    if (networkInterface.isUp && !networkInterface.isLoopback) {
-                        val addresses = networkInterface.inetAddresses
-                        while (addresses.hasMoreElements()) {
-                            val addr = addresses.nextElement()
-                            if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
-                                return addr.hostAddress ?: ""
-                            }
-                        }
-                    }
-                }
-                ""
-            } catch (e: Exception) {
-                ""
-            }
-        }
     }
 }

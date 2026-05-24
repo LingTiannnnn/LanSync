@@ -14,20 +14,20 @@
 
 ### 1.1 高严重度修复
 
-| # | 问题 | 文件 | 修改内容 |
-|---|------|------|----------|
-| 1 | 后台协程生命周期未管理 | [JmDNSDiscovery.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/discovery/JmDNSDiscovery.kt) | 新增 `refreshJob: Job?` 字段追踪 refresh 协程；`stopDiscovery()` 中取消并清空该 Job |
-| 2 | JSON 手动拼接 | [KtorServer.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/server/KtorServer.kt) | `/api/connect/status`、`/api/deviceinfo`、`/api/disconnect`、`/api/refresh-applist`、`/api/connect/request` 全部改用 Kotlin Serialization 序列化 |
-| 3 | JSON 字符串匹配解析 | [AppListClient.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/client/AppListClient.kt) | `tryPollOnce` 新增 `tryParseConnectStatus()` 优先使用 JSON 反序列化，保留 `tryLegacyParseConnectStatus()` 作为向后兼容 |
+| #   | 问题           | 文件                                                                                                                                                | 修改内容                                                                                                                                  |
+| --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 后台协程生命周期未管理  | [JmDNSDiscovery.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/discovery/JmDNSDiscovery.kt) | 新增 `refreshJob: Job?` 字段追踪 refresh 协程；`stopDiscovery()` 中取消并清空该 Job                                                                   |
+| 2   | JSON 手动拼接    | [KtorServer.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/server/KtorServer.kt)            | `/api/connect/status`、`/api/deviceinfo`、`/api/disconnect`、`/api/refresh-applist`、`/api/connect/request` 全部改用 Kotlin Serialization 序列化 |
+| 3   | JSON 字符串匹配解析 | [AppListClient.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/client/AppListClient.kt)      | `tryPollOnce` 新增 `tryParseConnectStatus()` 优先使用 JSON 反序列化，保留 `tryLegacyParseConnectStatus()` 作为向后兼容                                   |
 
 ### 1.2 中等严重度修复
 
-| # | 问题 | 文件 | 修改内容 |
-|---|------|------|----------|
-| 4 | OkHttp 连接池未配置 | [AppListClient.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/client/AppListClient.kt) | 添加 `ConnectionPool(5, 5min)`，超时从 10s 提升至 15s，新增 `callTimeout(30s)` |
-| 5 | 数据层日志混乱 | 6 个 data/ 文件 | 统一所有 data 层文件仅使用 `FileLogger`，移除 `android.util.Log` 导入；删除 11 处冗余重复日志 |
-| 6 | TAG 定义位置 | [JmDNSDiscovery.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/discovery/JmDNSDiscovery.kt) | TAG 移至 `companion object` |
-| 7 | 文件检查在 try 内 | [ApkInstaller.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/installer/ApkInstaller.kt) | 文件存在性检查移到 try-catch 块外部 |
+| #   | 问题            | 文件                                                                                                                                                | 修改内容                                                                 |
+| --- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 4   | OkHttp 连接池未配置 | [AppListClient.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/client/AppListClient.kt)      | 添加 `ConnectionPool(5, 5min)`，超时从 10s 提升至 15s，新增 `callTimeout(30s)`   |
+| 5   | 数据层日志混乱       | 6 个 data/ 文件                                                                                                                                      | 统一所有 data 层文件仅使用 `FileLogger`，移除 `android.util.Log` 导入；删除 11 处冗余重复日志 |
+| 6   | TAG 定义位置      | [JmDNSDiscovery.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/discovery/JmDNSDiscovery.kt) | TAG 移至 `companion object`                                            |
+| 7   | 文件检查在 try 内   | [ApkInstaller.kt](file:///c:/Users/LingTian/Documents/trae_projects/LanSync/app/src/main/java/com/lansync/app/data/installer/ApkInstaller.kt)     | 文件存在性检查移到 try-catch 块外部                                              |
 
 ---
 
@@ -37,26 +37,26 @@
 
 ### 2.1 高严重度（延后）
 
-| 问题 | 原因说明 |
-|------|----------|
-| `AppRepository` 职责过重 | 涉及大量代码重写，需引入专用模块（如 `HeartbeatManager`, `DeviceSyncManager`），风险较高。建议在下一轮重构中分步实施 |
-| `AppRepository.getInstance()` 单例模式 | 替换为依赖注入（Hilt）需要修改 `MainViewModel`、`Application`、build.gradle.kts 等多处，范围较大 |
+| 问题                                 | 原因说明                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| `AppRepository` 职责过重               | 涉及大量代码重写，需引入专用模块（如 `HeartbeatManager`, `DeviceSyncManager`），风险较高。建议在下一轮重构中分步实施 |
+| `AppRepository.getInstance()` 单例模式 | 替换为依赖注入（Hilt）需要修改 `MainViewModel`、`Application`、build.gradle.kts 等多处，范围较大      |
 
 ### 2.2 中等严重度（延后）
 
-| 问题 | 原因说明 |
-|------|----------|
-| `AppRepository.observeRawDevicesAndManageConnections` 数据流复杂 | 引入状态机需改动核心连接逻辑，建议先行补充测试后再重构 |
-| `MainViewModel` 多个独立 launch 块 | 使用 `combine` 合并 Flow 可能改变事件的发送时序，需谨慎测试 |
-| `AppPacker` 未使用缓冲流 | 当前文件大小下性能影响可忽略，且 `ZipOutputStream` 内部已有缓冲 |
-| `AppScanner` MD5 计算未并行化 | 并行 IO 可能引入竞态条件，建议先评估实际设备上的耗时再决定 |
-| 文件组织 `data/` 缺少子目录 | 不影响运行时行为，可作为代码清理任务单独处理 |
+| 问题                                                          | 原因说明                                      |
+| ----------------------------------------------------------- | ----------------------------------------- |
+| `AppRepository.observeRawDevicesAndManageConnections` 数据流复杂 | 引入状态机需改动核心连接逻辑，建议先行补充测试后再重构               |
+| `MainViewModel` 多个独立 launch 块                               | 使用 `combine` 合并 Flow 可能改变事件的发送时序，需谨慎测试    |
+| `AppPacker` 未使用缓冲流                                          | 当前文件大小下性能影响可忽略，且 `ZipOutputStream` 内部已有缓冲 |
+| `AppScanner` MD5 计算未并行化                                     | 并行 IO 可能引入竞态条件，建议先评估实际设备上的耗时再决定           |
+| 文件组织 `data/` 缺少子目录                                          | 不影响运行时行为，可作为代码清理任务单独处理                    |
 
 ### 2.3 低严重度（延后）
 
-| 问题 | 原因说明 |
-|------|----------|
-| `UpdateInfo.localApp` 可空命名 | 不影响功能，且 Kotlin 类型系统已足够表达可空语义 |
+| 问题                         | 原因说明                                |
+| -------------------------- | ----------------------------------- |
+| `UpdateInfo.localApp` 可空命名 | 不影响功能，且 Kotlin 类型系统已足够表达可空语义        |
 | `MainActivity.kt` UI 层日志缺失 | UI 层日志通常通过 ViewModel 和 data 层覆盖，非必须 |
 
 ---
@@ -66,6 +66,7 @@
 ### 3.1 JmDNSDiscovery - 协程生命周期
 
 **重构前：**
+
 ```kotlin
 scope.launch {
     while (isActive && isRunning) {
@@ -75,6 +76,7 @@ scope.launch {
 ```
 
 **重构后：**
+
 ```kotlin
 // 新增字段
 private var refreshJob: Job? = null
@@ -98,6 +100,7 @@ fun stopDiscovery() {
 ### 3.2 KtorServer - JSON 序列化
 
 **重构前：**
+
 ```kotlin
 // 手动拼接 JSON，需要手动转义特殊字符
 val escapedName = (response.responderName ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
@@ -105,6 +108,7 @@ call.respondText("""{"status":"$status","accepted":${response.accepted},...}""",
 ```
 
 **重构后：**
+
 ```kotlin
 // 使用 Kotlin Serialization，自动处理转义
 call.respond(ConnectStatusResponse(
@@ -119,6 +123,7 @@ call.respond(ConnectStatusResponse(
 ### 3.3 AppListClient - JSON 反序列化
 
 **重构前：**
+
 ```kotlin
 // 字符串匹配判断状态（容易误匹配）
 if (body.contains("\"status\"") && body.contains("\"accepted\"")) { ... }
@@ -126,6 +131,7 @@ if (body.contains("\"accepted\"") && body.contains("true")) { ... }
 ```
 
 **重构后：**
+
 ```kotlin
 // 优先使用结构化反序列化
 private fun tryParseConnectStatus(body: String): ConnectResult? {
@@ -170,13 +176,13 @@ data class GenericStatusResponse(
 
 ## 四、影响范围总结
 
-| 类别 | 变更文件数 | 新增代码行 | 删除代码行 | 风险级别 |
-|------|-----------|-----------|-----------|---------|
-| 协程生命周期修复 | 1 | +4 | -0 | 低（Bug 修复） |
-| JSON 序列化统一 | 2 | +35 | -15 | 低（格式等价） |
-| 日志策略统一 | 6 | ~0 | ~40 | 低（运行时行为不变） |
-| OkHttp 配置优化 | 1 | +4 | -3 | 低（配置增强） |
-| 代码清洁 | 1 | +4 | -3 | 极低 |
+| 类别          | 变更文件数 | 新增代码行 | 删除代码行 | 风险级别       |
+| ----------- | ----- | ----- | ----- | ---------- |
+| 协程生命周期修复    | 1     | +4    | -0    | 低（Bug 修复）  |
+| JSON 序列化统一  | 2     | +35   | -15   | 低（格式等价）    |
+| 日志策略统一      | 6     | ~0    | ~40   | 低（运行时行为不变） |
+| OkHttp 配置优化 | 1     | +4    | -3    | 低（配置增强）    |
+| 代码清洁        | 1     | +4    | -3    | 极低         |
 
 - **总计**: 8 个文件变更，0 个新增文件
 - **公共 API 变更**: 无
