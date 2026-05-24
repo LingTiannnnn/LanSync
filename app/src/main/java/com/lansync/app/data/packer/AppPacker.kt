@@ -19,7 +19,7 @@ class AppPacker(private val context: Context) {
     }
 
     suspend fun packApp(appInfo: AppInfo): File? = withContext(Dispatchers.IO) {
-        FileLogger.i("AppPacker", "packApp called: ${appInfo.packageName} v${appInfo.versionCode} isExtractable=${appInfo.isExtractable} paths=${appInfo.sourcePaths.size}")
+        FileLogger.i("AppPacker", "packApp called: ${appInfo.packageName} v${appInfo.versionCode} isExtractable=${appInfo.isExtractable} isSplitApk=${appInfo.isSplitApk} paths=${appInfo.sourcePaths.size}")
 
         if (!appInfo.isExtractable || appInfo.sourcePaths.isEmpty()) {
             FileLogger.w("AppPacker", "packApp SKIPPED: ${appInfo.packageName} isExtractable=${appInfo.isExtractable} paths=${appInfo.sourcePaths.size}")
@@ -28,17 +28,44 @@ class AppPacker(private val context: Context) {
 
         val packageName = appInfo.packageName.replace(".", "_")
         val versionCode = appInfo.versionCode
-        val outputFile = File(apksDir, "${packageName}_${versionCode}.apks")
 
-        try {
-            createApksFile(appInfo.sourcePaths, outputFile)
-            val size = outputFile.length()
-            FileLogger.i("AppPacker", "packApp SUCCESS: ${appInfo.packageName} -> ${outputFile.name} (${size} bytes)")
-            outputFile
-        } catch (e: Exception) {
-            FileLogger.e("AppPacker", "packApp FAILED: ${appInfo.packageName}: ${e.message}", e)
-            outputFile.delete()
-            null
+        if (appInfo.isSplitApk) {
+            val outputFile = File(apksDir, "${packageName}_${versionCode}.apks")
+            try {
+                createApksFile(appInfo.sourcePaths, outputFile)
+                val size = outputFile.length()
+                FileLogger.i("AppPacker", "packApp SUCCESS (split): ${appInfo.packageName} -> ${outputFile.name} (${size} bytes)")
+                outputFile
+            } catch (e: Exception) {
+                FileLogger.e("AppPacker", "packApp FAILED: ${appInfo.packageName}: ${e.message}", e)
+                outputFile.delete()
+                null
+            }
+        } else {
+            val outputFile = File(apksDir, "${packageName}_${versionCode}.apk")
+            try {
+                copySingleApk(appInfo.sourcePaths.first(), outputFile)
+                val size = outputFile.length()
+                FileLogger.i("AppPacker", "packApp SUCCESS (single): ${appInfo.packageName} -> ${outputFile.name} (${size} bytes)")
+                outputFile
+            } catch (e: Exception) {
+                FileLogger.e("AppPacker", "packApp FAILED: ${appInfo.packageName}: ${e.message}", e)
+                outputFile.delete()
+                null
+            }
+        }
+    }
+
+    private fun copySingleApk(sourcePath: String, outputFile: File) {
+        val sourceFile = File(sourcePath)
+        sourceFile.inputStream().use { input ->
+            FileOutputStream(outputFile).use { output ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    output.write(buffer, 0, bytesRead)
+                }
+            }
         }
     }
 
@@ -87,8 +114,10 @@ class AppPacker(private val context: Context) {
 
     fun getPackedFile(packageName: String, versionCode: Long): File? {
         val sanitizedPackageName = packageName.replace(".", "_")
-        val file = File(apksDir, "${sanitizedPackageName}_${versionCode}.apks")
-        return if (file.exists()) file else null
+        val apksFile = File(apksDir, "${sanitizedPackageName}_${versionCode}.apks")
+        if (apksFile.exists()) return apksFile
+        val apkFile = File(apksDir, "${sanitizedPackageName}_${versionCode}.apk")
+        return if (apkFile.exists()) apkFile else null
     }
 
     fun cleanupOldPacks(maxAgeMs: Long = 24 * 60 * 60 * 1000) {

@@ -386,13 +386,15 @@ class AppListClient(private val context: Context) {
                     val serverMd5 = response.header("X-MD5") ?: ""
                     FileLogger.d(TAG, "downloadApksFile: X-MD5 from server = ${serverMd5.take(8)}... (expectedMd5 param = ${expectedMd5.take(8)}...)")
 
+                    val contentDisposition = response.header("Content-Disposition")
                     val inputStream = response.body?.byteStream()
                     if (inputStream == null) {
                         FileLogger.e(TAG, "downloadApksFile: empty response body")
                         return@withContext DownloadResult.Error("Empty response body")
                     }
 
-                    val fileName = "${packageName.replace(".", "_")}_${versionCode}.apks"
+                    val fileName = contentDisposition?.substringAfter("filename=\"")?.substringBeforeLast("\"")
+                        ?: "${packageName.replace(".", "_")}_${versionCode}.apks"
                     val destination = File(downloadsDir, fileName)
 
                     FileLogger.d(TAG, "downloadApksFile: writing to ${destination.absolutePath}")
@@ -519,15 +521,19 @@ class AppListClient(private val context: Context) {
     }
 
     fun getDownloadedFile(packageName: String, versionCode: Long): File? {
-        val fileName = "${packageName.replace(".", "_")}_${versionCode}.apks"
-        val file = File(downloadsDir, fileName)
-        val found = file.exists()
-        if (found) {
-            FileLogger.d(TAG, "getDownloadedFile: FOUND $fileName (${file.length()} bytes)")
-        } else {
-            FileLogger.w(TAG, "getDownloadedFile: NOT FOUND $fileName (downloadsDir=${downloadsDir.absolutePath}, exists=${downloadsDir.exists()})")
+        val baseName = "${packageName.replace(".", "_")}_${versionCode}"
+        val apksFile = File(downloadsDir, "$baseName.apks")
+        if (apksFile.exists()) {
+            FileLogger.d(TAG, "getDownloadedFile: FOUND $baseName.apks (${apksFile.length()} bytes)")
+            return apksFile
         }
-        return if (found) file else null
+        val apkFile = File(downloadsDir, "$baseName.apk")
+        if (apkFile.exists()) {
+            FileLogger.d(TAG, "getDownloadedFile: FOUND $baseName.apk (${apkFile.length()} bytes)")
+            return apkFile
+        }
+        FileLogger.w(TAG, "getDownloadedFile: NOT FOUND $baseName (downloadsDir=${downloadsDir.absolutePath}, exists=${downloadsDir.exists()})")
+        return null
     }
 
     fun cleanupOldDownloads(maxAgeMs: Long = 24 * 60 * 60 * 1000) {
@@ -552,20 +558,23 @@ class AppListClient(private val context: Context) {
         val filePath: String,
         val fileSize: Long,
         val lastModified: Long,
-        val packageName: String = ""
+        val packageName: String = "",
+        val isSplitApk: Boolean = false
     )
 
     fun getDownloadedFiles(): List<DownloadedFileInfo> {
         return downloadsDir.listFiles()
-            ?.filter { it.isFile && it.name.endsWith(".apks") }
+            ?.filter { it.isFile && (it.name.endsWith(".apks") || it.name.endsWith(".apk")) }
             ?.map { file ->
                 val packageName = extractPackageName(file.name)
+                val isSplit = file.name.endsWith(".apks")
                 DownloadedFileInfo(
                     fileName = file.name,
                     filePath = file.absolutePath,
                     fileSize = file.length(),
                     lastModified = file.lastModified(),
-                    packageName = packageName
+                    packageName = packageName,
+                    isSplitApk = isSplit
                 )
             }
             ?.sortedByDescending { it.lastModified }
@@ -573,7 +582,11 @@ class AppListClient(private val context: Context) {
     }
 
     private fun extractPackageName(fileName: String): String {
-        val nameWithoutExt = fileName.removeSuffix(".apks")
+        val nameWithoutExt = when {
+            fileName.endsWith(".apks") -> fileName.removeSuffix(".apks")
+            fileName.endsWith(".apk") -> fileName.removeSuffix(".apk")
+            else -> fileName
+        }
         val parts = nameWithoutExt.split("_")
         val versionEnd = parts.indexOfLast { it.toLongOrNull() != null }
         return if (versionEnd <= 0) {
