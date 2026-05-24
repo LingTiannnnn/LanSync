@@ -80,6 +80,7 @@ class AppRepository(context: Context) {
     private val syncJobs = ConcurrentHashMap<String, Job>()
     private val heartbeatFailCounts = ConcurrentHashMap<String, Int>()
     private val connectingDevices = ConcurrentHashMap<String, Boolean>()
+    private var lastUpdateRecalculationMs = 0L
 
     private fun getLocalDisplayKey(): String {
         val port = _serverPort.value
@@ -765,6 +766,11 @@ class AppRepository(context: Context) {
                 localApps to devices
             }.collect { (localApps, devices) ->
                 if (localApps.isNotEmpty() && devices.any { it.appList.isNotEmpty() }) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastUpdateRecalculationMs < UPDATE_RECALCULATION_THROTTLE_MS) {
+                        return@collect
+                    }
+                    lastUpdateRecalculationMs = now
                     recalculateUpdates(localApps, devices)
                     calculateSyncDiffs(localApps, devices)
                 }
@@ -1138,6 +1144,7 @@ class AppRepository(context: Context) {
         const val HEARTBEAT_SYNC_INTERVAL_MS = 120_000L
         const val HEARTBEAT_PING_TOLERANCE = 1
         const val HEARTBEAT_PING_MAX_FAILURES = 4
+        private const val UPDATE_RECALCULATION_THROTTLE_MS = 5_000L
 
         @Volatile
         private var instance: AppRepository? = null
