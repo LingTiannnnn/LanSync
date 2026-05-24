@@ -40,175 +40,201 @@
 21-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:12:22-74
 22
 23    <queries>
-23-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:14:5-15:15
-24    </queries>
-25
-26    <permission
-26-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:22:5-24:47
-27        android:name="com.lansync.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-27-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:23:9-81
-28        android:protectionLevel="signature" />
-28-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:24:9-44
-29
-30    <uses-permission android:name="com.lansync.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
-30-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:26:5-97
-30-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:26:22-94
+23-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:14:5-26:15
+24        <intent>
+24-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:15:9-18:18
+25            <action android:name="android.intent.action.VIEW" />
+25-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:16:13-65
+25-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:16:21-62
+26
+27            <data android:scheme="https" />
+27-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:17:13-44
+27-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:17:19-41
+28        </intent>
+29        <intent>
+29-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:19:9-22:18
+30            <action android:name="android.intent.action.VIEW" />
+30-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:16:13-65
+30-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:16:21-62
 31
-32    <application
-32-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:17:5-46:19
-33        android:name="com.lansync.app.LanSyncApplication"
-33-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:18:9-43
-34        android:allowBackup="true"
-34-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:19:9-35
-35        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-35-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
-36        android:debuggable="true"
-37        android:extractNativeLibs="true"
-38        android:icon="@drawable/ic_launcher"
-38-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:20:9-45
-39        android:label="@string/app_name"
-39-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:21:9-41
-40        android:networkSecurityConfig="@xml/network_security_config"
-40-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:26:9-69
-41        android:roundIcon="@drawable/ic_launcher_round"
-41-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:22:9-56
-42        android:supportsRtl="true"
-42-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:23:9-35
-43        android:theme="@style/Theme.LanSync"
-43-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:24:9-45
-44        android:usesCleartextTraffic="true" >
-44-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:25:9-44
-45        <activity
-45-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:27:9-35:20
-46            android:name="com.lansync.app.MainActivity"
-46-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:28:13-41
-47            android:exported="true"
-47-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:29:13-36
-48            android:theme="@style/Theme.LanSync" >
-48-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:30:13-49
-49            <intent-filter>
-49-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:31:13-34:29
-50                <action android:name="android.intent.action.MAIN" />
-50-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:32:17-69
-50-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:32:25-66
-51
-52                <category android:name="android.intent.category.LAUNCHER" />
-52-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:33:17-77
-52-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:33:27-74
-53            </intent-filter>
-54        </activity>
-55
-56        <provider
-57            android:name="androidx.core.content.FileProvider"
-57-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:38:13-62
-58            android:authorities="com.lansync.app.fileprovider"
-58-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:39:13-64
-59            android:exported="false"
-59-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:40:13-37
-60            android:grantUriPermissions="true" >
-60-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:41:13-47
-61            <meta-data
-61-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:42:13-44:54
-62                android:name="android.support.FILE_PROVIDER_PATHS"
-62-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:43:17-67
-63                android:resource="@xml/file_paths" />
-63-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:44:17-51
-64        </provider>
-65
-66        <activity
-66-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\60ecdb3f789a1eaaf4912f8336899bd9\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:20:9-22:45
-67            android:name="com.google.android.gms.common.api.GoogleApiActivity"
-67-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\60ecdb3f789a1eaaf4912f8336899bd9\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:20:19-85
-68            android:exported="false"
-68-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\60ecdb3f789a1eaaf4912f8336899bd9\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:22:19-43
-69            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-69-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\60ecdb3f789a1eaaf4912f8336899bd9\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:21:19-78
-70
-71        <meta-data
-71-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\2e4b57673e704b917f3ad1402e1f065a\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:21:9-23:69
-72            android:name="com.google.android.gms.version"
-72-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\2e4b57673e704b917f3ad1402e1f065a\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:22:13-58
-73            android:value="@integer/google_play_services_version" />
-73-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\2e4b57673e704b917f3ad1402e1f065a\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:23:13-66
-74
-75        <activity
-75-->[androidx.compose.ui:ui-test-manifest:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\838462a6843dd29a716c48c4a19952b6\transformed\jetified-ui-test-manifest-1.5.4\AndroidManifest.xml:23:9-25:39
-76            android:name="androidx.activity.ComponentActivity"
-76-->[androidx.compose.ui:ui-test-manifest:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\838462a6843dd29a716c48c4a19952b6\transformed\jetified-ui-test-manifest-1.5.4\AndroidManifest.xml:24:13-63
-77            android:exported="true" />
-77-->[androidx.compose.ui:ui-test-manifest:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\838462a6843dd29a716c48c4a19952b6\transformed\jetified-ui-test-manifest-1.5.4\AndroidManifest.xml:25:13-36
-78        <activity
-78-->[androidx.compose.ui:ui-tooling-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\0ae7734959bc2c12b0696124b8c42859\transformed\jetified-ui-tooling-release\AndroidManifest.xml:23:9-25:39
-79            android:name="androidx.compose.ui.tooling.PreviewActivity"
-79-->[androidx.compose.ui:ui-tooling-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\0ae7734959bc2c12b0696124b8c42859\transformed\jetified-ui-tooling-release\AndroidManifest.xml:24:13-71
-80            android:exported="true" />
-80-->[androidx.compose.ui:ui-tooling-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\0ae7734959bc2c12b0696124b8c42859\transformed\jetified-ui-tooling-release\AndroidManifest.xml:25:13-36
-81
-82        <provider
-82-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:24:9-32:20
-83            android:name="androidx.startup.InitializationProvider"
-83-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:25:13-67
-84            android:authorities="com.lansync.app.androidx-startup"
-84-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:26:13-68
-85            android:exported="false" >
-85-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:27:13-37
-86            <meta-data
-86-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:29:13-31:52
-87                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-87-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:30:17-75
-88                android:value="androidx.startup" />
-88-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:31:17-49
-89            <meta-data
-89-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\LingTian\.gradle\caches\8.13\transforms\b21e53d4a49e654fe880608ad8626dc1\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
-90                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-90-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\LingTian\.gradle\caches\8.13\transforms\b21e53d4a49e654fe880608ad8626dc1\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
-91                android:value="androidx.startup" />
-91-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\LingTian\.gradle\caches\8.13\transforms\b21e53d4a49e654fe880608ad8626dc1\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
-92            <meta-data
-92-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:29:13-31:52
-93                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-93-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:30:17-85
-94                android:value="androidx.startup" />
-94-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:31:17-49
-95        </provider>
-96
-97        <receiver
-97-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:34:9-52:20
-98            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-98-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:35:13-76
-99            android:directBootAware="false"
-99-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:36:13-44
-100            android:enabled="true"
-100-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:37:13-35
-101            android:exported="true"
-101-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:38:13-36
-102            android:permission="android.permission.DUMP" >
-102-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:39:13-57
-103            <intent-filter>
-103-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:40:13-42:29
-104                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-104-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:41:17-91
-104-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:41:25-88
-105            </intent-filter>
-106            <intent-filter>
-106-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:43:13-45:29
-107                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-107-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:44:17-85
-107-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:44:25-82
-108            </intent-filter>
-109            <intent-filter>
-109-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:46:13-48:29
-110                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-110-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:47:17-88
-110-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:47:25-85
-111            </intent-filter>
-112            <intent-filter>
-112-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:49:13-51:29
-113                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-113-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:50:17-95
-113-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:50:25-92
-114            </intent-filter>
-115        </receiver>
-116    </application>
-117
-118</manifest>
+32            <data android:scheme="http" />
+32-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:17:13-44
+32-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:17:19-41
+33        </intent>
+34        <intent>
+34-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:23:9-25:18
+35            <action android:name="android.intent.action.MAIN" />
+35-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:24:13-65
+35-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:24:21-62
+36        </intent>
+37    </queries>
+38
+39    <permission
+39-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:22:5-24:47
+40        android:name="com.lansync.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+40-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:23:9-81
+41        android:protectionLevel="signature" />
+41-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:24:9-44
+42
+43    <uses-permission android:name="com.lansync.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+43-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:26:5-97
+43-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:26:22-94
+44
+45    <application
+45-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:28:5-57:19
+46        android:name="com.lansync.app.LanSyncApplication"
+46-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:29:9-43
+47        android:allowBackup="true"
+47-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:30:9-35
+48        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+48-->[androidx.core:core:1.12.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\810d022663b9dd8cfc4e9259b232f434\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
+49        android:debuggable="true"
+50        android:extractNativeLibs="true"
+51        android:icon="@drawable/ic_launcher"
+51-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:31:9-45
+52        android:label="@string/app_name"
+52-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:32:9-41
+53        android:networkSecurityConfig="@xml/network_security_config"
+53-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:37:9-69
+54        android:roundIcon="@drawable/ic_launcher_round"
+54-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:33:9-56
+55        android:supportsRtl="true"
+55-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:34:9-35
+56        android:theme="@style/Theme.LanSync"
+56-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:35:9-45
+57        android:usesCleartextTraffic="true" >
+57-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:36:9-44
+58        <activity
+58-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:38:9-46:20
+59            android:name="com.lansync.app.MainActivity"
+59-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:39:13-41
+60            android:exported="true"
+60-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:40:13-36
+61            android:theme="@style/Theme.LanSync" >
+61-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:41:13-49
+62            <intent-filter>
+62-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:42:13-45:29
+63                <action android:name="android.intent.action.MAIN" />
+63-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:24:13-65
+63-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:24:21-62
+64
+65                <category android:name="android.intent.category.LAUNCHER" />
+65-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:44:17-77
+65-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:44:27-74
+66            </intent-filter>
+67        </activity>
+68
+69        <provider
+70            android:name="androidx.core.content.FileProvider"
+70-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:49:13-62
+71            android:authorities="com.lansync.app.fileprovider"
+71-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:50:13-64
+72            android:exported="false"
+72-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:51:13-37
+73            android:grantUriPermissions="true" >
+73-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:52:13-47
+74            <meta-data
+74-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:53:13-55:54
+75                android:name="android.support.FILE_PROVIDER_PATHS"
+75-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:54:17-67
+76                android:resource="@xml/file_paths" />
+76-->C:\Users\LingTian\Documents\trae_projects\LanSync\app\src\main\AndroidManifest.xml:55:17-51
+77        </provider>
+78
+79        <activity
+79-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\60ecdb3f789a1eaaf4912f8336899bd9\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:20:9-22:45
+80            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+80-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\60ecdb3f789a1eaaf4912f8336899bd9\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:20:19-85
+81            android:exported="false"
+81-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\60ecdb3f789a1eaaf4912f8336899bd9\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:22:19-43
+82            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+82-->[com.google.android.gms:play-services-base:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\60ecdb3f789a1eaaf4912f8336899bd9\transformed\jetified-play-services-base-18.3.0\AndroidManifest.xml:21:19-78
+83
+84        <meta-data
+84-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\2e4b57673e704b917f3ad1402e1f065a\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:21:9-23:69
+85            android:name="com.google.android.gms.version"
+85-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\2e4b57673e704b917f3ad1402e1f065a\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:22:13-58
+86            android:value="@integer/google_play_services_version" />
+86-->[com.google.android.gms:play-services-basement:18.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\2e4b57673e704b917f3ad1402e1f065a\transformed\jetified-play-services-basement-18.3.0\AndroidManifest.xml:23:13-66
+87
+88        <activity
+88-->[androidx.compose.ui:ui-test-manifest:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\838462a6843dd29a716c48c4a19952b6\transformed\jetified-ui-test-manifest-1.5.4\AndroidManifest.xml:23:9-25:39
+89            android:name="androidx.activity.ComponentActivity"
+89-->[androidx.compose.ui:ui-test-manifest:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\838462a6843dd29a716c48c4a19952b6\transformed\jetified-ui-test-manifest-1.5.4\AndroidManifest.xml:24:13-63
+90            android:exported="true" />
+90-->[androidx.compose.ui:ui-test-manifest:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\838462a6843dd29a716c48c4a19952b6\transformed\jetified-ui-test-manifest-1.5.4\AndroidManifest.xml:25:13-36
+91        <activity
+91-->[androidx.compose.ui:ui-tooling-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\0ae7734959bc2c12b0696124b8c42859\transformed\jetified-ui-tooling-release\AndroidManifest.xml:23:9-25:39
+92            android:name="androidx.compose.ui.tooling.PreviewActivity"
+92-->[androidx.compose.ui:ui-tooling-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\0ae7734959bc2c12b0696124b8c42859\transformed\jetified-ui-tooling-release\AndroidManifest.xml:24:13-71
+93            android:exported="true" />
+93-->[androidx.compose.ui:ui-tooling-android:1.5.4] C:\Users\LingTian\.gradle\caches\8.13\transforms\0ae7734959bc2c12b0696124b8c42859\transformed\jetified-ui-tooling-release\AndroidManifest.xml:25:13-36
+94
+95        <provider
+95-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:24:9-32:20
+96            android:name="androidx.startup.InitializationProvider"
+96-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:25:13-67
+97            android:authorities="com.lansync.app.androidx-startup"
+97-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:26:13-68
+98            android:exported="false" >
+98-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:27:13-37
+99            <meta-data
+99-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:29:13-31:52
+100                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+100-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:30:17-75
+101                android:value="androidx.startup" />
+101-->[androidx.emoji2:emoji2:1.4.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\7f1a8b5760683a78c66a602d2e5e3507\transformed\jetified-emoji2-1.4.0\AndroidManifest.xml:31:17-49
+102            <meta-data
+102-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\LingTian\.gradle\caches\8.13\transforms\b21e53d4a49e654fe880608ad8626dc1\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
+103                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+103-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\LingTian\.gradle\caches\8.13\transforms\b21e53d4a49e654fe880608ad8626dc1\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
+104                android:value="androidx.startup" />
+104-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\LingTian\.gradle\caches\8.13\transforms\b21e53d4a49e654fe880608ad8626dc1\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
+105            <meta-data
+105-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:29:13-31:52
+106                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+106-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:30:17-85
+107                android:value="androidx.startup" />
+107-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:31:17-49
+108        </provider>
+109
+110        <receiver
+110-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:34:9-52:20
+111            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+111-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:35:13-76
+112            android:directBootAware="false"
+112-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:36:13-44
+113            android:enabled="true"
+113-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:37:13-35
+114            android:exported="true"
+114-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:38:13-36
+115            android:permission="android.permission.DUMP" >
+115-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:39:13-57
+116            <intent-filter>
+116-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:40:13-42:29
+117                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+117-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:41:17-91
+117-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:41:25-88
+118            </intent-filter>
+119            <intent-filter>
+119-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:43:13-45:29
+120                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+120-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:44:17-85
+120-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:44:25-82
+121            </intent-filter>
+122            <intent-filter>
+122-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:46:13-48:29
+123                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+123-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:47:17-88
+123-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:47:25-85
+124            </intent-filter>
+125            <intent-filter>
+125-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:49:13-51:29
+126                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+126-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:50:17-95
+126-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\LingTian\.gradle\caches\8.13\transforms\40b63141ca4b40c53909a3e7f9fe6129\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:50:25-92
+127            </intent-filter>
+128        </receiver>
+129    </application>
+130
+131</manifest>

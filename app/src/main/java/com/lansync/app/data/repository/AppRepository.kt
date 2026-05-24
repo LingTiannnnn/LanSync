@@ -1,6 +1,7 @@
 package com.lansync.app.data.repository
 
 import android.content.Context
+import com.lansync.app.data.AppConfig
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.NetworkUtils
 import com.lansync.app.data.cache.AppIconDiskCache
@@ -36,7 +37,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
-class AppRepository(context: Context) {
+class AppRepository(context: Context, private val config: AppConfig = AppConfig.DEFAULT) {
 
     private val appContext = context.applicationContext
     private val appScanner = AppScanner(context)
@@ -137,14 +138,14 @@ class AppRepository(context: Context) {
         heartbeatFailCounts.remove(key)
 
         heartbeatJobs[key] = scope.launch {
-            delay(HEARTBEAT_PING_INTERVAL_MS)
+            delay(config.heartbeatPingIntervalMs)
             while (isActive) {
                 try {
                     runHeartbeatPing(device)
                 } catch (e: Exception) {
                     FileLogger.w(TAG, "Heartbeat ping error for ${device.deviceName}: ${e.message}")
                 }
-                delay(HEARTBEAT_PING_INTERVAL_MS)
+                delay(config.heartbeatPingIntervalMs)
             }
         }
 
@@ -155,7 +156,7 @@ class AppRepository(context: Context) {
         val key = device.displayKey
         syncJobs[key]?.cancel()
         syncJobs[key] = scope.launch {
-            delay(HEARTBEAT_SYNC_INTERVAL_MS)
+            delay(config.heartbeatSyncIntervalMs)
             while (isActive) {
                 try {
                     val connected = _connectedDevices.value.find { it.displayKey == key }
@@ -166,7 +167,7 @@ class AppRepository(context: Context) {
                 } catch (e: Exception) {
                     FileLogger.w(TAG, "Sync error for ${device.deviceName}: ${e.message}")
                 }
-                delay(HEARTBEAT_SYNC_INTERVAL_MS)
+                delay(config.heartbeatSyncIntervalMs)
             }
         }
     }
@@ -212,25 +213,25 @@ class AppRepository(context: Context) {
         val current = _connectedDevices.value.find { it.displayKey == key } ?: return
 
         when {
-            failCount <= HEARTBEAT_PING_TOLERANCE -> {
+            failCount <= config.heartbeatPingTolerance -> {
                 val unstable = current.copy(
                     connectionState = ConnectionState.RECONNECTING,
-                    connectionError = "连接不稳定... (${failCount}/${HEARTBEAT_PING_MAX_FAILURES})",
+                    connectionError = "连接不稳定... (${failCount}/${config.heartbeatPingMaxFailures})",
                     lastSeenTimeMs = System.currentTimeMillis()
                 )
                 addOrUpdateInConnected(unstable)
                 addOrUpdateInEnriched(unstable)
-                FileLogger.d(TAG, "Ping unstable for ${device.deviceName}: $failCount/${HEARTBEAT_PING_MAX_FAILURES}")
+                FileLogger.d(TAG, "Ping unstable for ${device.deviceName}: $failCount/${config.heartbeatPingMaxFailures}")
             }
-            failCount < HEARTBEAT_PING_MAX_FAILURES -> {
+            failCount < config.heartbeatPingMaxFailures -> {
                 val reconnecting = current.copy(
                     connectionState = ConnectionState.RECONNECTING,
-                    connectionError = "正在尝试重新连接... (${failCount}/${HEARTBEAT_PING_MAX_FAILURES})",
+                    connectionError = "正在尝试重新连接... (${failCount}/${config.heartbeatPingMaxFailures})",
                     lastSeenTimeMs = System.currentTimeMillis()
                 )
                 addOrUpdateInConnected(reconnecting)
                 addOrUpdateInEnriched(reconnecting)
-                FileLogger.i(TAG, "Ping reconnecting for ${device.deviceName}: $failCount/${HEARTBEAT_PING_MAX_FAILURES}")
+                FileLogger.i(TAG, "Ping reconnecting for ${device.deviceName}: $failCount/${config.heartbeatPingMaxFailures}")
                 scope.launch { tryFastReconnect(current) }
             }
             else -> {
@@ -632,7 +633,7 @@ class AppRepository(context: Context) {
             withContext(Dispatchers.IO) {
                 if (_isRunning.value) return@withContext
 
-                ktorServer.initConnectionManager(android.os.Build.MODEL)
+                ktorServer.setDeviceName(android.os.Build.MODEL)
                 ktorServer.setAppListProvider { _localApps.value }
                 ktorServer.setPacker { appPacker.packApp(it) }
                 ktorServer.setDisconnectHandler { displayKey -> handleRemoteDisconnect(displayKey) }
@@ -770,7 +771,7 @@ class AppRepository(context: Context) {
             }.collect { (localApps, devices) ->
                 if (localApps.isNotEmpty() && devices.any { it.appList.isNotEmpty() }) {
                     val now = System.currentTimeMillis()
-                    if (now - lastUpdateRecalculationMs < UPDATE_RECALCULATION_THROTTLE_MS) {
+                    if (now - lastUpdateRecalculationMs < config.updateRecalculationThrottleMs) {
                         return@collect
                     }
                     lastUpdateRecalculationMs = now
@@ -803,24 +804,53 @@ class AppRepository(context: Context) {
     private fun calculateSyncDiffs(localApps: List<AppInfo>, devices: List<DeviceInfo>) {
         val diffs = mutableListOf<SyncDiff>()
         val localMap = localApps.associateBy { it.packageName }
+        val remotePackages = mutableSetOf<String>()
 
         for (device in devices.filter { it.appList.isNotEmpty() }) {
             for (remoteApp in device.appList) {
                 if (remoteApp.isSystemApp) continue
+                remotePackages.add(remoteApp.packageName)
 
-                val localApp = localMap[remoteApp.packageName] ?: continue
+                val localApp = localMap[remoteApp.packageName]
+                if (localApp == null) {
+                    diffs.add(SyncDiff(
+                        appInfo = remoteApp,
+                        localVersion = null,
+                        remoteVersion = remoteApp.versionName,
+                        sourceDevice = device,
+                        diffType = SyncDiff.DiffType.ONLY_ON_REMOTE
+                    ))
+                    continue
+                }
 
                 if (localApp.isSystemApp) continue
 
-                if (remoteApp.versionCode > localApp.versionCode) {
-                    diffs.add(SyncDiff(
-                        appInfo = remoteApp,
-                        localVersion = localApp.versionName,
-                        remoteVersion = remoteApp.versionName,
-                        sourceDevice = device,
-                        diffType = SyncDiff.DiffType.NEWER_ON_REMOTE
-                    ))
+                val diffType = when {
+                    remoteApp.versionCode > localApp.versionCode -> SyncDiff.DiffType.NEWER_ON_REMOTE
+                    remoteApp.versionCode == localApp.versionCode -> SyncDiff.DiffType.SAME_VERSION
+                    else -> continue
                 }
+
+                diffs.add(SyncDiff(
+                    appInfo = remoteApp,
+                    localVersion = localApp.versionName,
+                    remoteVersion = remoteApp.versionName,
+                    sourceDevice = device,
+                    diffType = diffType
+                ))
+            }
+        }
+
+        for (localApp in localApps) {
+            if (localApp.isSystemApp) continue
+            if (localApp.packageName !in remotePackages) {
+                diffs.add(SyncDiff(
+                    appInfo = localApp,
+                    localVersion = localApp.versionName,
+                    remoteVersion = "",
+                    sourceDevice = DeviceInfo(ipAddress = "", deviceName = "", port = 0),
+                    diffType = SyncDiff.DiffType.ONLY_ON_LOCAL
+                ))
             }
         }
 
@@ -945,7 +975,7 @@ class AppRepository(context: Context) {
             appPacker.clearCache()
             FileLogger.i(TAG, "Cleared apks cache on startup")
 
-            ktorServer.initConnectionManager(android.os.Build.MODEL)
+            ktorServer.setDeviceName(android.os.Build.MODEL)
             ktorServer.setAppListProvider { _localApps.value }
             ktorServer.setPacker { appPacker.packApp(it) }
             ktorServer.setDisconnectHandler { displayKey -> handleRemoteDisconnect(displayKey) }
@@ -1162,18 +1192,25 @@ class AppRepository(context: Context) {
 
     companion object {
         private const val TAG = "AppRepository"
+
+        @Deprecated("Use AppConfig instead", ReplaceWith("AppConfig.DEFAULT.heartbeatPingIntervalMs"))
         const val HEARTBEAT_PING_INTERVAL_MS = 20_000L
+
+        @Deprecated("Use AppConfig instead", ReplaceWith("AppConfig.DEFAULT.heartbeatSyncIntervalMs"))
         const val HEARTBEAT_SYNC_INTERVAL_MS = 120_000L
+
+        @Deprecated("Use AppConfig instead", ReplaceWith("AppConfig.DEFAULT.heartbeatPingTolerance"))
         const val HEARTBEAT_PING_TOLERANCE = 1
+
+        @Deprecated("Use AppConfig instead", ReplaceWith("AppConfig.DEFAULT.heartbeatPingMaxFailures"))
         const val HEARTBEAT_PING_MAX_FAILURES = 4
-        private const val UPDATE_RECALCULATION_THROTTLE_MS = 5_000L
 
         @Volatile
         private var instance: AppRepository? = null
 
-        fun getInstance(context: Context): AppRepository =
+        fun getInstance(context: Context, config: AppConfig = AppConfig.DEFAULT): AppRepository =
             instance ?: synchronized(this) {
-                instance ?: AppRepository(context.applicationContext).also { instance = it }
+                instance ?: AppRepository(context.applicationContext, config).also { instance = it }
             }
     }
 }

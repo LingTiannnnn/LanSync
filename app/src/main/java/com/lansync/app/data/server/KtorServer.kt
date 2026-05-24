@@ -35,6 +35,7 @@ class KtorServer(private val context: Context) {
     private var actualPort: Int = 0
     private var appListProvider: (() -> List<AppInfo>)? = null
     private var packer: (suspend (AppInfo) -> File?)? = null
+    private var deviceName: String = ""
 
     var connectionManager: ConnectionManager? = null
         private set
@@ -58,8 +59,9 @@ class KtorServer(private val context: Context) {
         this.refreshAppListHandler = handler
     }
 
-    fun initConnectionManager(localDeviceName: String) {
-        connectionManager = ConnectionManager(localDeviceName)
+    fun setDeviceName(name: String) {
+        deviceName = name
+        connectionManager = ConnectionManager(name)
     }
 
     suspend fun start(port: Int = 0): Int {
@@ -313,7 +315,7 @@ class KtorServer(private val context: Context) {
                     }
 
                     get("/api/deviceinfo") {
-                    call.respond(DeviceInfoResponse(deviceName = android.os.Build.MODEL))
+                    call.respond(DeviceInfoResponse(deviceName = deviceName))
                 }
             }
         }
@@ -333,7 +335,7 @@ class KtorServer(private val context: Context) {
         val contentType = if (isSingleApk) ContentType.Application.OctetStream else ContentType.Application.Zip
         call.respondOutputStream(contentType) {
             file.inputStream().use { input ->
-                val buffer = ByteArray(8192)
+                val buffer = ByteArray(65536)
                 var bytesRead: Int
                 while (input.read(buffer).also { bytesRead = it } != -1) {
                     write(buffer, 0, bytesRead)

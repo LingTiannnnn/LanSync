@@ -1,13 +1,20 @@
 package com.lansync.app.data
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.Channel.Factory.UNLIMITED
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.concurrent.thread
 
 object FileLogger {
 
@@ -17,9 +24,12 @@ object FileLogger {
     private var logDir: File? = null
     private var isInitialized = false
 
-    private val logQueue = ConcurrentLinkedQueue<String>()
-    private var writerThread: Thread? = null
-    private var running = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val logChannel = Channel<String>(UNLIMITED)
+    private val writeMutex = Mutex()
+    private val dateFormat = ThreadLocal.withInitial {
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+    }
 
     fun init(context: Context) {
         if (isInitialized) return
@@ -28,7 +38,7 @@ object FileLogger {
             logDir = externalDir
             rotateLogFiles()
             isInitialized = true
-            startWriterThread()
+            startConsumerJob()
             i("FileLogger", "Log directory: ${logDir?.absolutePath}")
         }
     }
@@ -65,22 +75,13 @@ object FileLogger {
         }
     }
 
-    private fun startWriterThread() {
-        if (running) return
-        running = true
-        writerThread = thread(name = "FileLogger-Writer", isDaemon = true) {
-            while (running) {
+    private fun startConsumerJob() {
+        scope.launch {
+            for (entry in logChannel) {
+                if (!isActive) break
                 try {
-                    val entry = logQueue.poll()
-                    if (entry != null) {
-                        writeToFile(entry)
-                    } else {
-                        Thread.sleep(50)
-                    }
-                } catch (_: InterruptedException) {
-                    break
-                } catch (e: Exception) {
-                    break
+                    writeToFile(entry)
+                } catch (_: Exception) {
                 }
             }
         }
@@ -113,26 +114,27 @@ object FileLogger {
 
     private fun enqueue(level: String, tag: String, message: String) {
         if (!isInitialized) return
-        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
-        logQueue.offer("$timestamp [$level] $tag: $message")
+        val timestamp = dateFormat.get()!!.format(Date())
+        logChannel.trySend("$timestamp [$level] $tag: $message")
     }
 
-    @Synchronized
-    private fun writeToFile(entry: String) {
-        val dir = logDir ?: return
-        try {
-            val logFile = File(dir, LOG_FILE_NAME)
-            if (logFile.exists() && logFile.length() > MAX_LOG_SIZE_BYTES) {
-                val backup = File(dir, "lansync_debug.prev.log")
-                backup.delete()
-                logFile.renameTo(backup)
+    private suspend fun writeToFile(entry: String) {
+        writeMutex.withLock {
+            val dir = logDir ?: return
+            try {
+                val logFile = File(dir, LOG_FILE_NAME)
+                if (logFile.exists() && logFile.length() > MAX_LOG_SIZE_BYTES) {
+                    val backup = File(dir, "lansync_debug.prev.log")
+                    backup.delete()
+                    logFile.renameTo(backup)
+                }
+                FileWriter(logFile, true).use { writer ->
+                    writer.append(entry)
+                    writer.append("\n")
+                    writer.flush()
+                }
+            } catch (_: Exception) {
             }
-            FileWriter(logFile, true).use { writer ->
-                writer.append(entry)
-                writer.append("\n")
-                writer.flush()
-            }
-        } catch (_: Exception) {
         }
     }
 
@@ -147,16 +149,19 @@ object FileLogger {
     }
 
     fun shutdown() {
-        running = false
-        writerThread?.interrupt()
-        writerThread = null
-        val remaining = StringBuilder()
+        val remaining = mutableListOf<String>()
         while (true) {
-            val entry = logQueue.poll() ?: break
-            remaining.append(entry).append("\n")
+            val entry = logChannel.tryReceive().getOrNull() ?: break
+            remaining.add(entry)
         }
+        logChannel.close()
+
         if (remaining.isNotEmpty()) {
-            writeToFile(remaining.toString())
+            scope.launch {
+                for (entry in remaining) {
+                    writeToFile(entry)
+                }
+            }
         }
     }
 }

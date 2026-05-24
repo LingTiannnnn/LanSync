@@ -507,7 +507,7 @@ class AppListClient(private val context: Context) {
         contentLength: Long,
         onProgress: ((Int) -> Unit)?
     ) {
-        val buffer = ByteArray(8192)
+        val buffer = ByteArray(65536)
         var bytesRead: Int
         var totalBytesRead = 0L
         while (inputStream.read(buffer).also { bytesRead = it } != -1) {
