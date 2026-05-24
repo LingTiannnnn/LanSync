@@ -15,6 +15,7 @@ import com.lansync.app.data.repository.AppRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 data class UiState(
@@ -94,61 +95,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun observeRepositoryState() {
         viewModelScope.launch {
-            repository.localApps.collect { apps ->
-                _uiState.value = _uiState.value.copy(localApps = apps)
-            }
-        }
-        viewModelScope.launch {
-            repository.discoveredDevices.collect { devices ->
-                _uiState.value = _uiState.value.copy(discoveredDevices = devices)
-            }
-        }
-        viewModelScope.launch {
-            repository.connectedDevices.collect { devices ->
-                _uiState.value = _uiState.value.copy(connectedDevices = devices)
-            }
-        }
-        viewModelScope.launch {
-            repository.availableUpdates.collect { updates ->
-                _uiState.value = _uiState.value.copy(availableUpdates = updates)
-            }
-        }
-        viewModelScope.launch {
-            repository.syncDiffs.collect { diffs ->
-                _uiState.value = _uiState.value.copy(syncDiffs = diffs)
-            }
-        }
-        viewModelScope.launch {
-            repository.isRunning.collect { running ->
-                _uiState.value = _uiState.value.copy(isRunning = running)
-            }
-        }
-        viewModelScope.launch {
-            repository.isScanningApps.collect { scanning ->
-                _uiState.value = _uiState.value.copy(isScanningApps = scanning)
-            }
-        }
-        viewModelScope.launch {
-            repository.serverPort.collect { port ->
-                _uiState.value = _uiState.value.copy(serverPort = port)
-            }
-        }
-        viewModelScope.launch {
-            repository.downloadProgress.collect { progress ->
-                _uiState.value = _uiState.value.copy(
-                    currentDownloadProgress = progress,
-                    isDownloading = progress?.status == AppRepository.DownloadProgress.Status.DOWNLOADING
+            @Suppress("UNCHECKED_CAST")
+            val flows = listOf<kotlinx.coroutines.flow.Flow<Any?>>(
+                repository.localApps as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.discoveredDevices as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.connectedDevices as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.availableUpdates as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.syncDiffs as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.isRunning as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.isScanningApps as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.serverPort as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.downloadProgress as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.installStatus as kotlinx.coroutines.flow.Flow<Any?>,
+                repository.incomingRequests as kotlinx.coroutines.flow.Flow<Any?>,
+            )
+            combine(flows) { array ->
+                val localApps = array[0] as List<com.lansync.app.data.model.AppInfo>
+                val discoveredDevices = array[1] as List<DeviceInfo>
+                val connectedDevices = array[2] as List<DeviceInfo>
+                val availableUpdates = array[3] as List<UpdateInfo>
+                val syncDiffs = array[4] as List<SyncDiff>
+                val isRunning = array[5] as Boolean
+                val isScanningApps = array[6] as Boolean
+                val serverPort = array[7] as Int
+                val downloadProgress = array[8] as AppRepository.DownloadProgress?
+                val installStatus = array[9] as AppRepository.InstallStatus?
+                val incomingRequests = array[10] as List<IncomingConnectRequest>
+
+                _uiState.value.copy(
+                    localApps = localApps,
+                    discoveredDevices = discoveredDevices,
+                    connectedDevices = connectedDevices,
+                    availableUpdates = availableUpdates,
+                    syncDiffs = syncDiffs,
+                    isRunning = isRunning,
+                    isScanningApps = isScanningApps,
+                    serverPort = serverPort,
+                    currentDownloadProgress = downloadProgress,
+                    isDownloading = downloadProgress?.status == AppRepository.DownloadProgress.Status.DOWNLOADING,
+                    installStatus = installStatus,
+                    incomingRequests = incomingRequests
                 )
-            }
-        }
-        viewModelScope.launch {
-            repository.installStatus.collect { status ->
-                _uiState.value = _uiState.value.copy(installStatus = status)
-            }
-        }
-        viewModelScope.launch {
-            repository.incomingRequests.collect { requests ->
-                _uiState.value = _uiState.value.copy(incomingRequests = requests)
+            }.collect { newState ->
+                _uiState.value = newState
             }
         }
     }

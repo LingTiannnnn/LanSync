@@ -1,7 +1,8 @@
-﻿package com.lansync.app.data.repository
+package com.lansync.app.data.repository
 
 import android.content.Context
 import com.lansync.app.data.FileLogger
+import com.lansync.app.data.NetworkUtils
 import com.lansync.app.data.client.AppListClient
 import com.lansync.app.data.connection.ConnectionManager
 import com.lansync.app.data.discovery.JmDNSDiscovery
@@ -82,15 +83,7 @@ class AppRepository(context: Context) {
 
     private fun getLocalDisplayKey(): String {
         val port = _serverPort.value
-        val ip = try {
-            java.net.NetworkInterface.getNetworkInterfaces().asSequence()
-                .filter { it.isUp && !it.isLoopback }
-                .flatMap { it.inetAddresses.asSequence() }
-                .firstOrNull { !it.isLoopbackAddress && it is java.net.Inet4Address }
-                ?.hostAddress ?: "0.0.0.0"
-        } catch (e: Exception) {
-            "0.0.0.0"
-        }
+        val ip = NetworkUtils.getLocalIpAddress().ifEmpty { "0.0.0.0" }
         return "$ip:$port"
     }
 

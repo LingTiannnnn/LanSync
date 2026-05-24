@@ -3,6 +3,7 @@ package com.lansync.app.data.server
 import android.content.Context
 import com.lansync.app.data.connection.ConnectionManager
 import com.lansync.app.data.FileLogger
+import com.lansync.app.data.HashUtils
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.ConnectRequestPayload
 import com.lansync.app.data.model.ConnectResponseBody
@@ -25,7 +26,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.security.MessageDigest
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class KtorServer(private val context: Context) {
 
@@ -322,7 +324,7 @@ class KtorServer(private val context: Context) {
     }
 
     private suspend fun sendZipFile(call: ApplicationCall, file: File, md5: String) {
-        val actualMd5 = calculateFileMd5(file)
+        val actualMd5 = HashUtils.md5(file)
         FileLogger.d("KtorServer", "sendZipFile: storedMd5=${md5.take(8)}... actualPackedMd5=${actualMd5.take(8)}... size=${file.length()}")
         call.response.header("X-MD5", actualMd5)
         call.response.header("X-File-Size", file.length().toString())
@@ -338,22 +340,7 @@ class KtorServer(private val context: Context) {
         }
     }
 
-    private fun calculateFileMd5(file: File): String {
-        return try {
-            val digest = MessageDigest.getInstance("MD5")
-            file.inputStream().use { fis ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (fis.read(buffer).also { bytesRead = it } != -1) {
-                    digest.update(buffer, 0, bytesRead)
-                }
-            }
-            digest.digest().joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            FileLogger.w("KtorServer", "calculateFileMd5 failed for ${file.name}: ${e.message}")
-            ""
-        }
-    }
+
 
     fun stop() {
         server?.stop(1000, 5000)

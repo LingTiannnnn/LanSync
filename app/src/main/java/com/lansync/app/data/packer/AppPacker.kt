@@ -2,6 +2,7 @@ package com.lansync.app.data.packer
 
 import android.content.Context
 import com.lansync.app.data.FileLogger
+import com.lansync.app.data.HashUtils
 import com.lansync.app.data.model.AppInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -81,19 +82,7 @@ class AppPacker(private val context: Context) {
     }
 
     fun getMd5OfPackedFile(file: File): String {
-        return try {
-            val digest = MessageDigest.getInstance("MD5")
-            file.inputStream().use { fis ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (fis.read(buffer).also { bytesRead = it } != -1) {
-                    digest.update(buffer, 0, bytesRead)
-                }
-            }
-            digest.digest().joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            ""
-        }
+        return HashUtils.md5(file)
     }
 
     fun getPackedFile(packageName: String, versionCode: Long): File? {

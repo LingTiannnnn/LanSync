@@ -6,11 +6,11 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import com.lansync.app.data.FileLogger
+import com.lansync.app.data.HashUtils
 import com.lansync.app.data.model.AppInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.security.MessageDigest
 
 class AppScanner(private val context: Context) {
 
@@ -75,7 +75,7 @@ class AppScanner(private val context: Context) {
             }
 
             val fileSize = calculateTotalFileSize(sourcePaths)
-            val md5 = calculateCombinedMd5(sourcePaths)
+            val md5 = HashUtils.md5(sourcePaths)
             val isSystemApp = (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
             return AppInfo(
@@ -137,33 +137,6 @@ class AppScanner(private val context: Context) {
             } catch (e: Exception) {
                 0L
             }
-        }
-    }
-
-    private fun calculateCombinedMd5(paths: List<String>): String {
-        return try {
-            val digest = MessageDigest.getInstance("MD5")
-
-            paths.forEach { path ->
-                try {
-                    val file = File(path)
-                    if (file.canRead()) {
-                        file.inputStream().use { fis ->
-                            val buffer = ByteArray(8192)
-                            var bytesRead: Int
-                            while (fis.read(buffer).also { bytesRead = it } != -1) {
-                                digest.update(buffer, 0, bytesRead)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Skip files that cannot be read
-                }
-            }
-
-            digest.digest().joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            ""
         }
     }
 }

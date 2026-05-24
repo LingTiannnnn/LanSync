@@ -2,8 +2,8 @@ package com.lansync.app.data.discovery
 
 import android.content.Context
 import android.net.wifi.WifiManager
-import android.text.format.Formatter
 import com.lansync.app.data.FileLogger
+import com.lansync.app.data.NetworkUtils
 import com.lansync.app.data.model.DeviceInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +16,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
 import java.net.InetAddress
-import java.net.NetworkInterface
 import java.util.UUID
 import javax.jmdns.JmDNS
 import javax.jmdns.ServiceInfo
@@ -70,7 +69,7 @@ class JmDNSDiscovery(
 
         try {
             acquireMulticastLock()
-            val localAddress = getLocalIpAddress()
+            val localAddress = NetworkUtils.getLocalIpAddressViaWifi(context)
             val hostname = getDeviceName()
 
             jmdns = JmDNS.create(localAddress, hostname)
@@ -260,30 +259,6 @@ class JmDNSDiscovery(
                 }
             }
         }
-    }
-
-    private fun getLocalIpAddress(): InetAddress {
-        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val ipInt = wifiManager.connectionInfo.ipAddress
-        if (ipInt == 0) {
-            FileLogger.w(TAG, "WiFi ipAddress is 0, trying network interface")
-            try {
-                val interfaces = NetworkInterface.getNetworkInterfaces()
-                while (interfaces.hasMoreElements()) {
-                    val intf = interfaces.nextElement()
-                    val addrs = intf.inetAddresses
-                    while (addrs.hasMoreElements()) {
-                        val addr = addrs.nextElement()
-                        if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) return addr
-                    }
-                }
-            } catch (e: Exception) {
-                FileLogger.e(TAG, "Error finding fallback IP", e)
-            }
-        }
-        val ipAddress = Formatter.formatIpAddress(ipInt)
-        FileLogger.d(TAG, "Local IP Address: $ipAddress")
-        return InetAddress.getByName(ipAddress)
     }
 
     private fun getDeviceName(): String = try {
