@@ -23,8 +23,6 @@ fun DeviceListScreen(
     isRunning: Boolean,
     isScanningApps: Boolean,
     serverPort: Int,
-    isConnecting: Boolean = false,
-    connectingDeviceName: String? = null,
     isStarting: Boolean = false,
     isStopping: Boolean = false,
     operationMessage: String? = null,
@@ -54,33 +52,6 @@ fun DeviceListScreen(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        if (isConnecting && connectingDeviceName != null) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = "正在连接 $connectingDeviceName...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
 
         if (connectionError != null) {
             Card(
