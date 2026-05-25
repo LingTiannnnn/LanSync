@@ -34,8 +34,6 @@ data class UiState(
     val installStatus: AppRepository.InstallStatus? = null,
     val serverPort: Int = 0,
     val isLoading: Boolean = false,
-    val isConnecting: Boolean = false,
-    val connectingDeviceName: String? = null,
     val connectionError: String? = null,
     val isStarting: Boolean = false,
     val isStopping: Boolean = false,
@@ -187,10 +185,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun connectDevice(device: DeviceInfo) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
-                isConnecting = true,
-                connectingDeviceName = device.deviceName,
-                connectionError = null,
-                operationMessage = "正在连接 ${device.deviceName}..."
+                connectionError = null
             )
             try {
                 val success = repository.connectDevice(device)
@@ -202,12 +197,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     connectionError = "连接异常: ${e.message}"
-                )
-            } finally {
-                _uiState.value = _uiState.value.copy(
-                    isConnecting = false,
-                    connectingDeviceName = null,
-                    operationMessage = null
                 )
             }
         }
