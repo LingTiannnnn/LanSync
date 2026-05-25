@@ -144,15 +144,3 @@ fun preloadIcon(context: Context, packageName: String, targetSize: Int = 96) {
     } catch (_: Exception) {
     }
 }
-
-fun clearAppIconCache() {
-    memoryCache.evictAll()
-}
-
-object AppIconCache {
-    fun get(packageName: String): Bitmap? = memoryCache.get(packageName)
-    fun put(packageName: String, bitmap: Bitmap) = memoryCache.put(packageName, bitmap)
-    fun clear() {
-        memoryCache.evictAll()
-    }
-}

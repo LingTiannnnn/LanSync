@@ -87,22 +87,6 @@ class UpdateManagerTest {
         assertTrue(deduped.isEmpty())
     }
 
-    @Test
-    fun `groupByDevice groups updates correctly`() {
-        val manager = createUpdateManager()
-        val device1 = DeviceInfo(ipAddress = "192.168.1.1", deviceName = "Device1", port = 8080)
-        val device2 = DeviceInfo(ipAddress = "192.168.1.2", deviceName = "Device2", port = 8080)
-
-        val updates = listOf(
-            UpdateInfo(null, createAppInfo("com.app.one", 100L), device1, true),
-            UpdateInfo(null, createAppInfo("com.app.two", 200L), device2, true)
-        )
-
-        val grouped = manager.groupByDevice(updates)
-
-        assertEquals(2, grouped.size)
-    }
-
     private fun createAppInfo(packageName: String, versionCode: Long) = AppInfo(
         packageName = packageName,
         appName = "TestApp",

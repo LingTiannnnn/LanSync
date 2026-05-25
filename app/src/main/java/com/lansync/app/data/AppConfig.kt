@@ -7,10 +7,7 @@ data class AppConfig(
     val heartbeatPingMaxFailures: Int = 4,
     val updateRecalculationThrottleMs: Long = 5_000L,
     val connectTimeoutMs: Long = 30_000L,
-    val requestTimeoutMs: Long = 15_000L,
     val pollIntervalMs: Long = 500L,
-    val downloadBufferSize: Int = 65536,
-    val sendBufferSize: Int = 65536,
     val fetchAppListMaxRetries: Int = 5,
     val fetchAppListRetryDelayMs: Long = 3_000L,
     val pingTimeoutMs: Long = 3_000L
