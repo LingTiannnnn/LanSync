@@ -69,7 +69,6 @@ class AppRepository(context: Context, private val config: AppConfig = AppConfig.
     val localApps: StateFlow<List<AppInfo>> = _localApps.asStateFlow()
     val discoveredDevices: StateFlow<List<DeviceInfo>> = _enrichedDevices.asStateFlow()
     val connectedDevices: StateFlow<List<DeviceInfo>> = _connectedDevices.asStateFlow()
-    val enrichedDevices: StateFlow<List<DeviceInfo>> = _enrichedDevices.asStateFlow()
     val availableUpdates: StateFlow<List<UpdateInfo>> = _availableUpdates.asStateFlow()
     val syncDiffs: StateFlow<List<SyncDiff>> = _syncDiffs.asStateFlow()
     val serverPort: StateFlow<Int> = _serverPort.asStateFlow()
@@ -471,11 +470,6 @@ class AppRepository(context: Context, private val config: AppConfig = AppConfig.
                                 updateDeviceConnectionState(device, ConnectionState.ERROR, result.message)
                                 false
                             }
-                        }
-                        is AppListClient.ConnectResult.Error -> {
-                            FileLogger.e(TAG, "=== CONNECT ERROR === ${result.message}")
-                            updateDeviceConnectionState(device, ConnectionState.ERROR, result.message)
-                            false
                         }
                     }
                 } catch (e: Exception) {
@@ -1032,14 +1026,6 @@ class AppRepository(context: Context, private val config: AppConfig = AppConfig.
         return recalculateUpdates(_localApps.value, _connectedDevices.value)
     }
 
-    suspend fun fetchDeviceAppList(device: DeviceInfo): DeviceInfo? {
-        return withContext(Dispatchers.IO) {
-            updateManager.refreshDeviceAppList(device)?.also { enriched ->
-                addOrUpdateInEnriched(enriched)
-            }
-        }
-    }
-
     suspend fun downloadApp(updateInfo: UpdateInfo): AppListClient.DownloadResult {
         return withContext(Dispatchers.IO) {
             FileLogger.i(TAG, "=== downloadApp START === pkg=${updateInfo.remoteApp.packageName} v${updateInfo.remoteApp.versionCode} from=${updateInfo.providerDevice.deviceName} (${updateInfo.providerDevice.ipAddress}:${updateInfo.providerDevice.port}) isExtractable=${updateInfo.remoteApp.isExtractable}")
@@ -1135,16 +1121,6 @@ class AppRepository(context: Context, private val config: AppConfig = AppConfig.
         }
     }
 
-    fun installDownloadedFile(file: File): ApkInstaller.InstallationResult {
-        _installStatus.value = InstallStatus.Installing(file.name)
-        return apkInstaller.installApks(file).also { result ->
-            _installStatus.value = when (result) {
-                is ApkInstaller.InstallationResult.Success -> InstallStatus.Success(file.name)
-                is ApkInstaller.InstallationResult.Error -> InstallStatus.Failed(file.name, result.message)
-            }
-        }
-    }
-
     fun getDownloadedFile(packageName: String, versionCode: Long): File? =
         appListClient.getDownloadedFile(packageName, versionCode)
 
@@ -1192,18 +1168,6 @@ class AppRepository(context: Context, private val config: AppConfig = AppConfig.
 
     companion object {
         private const val TAG = "AppRepository"
-
-        @Deprecated("Use AppConfig instead", ReplaceWith("AppConfig.DEFAULT.heartbeatPingIntervalMs"))
-        const val HEARTBEAT_PING_INTERVAL_MS = 20_000L
-
-        @Deprecated("Use AppConfig instead", ReplaceWith("AppConfig.DEFAULT.heartbeatSyncIntervalMs"))
-        const val HEARTBEAT_SYNC_INTERVAL_MS = 120_000L
-
-        @Deprecated("Use AppConfig instead", ReplaceWith("AppConfig.DEFAULT.heartbeatPingTolerance"))
-        const val HEARTBEAT_PING_TOLERANCE = 1
-
-        @Deprecated("Use AppConfig instead", ReplaceWith("AppConfig.DEFAULT.heartbeatPingMaxFailures"))
-        const val HEARTBEAT_PING_MAX_FAILURES = 4
 
         @Volatile
         private var instance: AppRepository? = null

@@ -26,8 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 class KtorServer(private val context: Context) {
 
@@ -173,39 +171,6 @@ class KtorServer(private val context: Context) {
                         } catch (e: Exception) {
                             call.respondText("Error: ${e.message}", status = HttpStatusCode.InternalServerError)
                         }
-                    }
-                }
-
-                get("/api/app/{packageName}/{versionCode}") {
-                    val packageName = call.parameters["packageName"] ?: ""
-                    val versionCode = call.parameters["versionCode"]?.toLongOrNull() ?: 0L
-                    FileLogger.i("KtorServer", "GET /api/app/$packageName/$versionCode")
-
-                    val apps = appListProvider?.invoke() ?: emptyList()
-                    val app = apps.find {
-                        it.packageName == packageName && it.versionCode == versionCode
-                    }
-
-                    if (app == null) {
-                        FileLogger.w("KtorServer", "GET /api/app/$packageName/$versionCode -> app NOT FOUND in local list (${apps.size} apps)")
-                        call.respondText("App not found", status = HttpStatusCode.NotFound)
-                        return@get
-                    }
-
-                    if (!app.isExtractable) {
-                        FileLogger.w("KtorServer", "GET /api/app/$packageName/$versionCode -> app NOT EXTRACTABLE (system/protected app)")
-                        call.respondText("App is a system/protected app and cannot be extracted for transfer", status = HttpStatusCode.Forbidden)
-                        return@get
-                    }
-
-                    FileLogger.d("KtorServer", "GET /api/app/$packageName/$versionCode -> packing...")
-                    val packedFile = packer?.invoke(app)
-                    if (packedFile?.exists() == true) {
-                        FileLogger.i("KtorServer", "GET /api/app/$packageName/$versionCode -> sending ${packedFile.length()} bytes")
-                        sendZipFile(call, packedFile, app.md5)
-                    } else {
-                        FileLogger.e("KtorServer", "GET /api/app/$packageName/$versionCode -> pack FAILED, file null or missing")
-                        call.respondText("Packed file not found", status = HttpStatusCode.NotFound)
                     }
                 }
 

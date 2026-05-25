@@ -223,7 +223,6 @@ class AppListClient(private val context: Context) {
         data class Accepted(val responderName: String) : ConnectResult()
         data class Rejected(val message: String) : ConnectResult()
         data class Timeout(val message: String) : ConnectResult()
-        data class Error(val message: String) : ConnectResult()
     }
 
     suspend fun fetchAppList(ipAddress: String, port: Int): List<AppInfo>? {

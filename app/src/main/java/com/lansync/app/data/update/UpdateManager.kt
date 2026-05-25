@@ -100,8 +100,4 @@ class UpdateManager(private val appListClient: AppListClient) {
         
         return bestUpdates.values.toList()
     }
-
-    fun groupByDevice(updates: List<UpdateInfo>): Map<String, List<UpdateInfo>> {
-        return updates.groupBy { it.providerDevice.displayKey }
-    }
 }

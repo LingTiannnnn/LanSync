@@ -55,7 +55,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var _lastDownloadedUpdateInfo: UpdateInfo? = null
-    val lastDownloadedUpdateInfo: UpdateInfo? get() = _lastDownloadedUpdateInfo
 
     init {
         observeRepositoryState()
@@ -78,16 +77,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             repository.scanLocalApps()
-        }
-    }
-
-    fun performInitialScan() {
-        if (_uiState.value.needsInitialScan) return
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(needsInitialScan = true)
-            repository.scanLocalApps()
-            _uiState.value = _uiState.value.copy(needsInitialScan = false)
-            repository.start()
         }
     }
 
@@ -172,12 +161,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun scanLocalApps() {
-        viewModelScope.launch {
-            repository.scanLocalApps()
-        }
-    }
-
     fun forceStartSync() {
         repository.forceStartSync()
     }
@@ -242,14 +225,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshConnectedDevice(device: DeviceInfo) {
         viewModelScope.launch {
             repository.refreshConnectedDevice(device)
-        }
-    }
-
-    fun checkForUpdates() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            repository.checkForUpdates()
-            _uiState.value = _uiState.value.copy(isLoading = false)
         }
     }
 
