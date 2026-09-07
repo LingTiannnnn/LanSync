@@ -99,7 +99,9 @@ class AppPacker(private val context: Context) {
 
                     zos.closeEntry()
                 } catch (e: SecurityException) {
+                    FileLogger.w("AppPacker", "SecurityException reading $path: ${e.message}")
                 } catch (e: Exception) {
+                    FileLogger.e("AppPacker", "Error reading $path: ${e.message}", e)
                 }
             }
         }

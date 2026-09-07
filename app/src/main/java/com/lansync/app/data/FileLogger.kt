@@ -157,7 +157,7 @@ object FileLogger {
         logChannel.close()
 
         if (remaining.isNotEmpty()) {
-            scope.launch {
+            kotlinx.coroutines.runBlocking {
                 for (entry in remaining) {
                     writeToFile(entry)
                 }

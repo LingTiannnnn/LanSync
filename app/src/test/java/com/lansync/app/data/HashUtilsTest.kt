@@ -17,7 +17,8 @@ class HashUtilsTest {
         val file = tempFolder.newFile("test.txt")
         file.writeText("hello world")
         val hash = HashUtils.md5(file)
-        assertEquals(32, hash.length)
+        assertTrue("hash should not be null", hash != null)
+        assertEquals(32, hash!!.length)
         assertTrue(hash.all { it in '0'..'9' || it in 'a'..'f' })
     }
 
@@ -28,17 +29,20 @@ class HashUtilsTest {
         f1.writeText("hello")
         f2.writeText("world")
         val hash = HashUtils.md5(listOf(f1.absolutePath, f2.absolutePath))
-        assertEquals(32, hash.length)
+        assertTrue("hash should not be null", hash != null)
+        assertEquals(32, hash!!.length)
     }
 
     @Test
-    fun `md5 nonexistent file returns empty`() {
-        assertEquals("", HashUtils.md5(File("/nonexistent/path.abc")))
+    fun `md5 nonexistent file returns null`() {
+        val hash = HashUtils.md5(File("/nonexistent/path.abc"))
+        assertEquals(null, hash)
     }
 
     @Test
     fun `md5 paths with unreadable files handles gracefully`() {
         val hash = HashUtils.md5(listOf("/nonexistent/a", "/nonexistent/b"))
-        assertEquals(32, hash.length)
+        // 当所有文件不可读时，返回空字符串作为 hash
+        assertEquals(32, hash!!.length)
     }
 }

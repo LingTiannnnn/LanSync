@@ -363,70 +363,14 @@ class AppListClient(private val context: Context) {
         expectedMd5: String,
         onProgress: ((Int) -> Unit)? = null
     ): DownloadResult {
-        return withContext(Dispatchers.IO) {
-            FileLogger.i(TAG, "downloadApksFile START: $packageName v$versionCode from $ipAddress:$port (expectedMd5=${expectedMd5.take(8)}...)")
-
-            try {
-                val url = "http://$ipAddress:$port/api/download/${packageName}/${versionCode}"
-                FileLogger.d(TAG, "downloadApksFile: GET $url")
-
-                val request = Request.Builder()
-                    .url(url)
-                    .get()
-                    .build()
-
-                downloadClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        val errorBody = response.body?.string()?.take(200) ?: ""
-                        FileLogger.e(TAG, "downloadApksFile HTTP ${response.code}: $errorBody")
-                        return@withContext DownloadResult.Error("HTTP error: ${response.code}: $errorBody")
-                    }
-
-                    val serverMd5 = response.header("X-MD5") ?: ""
-                    FileLogger.d(TAG, "downloadApksFile: X-MD5 from server = ${serverMd5.take(8)}... (expectedMd5 param = ${expectedMd5.take(8)}...)")
-
-                    val contentDisposition = response.header("Content-Disposition")
-                    val inputStream = response.body?.byteStream()
-                    if (inputStream == null) {
-                        FileLogger.e(TAG, "downloadApksFile: empty response body")
-                        return@withContext DownloadResult.Error("Empty response body")
-                    }
-
-                    val fileName = contentDisposition?.substringAfter("filename=\"")?.substringBeforeLast("\"")
-                        ?: "${packageName.replace(".", "_")}_${versionCode}.apks"
-                    val destination = File(downloadsDir, fileName)
-
-                    FileLogger.d(TAG, "downloadApksFile: writing to ${destination.absolutePath}")
-                    val contentLength = response.body?.contentLength()?.takeIf { it > 0 }
-                        ?: response.header("X-File-Size")?.toLongOrNull()
-                        ?: -1L
-                    FileLogger.d(TAG, "downloadApksFile: contentLength=$contentLength (from response=${response.body?.contentLength()}, X-File-Size=${response.header("X-File-Size")})")
-                    destination.outputStream().use { outputStream ->
-                        copyWithProgress(inputStream, outputStream, contentLength, onProgress)
-                    }
-
-                    if (!destination.exists() || destination.length() == 0L) {
-                        FileLogger.e(TAG, "downloadApksFile: file empty or missing after write")
-                        return@withContext DownloadResult.Error("Downloaded file is empty")
-                    }
-
-                    val actualMd5 = HashUtils.md5(destination)
-                    val verifyMd5 = serverMd5.ifEmpty { expectedMd5 }
-                    FileLogger.d(TAG, "downloadApksFile: size=${destination.length()} actualMd5=${actualMd5.take(8)}... verifyAgainst=${verifyMd5.take(8)}... (source=${if (serverMd5.isNotEmpty()) "server-header" else "expected-param"})")
-                    if (actualMd5 != verifyMd5 && verifyMd5.isNotEmpty()) {
-                        FileLogger.w(TAG, "downloadApksFile: MD5 MISMATCH! actual=$actualMd5 expected=$verifyMd5")
-                        destination.delete()
-                        return@withContext DownloadResult.Error("MD5 verification failed")
-                    }
-
-                    FileLogger.i(TAG, "downloadApksFile SUCCESS: $packageName -> ${destination.length()} bytes")
-                    DownloadResult.Success(destination)
-                }
-            } catch (e: Exception) {
-                FileLogger.e(TAG, "downloadApksFile EXCEPTION: ${e.message}", e)
-                return@withContext DownloadResult.Error("Download failed: ${e.message}")
-            }
-        }
+        return performDownload(
+            tag = "downloadApksFile",
+            url = "http://$ipAddress:$port/api/download/${packageName}/${versionCode}",
+            defaultFileName = "${packageName.replace(".", "_")}_${versionCode}.apks",
+            packageName = packageName,
+            expectedMd5 = expectedMd5,
+            onProgress = onProgress
+        )
     }
 
     suspend fun downloadLatestApksFile(
@@ -436,67 +380,84 @@ class AppListClient(private val context: Context) {
         expectedMd5: String,
         onProgress: ((Int) -> Unit)? = null
     ): DownloadResult {
-        return withContext(Dispatchers.IO) {
-            FileLogger.i(TAG, "downloadLatestApksFile START: $packageName from $ipAddress:$port")
+        return performDownload(
+            tag = "downloadLatestApksFile",
+            url = "http://$ipAddress:$port/api/download/$packageName",
+            defaultFileName = "${packageName.replace(".", "_")}.apks",
+            packageName = packageName,
+            expectedMd5 = expectedMd5,
+            onProgress = onProgress
+        )
+    }
 
-            try {
-                val url = "http://$ipAddress:$port/api/download/$packageName"
-                FileLogger.d(TAG, "downloadLatestApksFile: GET $url")
+    private suspend fun performDownload(
+        tag: String,
+        url: String,
+        defaultFileName: String,
+        packageName: String,
+        expectedMd5: String,
+        onProgress: ((Int) -> Unit)? = null
+    ): DownloadResult = withContext(Dispatchers.IO) {
+        FileLogger.i(TAG, "$tag START: $url (expectedMd5=${expectedMd5.take(8)}...)")
 
-                val request = Request.Builder()
-                    .url(url)
-                    .get()
-                    .build()
+        try {
+            FileLogger.d(TAG, "$tag: GET $url")
+            val request = Request.Builder()
+                .url(url)
+                .get()
+                .build()
 
-                downloadClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        val errorBody = response.body?.string()?.take(200) ?: ""
-                        FileLogger.e(TAG, "downloadLatestApksFile HTTP ${response.code}: $errorBody")
-                        return@withContext DownloadResult.Error("HTTP error: ${response.code}: $errorBody")
-                    }
-
-                    val serverMd5 = response.header("X-MD5") ?: ""
-                    FileLogger.d(TAG, "downloadLatestApksFile: X-MD5 from server = ${serverMd5.take(8)}... (expectedMd5 param = ${expectedMd5.take(8)}...)")
-
-                    val inputStream = response.body?.byteStream()
-                    if (inputStream == null) {
-                        FileLogger.e(TAG, "downloadLatestApksFile: empty response body")
-                        return@withContext DownloadResult.Error("Empty response body")
-                    }
-
-                    val contentDisposition = response.header("Content-Disposition")
-                    val fileName = contentDisposition?.substringAfter("filename=\"")?.substringBeforeLast("\"")
-                        ?: "${packageName.replace(".", "_")}.apks"
-                    val destination = File(downloadsDir, fileName)
-
-                    FileLogger.d(TAG, "downloadLatestApksFile: writing to ${destination.absolutePath}")
-                    val contentLength = response.body?.contentLength()?.takeIf { it > 0 }
-                        ?: response.header("X-File-Size")?.toLongOrNull()
-                        ?: -1L
-                    destination.outputStream().use { outputStream ->
-                        copyWithProgress(inputStream, outputStream, contentLength, onProgress)
-                    }
-
-                    if (!destination.exists() || destination.length() == 0L) {
-                        FileLogger.e(TAG, "downloadLatestApksFile: file empty or missing after write")
-                        return@withContext DownloadResult.Error("Downloaded file is empty")
-                    }
-
-                    val actualMd5 = HashUtils.md5(destination)
-                    val verifyMd5 = serverMd5.ifEmpty { expectedMd5 }
-                    if (actualMd5 != verifyMd5 && verifyMd5.isNotEmpty()) {
-                        FileLogger.w(TAG, "downloadLatestApksFile: MD5 MISMATCH! actual=$actualMd5 expected=$verifyMd5")
-                        destination.delete()
-                        return@withContext DownloadResult.Error("MD5 verification failed")
-                    }
-
-                    FileLogger.i(TAG, "downloadLatestApksFile SUCCESS: $packageName -> ${destination.length()} bytes")
-                    DownloadResult.Success(destination)
+            downloadClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string()?.take(200) ?: ""
+                    FileLogger.e(TAG, "$tag HTTP ${response.code}: $errorBody")
+                    return@withContext DownloadResult.Error("HTTP error: ${response.code}: $errorBody")
                 }
-            } catch (e: Exception) {
-                FileLogger.e(TAG, "downloadLatestApksFile EXCEPTION: ${e.message}", e)
-                return@withContext DownloadResult.Error("Download failed: ${e.message}")
+
+                val serverMd5 = response.header("X-MD5") ?: ""
+                FileLogger.d(TAG, "$tag: X-MD5 from server = ${serverMd5.take(8)}... (expectedMd5 param = ${expectedMd5.take(8)}...)")
+
+                val inputStream = response.body?.byteStream()
+                if (inputStream == null) {
+                    FileLogger.e(TAG, "$tag: empty response body")
+                    return@withContext DownloadResult.Error("Empty response body")
+                }
+
+                val contentDisposition = response.header("Content-Disposition")
+                val fileName = contentDisposition?.substringAfter("filename=\"")?.substringBeforeLast("\"")
+                    ?: defaultFileName
+                val destination = File(downloadsDir, fileName)
+
+                FileLogger.d(TAG, "$tag: writing to ${destination.absolutePath}")
+                val contentLength = response.body?.contentLength()?.takeIf { it > 0 }
+                    ?: response.header("X-File-Size")?.toLongOrNull()
+                    ?: -1L
+                FileLogger.d(TAG, "$tag: contentLength=$contentLength")
+                destination.outputStream().use { outputStream ->
+                    copyWithProgress(inputStream, outputStream, contentLength, onProgress)
+                }
+
+                if (!destination.exists() || destination.length() == 0L) {
+                    FileLogger.e(TAG, "$tag: file empty or missing after write")
+                    return@withContext DownloadResult.Error("Downloaded file is empty")
+                }
+
+                val actualMd5 = HashUtils.md5(destination) ?: ""
+                val verifyMd5 = serverMd5.ifEmpty { expectedMd5 }
+                val actualMd5Preview = actualMd5.take(8)
+                FileLogger.d(TAG, "$tag: size=${destination.length()} actualMd5=${actualMd5Preview}... verifyAgainst=${verifyMd5.take(8)}... (source=${if (serverMd5.isNotEmpty()) "server-header" else "expected-param"})")
+                if (actualMd5 != verifyMd5 && verifyMd5.isNotEmpty()) {
+                    FileLogger.w(TAG, "$tag: MD5 MISMATCH! actual=$actualMd5 expected=$verifyMd5")
+                    destination.delete()
+                    return@withContext DownloadResult.Error("MD5 verification failed")
+                }
+
+                FileLogger.i(TAG, "$tag SUCCESS: $packageName -> ${destination.length()} bytes")
+                DownloadResult.Success(destination)
             }
+        } catch (e: Exception) {
+            FileLogger.e(TAG, "$tag EXCEPTION: ${e.message}", e)
+            return@withContext DownloadResult.Error("Download failed: ${e.message}")
         }
     }
 

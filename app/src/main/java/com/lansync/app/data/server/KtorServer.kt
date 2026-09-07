@@ -291,8 +291,9 @@ class KtorServer(private val context: Context) {
     }
 
     private suspend fun sendZipFile(call: ApplicationCall, file: File, md5: String) {
-        val actualMd5 = HashUtils.md5(file)
-        FileLogger.d("KtorServer", "sendZipFile: storedMd5=${md5.take(8)}... actualPackedMd5=${actualMd5.take(8)}... size=${file.length()} file=${file.name}")
+        val actualMd5 = HashUtils.md5(file) ?: ""
+        val actualMd5Preview = actualMd5.take(8)
+        FileLogger.d("KtorServer", "sendZipFile: storedMd5=${md5.take(8)}... actualPackedMd5=${actualMd5Preview}... size=${file.length()} file=${file.name}")
         call.response.header("X-MD5", actualMd5)
         call.response.header("X-File-Size", file.length().toString())
         call.response.header("Content-Disposition", "attachment; filename=\"${file.name}\"")

@@ -23,8 +23,8 @@ class HashUtilsConsistencyTest {
     }
 
     @Test
-    fun `md5 nonexistent pack returns empty`() {
+    fun `md5 nonexistent pack returns null`() {
         val file = File(tempFolder.root, "nonexistent.apks")
-        assertEquals("", HashUtils.md5(file))
+        assertEquals(null, HashUtils.md5(file))
     }
 }

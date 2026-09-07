@@ -32,7 +32,11 @@ import kotlinx.coroutines.withContext
 private const val MAX_MEMORY_CACHE_ENTRIES = 120
 
 private val memoryCache = object : LruCache<String, Bitmap>(MAX_MEMORY_CACHE_ENTRIES) {
-    override fun sizeOf(key: String, value: Bitmap): Int = 1
+    override fun sizeOf(key: String, value: Bitmap): Int {
+        // 使用 Bitmap 的实际内存占用字节数作为缓存大小
+        val byteCount = value.allocationByteCount
+        return (byteCount / 1024).coerceAtLeast(1)
+    }
 }
 
 @Composable

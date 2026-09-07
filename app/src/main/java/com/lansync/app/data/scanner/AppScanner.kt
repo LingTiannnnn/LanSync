@@ -70,7 +70,7 @@ class AppScanner(private val context: Context) {
             val versionCode = packageInfo.longVersionCode
 
             val fileSize = calculateTotalFileSize(sourcePaths)
-            val md5 = HashUtils.md5(sourcePaths)
+            val md5 = HashUtils.md5(sourcePaths) ?: ""
             val isSystemApp = (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
             return AppInfo(

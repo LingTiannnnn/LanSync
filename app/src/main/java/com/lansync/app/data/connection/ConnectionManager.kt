@@ -64,16 +64,20 @@ class ConnectionManager(private val localDeviceName: String) {
         timeoutJobs.remove(requestId)
 
         val oldStatus = request.status
-        request.status = if (accepted) {
+        val newStatus = if (accepted) {
             IncomingConnectRequest.RequestStatus.ACCEPTED
         } else {
             IncomingConnectRequest.RequestStatus.REJECTED
         }
 
-        FileLogger.i(TAG, "REQUEST_RESPONDED id=$requestId from=${request.requesterName} old=$oldStatus new=${request.status} accepted=$accepted")
-
+        // 使用 copy() 创建新对象替换旧对象，确保 data class 不可变性
+        pendingRequests[requestId] = request.copy(status = newStatus)
         refreshIncomingList()
 
+        FileLogger.i(TAG, "REQUEST_RESPONDED id=$requestId from=${request.requesterName} old=$oldStatus new=${newStatus} accepted=$accepted")
+
+        // 重新从 Map 获取更新后的请求引用
+        val updatedRequest = pendingRequests[requestId] ?: request
         return ConnectResponsePayload(
             requestId = requestId,
             accepted = accepted,
@@ -128,7 +132,7 @@ class ConnectionManager(private val localDeviceName: String) {
     private fun handleTimeout(requestId: String) {
         val request = pendingRequests[requestId]
         if (request != null && request.status == IncomingConnectRequest.RequestStatus.PENDING) {
-            request.status = IncomingConnectRequest.RequestStatus.TIMEOUT
+            pendingRequests[requestId] = request.copy(status = IncomingConnectRequest.RequestStatus.TIMEOUT)
             FileLogger.i(TAG, "Request $requestId from ${request.requesterName}: auto-rejected (timeout)")
             refreshIncomingList()
         }

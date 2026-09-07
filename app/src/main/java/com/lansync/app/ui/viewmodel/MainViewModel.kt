@@ -11,6 +11,7 @@ import com.lansync.app.data.model.RemoteAppEntry
 import com.lansync.app.data.model.SyncDiff
 import com.lansync.app.data.model.UpdateInfo
 import com.lansync.app.data.client.AppListClient
+import com.lansync.app.data.installer.ApkInstaller
 import com.lansync.app.data.repository.AppRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,51 +82,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun observeRepositoryState() {
+        // 使用类型安全的 combine，按功能分组避免超过 Kotlin 10 个参数的限制
         viewModelScope.launch {
-            @Suppress("UNCHECKED_CAST")
-            val flows = listOf<kotlinx.coroutines.flow.Flow<Any?>>(
-                repository.localApps as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.discoveredDevices as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.connectedDevices as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.availableUpdates as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.syncDiffs as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.isRunning as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.isScanningApps as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.serverPort as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.downloadProgress as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.installStatus as kotlinx.coroutines.flow.Flow<Any?>,
-                repository.incomingRequests as kotlinx.coroutines.flow.Flow<Any?>,
-            )
-            combine(flows) { array ->
-                val localApps = array[0] as List<com.lansync.app.data.model.AppInfo>
-                val discoveredDevices = array[1] as List<DeviceInfo>
-                val connectedDevices = array[2] as List<DeviceInfo>
-                val availableUpdates = array[3] as List<UpdateInfo>
-                val syncDiffs = array[4] as List<SyncDiff>
-                val isRunning = array[5] as Boolean
-                val isScanningApps = array[6] as Boolean
-                val serverPort = array[7] as Int
-                val downloadProgress = array[8] as AppRepository.DownloadProgress?
-                val installStatus = array[9] as AppRepository.InstallStatus?
-                val incomingRequests = array[10] as List<IncomingConnectRequest>
-
-                _uiState.value.copy(
+            combine(
+                repository.localApps,
+                repository.discoveredDevices,
+                repository.connectedDevices,
+                repository.availableUpdates,
+                repository.syncDiffs,
+                repository.incomingRequests
+            ) { localApps, discoveredDevices, connectedDevices, availableUpdates, syncDiffs, incomingRequests ->
+                _uiState.value = _uiState.value.copy(
                     localApps = localApps,
                     discoveredDevices = discoveredDevices,
                     connectedDevices = connectedDevices,
                     availableUpdates = availableUpdates,
                     syncDiffs = syncDiffs,
+                    incomingRequests = incomingRequests
+                )
+            }.collect()
+        }
+
+        viewModelScope.launch {
+            combine(
+                repository.isRunning,
+                repository.isScanningApps,
+                repository.serverPort,
+                repository.downloadProgress,
+                repository.installStatus
+            ) { isRunning, isScanningApps, serverPort, downloadProgress, installStatus ->
+                _uiState.value = _uiState.value.copy(
                     isRunning = isRunning,
                     isScanningApps = isScanningApps,
                     serverPort = serverPort,
                     currentDownloadProgress = downloadProgress,
                     isDownloading = downloadProgress?.status == AppRepository.DownloadProgress.Status.DOWNLOADING,
-                    installStatus = installStatus,
-                    incomingRequests = incomingRequests
+                    installStatus = installStatus
                 )
-            }.collect { newState ->
-                _uiState.value = newState
-            }
+            }.collect()
         }
     }
 
@@ -256,12 +250,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             Log.i(TAG, "startBatchUpdate: ${updates.size} apps selected")
 
+            val errors = mutableListOf<String>()
             updates.forEach { update ->
                 Log.d(TAG, "Batch: downloading/installing ${update.remoteApp.packageName}")
                 _lastDownloadedUpdateInfo = update
-                repository.downloadAndInstallApp(update)
+                val result = repository.downloadAndInstallApp(update)
+                if (result is ApkInstaller.InstallationResult.Error) {
+                    Log.w(TAG, "Batch: FAILED for ${update.remoteApp.packageName}: ${result.message}")
+                    errors.add("${update.remoteApp.appName}: ${result.message}")
+                }
             }
-            Log.i(TAG, "startBatchUpdate: completed")
+
+            if (errors.isNotEmpty()) {
+                val errorMsg = "批量更新完成，其中 ${errors.size}/${updates.size} 个失败:\n${errors.joinToString("\n")}"
+                Log.w(TAG, errorMsg)
+                _uiState.value = _uiState.value.copy(
+                    operationMessage = errorMsg
+                )
+            } else {
+                Log.i(TAG, "startBatchUpdate: all ${updates.size} apps completed successfully")
+            }
         }
     }
 
@@ -297,9 +305,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun installDownloadedFile(fileName: String) {
         viewModelScope.launch {
-            val pkgName = fileName.removeSuffix(".apks").replace("_", ".")
+            // 使用与 AppListClient.extractPackageName 一致的包名提取逻辑
+            val pkgName = extractPackageNameFromFile(fileName)
             val result = repository.installDownloadedFile(fileName, pkgName)
             Log.i(TAG, "installDownloadedFile: $fileName -> ${result::class.simpleName}")
+        }
+    }
+
+    /**
+     * 从下载文件名中提取包名
+     * 文件名格式: com_example_app_123.apks -> com.example.app (去掉末尾versionCode)
+     */
+    private fun extractPackageNameFromFile(fileName: String): String {
+        val nameWithoutExt = when {
+            fileName.endsWith(".apks") -> fileName.removeSuffix(".apks")
+            fileName.endsWith(".apk") -> fileName.removeSuffix(".apk")
+            else -> fileName
+        }
+        val parts = nameWithoutExt.split("_")
+        // 找到最后一个数字分段（即 versionCode），前面的部分即为包名
+        val versionEnd = parts.indexOfLast { it.toLongOrNull() != null }
+        return if (versionEnd <= 0) {
+            nameWithoutExt.replace("_", ".")
+        } else {
+            parts.take(versionEnd).joinToString(".")
         }
     }
 
@@ -337,6 +366,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val targets = entries.filter { it.app.packageName in selected }
             Log.i(TAG, "pullSelectedRemoteApps: ${targets.size} apps selected")
 
+            val errors = mutableListOf<String>()
             targets.forEach { entry ->
                 val updateInfo = UpdateInfo(
                     localApp = null,
@@ -346,9 +376,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 Log.d(TAG, "Pulling remote app: ${entry.app.packageName} from ${entry.sourceDevice.deviceName}")
                 _lastDownloadedUpdateInfo = updateInfo
-                repository.downloadAndInstallApp(updateInfo)
+                val result = repository.downloadAndInstallApp(updateInfo)
+                if (result is ApkInstaller.InstallationResult.Error) {
+                    Log.w(TAG, "Pull FAILED for ${entry.app.packageName}: ${result.message}")
+                    errors.add("${entry.app.appName}: ${result.message}")
+                }
             }
-            Log.i(TAG, "pullSelectedRemoteApps: completed")
+
+            if (errors.isNotEmpty()) {
+                val errorMsg = "拉取完成，其中 ${errors.size}/${targets.size} 个失败:\n${errors.joinToString("\n")}"
+                Log.w(TAG, errorMsg)
+                _uiState.value = _uiState.value.copy(
+                    operationMessage = errorMsg
+                )
+            } else {
+                Log.i(TAG, "pullSelectedRemoteApps: all ${targets.size} apps completed successfully")
+            }
             clearRemoteAppSelection()
         }
     }

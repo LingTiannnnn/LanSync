@@ -40,7 +40,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            // WARNING: 生产发布前需配置正式签名密钥！
+            // signingConfig = signingConfigs.getByName("release")
         }
     }
 

@@ -91,7 +91,7 @@ data class IncomingConnectRequest(
     val requesterPort: Int,
     val requesterInstanceId: String = "",
     val timestamp: Long,
-    var status: RequestStatus = RequestStatus.PENDING
+    val status: RequestStatus = RequestStatus.PENDING
 ) {
     enum class RequestStatus { PENDING, ACCEPTED, REJECTED, TIMEOUT }
 

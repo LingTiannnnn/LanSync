@@ -5,21 +5,21 @@ import java.security.MessageDigest
 
 object HashUtils {
 
-    fun md5(file: File): String {
+    fun md5(file: File): String? {
         return try {
             hashFile(file, "MD5")
         } catch (e: Exception) {
-            ""
+            null
         }
     }
 
-    fun md5(paths: List<String>): String {
+    fun md5(paths: List<String>): String? {
         return try {
             val digest = MessageDigest.getInstance("MD5")
             paths.forEach { path -> digestFile(digest, path) }
             digest.digest().joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
-            ""
+            null
         }
     }
 
@@ -47,7 +47,8 @@ object HashUtils {
                     }
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            com.lansync.app.data.FileLogger.w("HashUtils", "digestFile error for $path: ${e.message}")
         }
     }
 }
