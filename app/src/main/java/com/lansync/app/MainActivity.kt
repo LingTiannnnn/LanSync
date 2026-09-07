@@ -105,6 +105,7 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LanSyncTopBar(
     isScanningApps: Boolean,

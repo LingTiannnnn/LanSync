@@ -82,25 +82,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun observeRepositoryState() {
-        // 使用类型安全的 combine，按功能分组避免超过 Kotlin 10 个参数的限制
+        // 使用类型安全的 combine，按功能分组避免超过 Kotlin 5 个 Flow 的重载限制
         viewModelScope.launch {
             combine(
                 repository.localApps,
                 repository.discoveredDevices,
                 repository.connectedDevices,
                 repository.availableUpdates,
-                repository.syncDiffs,
-                repository.incomingRequests
-            ) { localApps, discoveredDevices, connectedDevices, availableUpdates, syncDiffs, incomingRequests ->
+                repository.syncDiffs
+            ) { localApps, discoveredDevices, connectedDevices, availableUpdates, syncDiffs ->
                 _uiState.value = _uiState.value.copy(
                     localApps = localApps,
                     discoveredDevices = discoveredDevices,
                     connectedDevices = connectedDevices,
                     availableUpdates = availableUpdates,
-                    syncDiffs = syncDiffs,
-                    incomingRequests = incomingRequests
+                    syncDiffs = syncDiffs
                 )
-            }.collect()
+            }.collect { }
+        }
+
+        viewModelScope.launch {
+            repository.incomingRequests.collect { incomingRequests ->
+                _uiState.value = _uiState.value.copy(incomingRequests = incomingRequests)
+            }
         }
 
         viewModelScope.launch {
@@ -119,7 +123,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isDownloading = downloadProgress?.status == AppRepository.DownloadProgress.Status.DOWNLOADING,
                     installStatus = installStatus
                 )
-            }.collect()
+            }.collect { }
         }
     }
 

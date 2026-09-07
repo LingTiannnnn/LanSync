@@ -12,6 +12,8 @@ android {
         applicationId = "com.lansync.app"
         minSdk = 29
         targetSdk = 34
+        // 固定为本机已安装的 build-tools(AGP 8.13 最低要求 35.0.0),避免从不可达的 dl.google.com 自动下载
+        buildToolsVersion = "35.0.0"
         versionCode = 1
         versionName = "1.0"
 
