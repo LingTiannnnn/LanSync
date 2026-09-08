@@ -11,7 +11,10 @@ plugins {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // PREFER_SETTINGS：以本 settings 声明的镜像（含 google() / aliyun-google）为准，
+    // 避免机器级 init 脚本注入的项目级仓库（可能缺 google()）在 PREFER_PROJECT 下覆盖本列表，
+    // 导致 androidx.* 依赖解析 404。
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         maven { url = uri("https://maven.aliyun.com/repository/public") }
         maven { url = uri("https://maven.aliyun.com/repository/google") }

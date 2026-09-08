@@ -94,7 +94,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     implementation("org.jmdns:jmdns:3.5.8")
-    implementation("com.google.code.gson:gson:2.10.1")
 
     implementation("io.ktor:ktor-server-core-jvm:2.3.5")
     implementation("io.ktor:ktor-server-netty-jvm:2.3.5")
@@ -102,8 +101,6 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation:2.3.5")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    implementation("com.google.android.gms:play-services-base:18.3.0")
 
     implementation("androidx.documentfile:documentfile:1.0.1")
 

@@ -1,6 +1,7 @@
 package com.lansync.app.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -40,9 +41,22 @@ class HashUtilsTest {
     }
 
     @Test
-    fun `md5 paths with unreadable files handles gracefully`() {
+    fun `md5 paths with unreadable files returns null`() {
+        // SPEC §8.2/§8.3：不可读文件不再静默跳过 → null 传播，消灭幽灵指纹 d41d8cd98f00b204e9800998ecf8427e
         val hash = HashUtils.md5(listOf("/nonexistent/a", "/nonexistent/b"))
-        // 当所有文件不可读时，返回空字符串作为 hash
-        assertEquals(32, hash!!.length)
+        assertNull(hash)
+    }
+
+    @Test
+    fun `md5 paths with partially unreadable file returns null`() {
+        val readable = tempFolder.newFile("ok.txt").apply { writeText("data") }
+        // 任一文件不可读即 null 传播（不再产出部分摘要）
+        val hash = HashUtils.md5(listOf(readable.absolutePath, "/nonexistent/x"))
+        assertNull(hash)
+    }
+
+    @Test
+    fun `md5 of empty path list returns null`() {
+        assertNull(HashUtils.md5(emptyList()))
     }
 }

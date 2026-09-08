@@ -13,10 +13,19 @@ object HashUtils {
         }
     }
 
+    /**
+     * 对多个文件字节顺序拼接做 MD5（版本内容指纹，SPEC.md §8.1）。
+     *
+     * 新语义（SPEC.md §8.2/§8.3）：**null 传播**——空列表、任一文件不可读或读取出错均返回 null，
+     * 不再静默跳过不可读文件而产出空摘要幽灵指纹 d41d8cd98f00b204e9800998ecf8427e。
+     */
     fun md5(paths: List<String>): String? {
+        if (paths.isEmpty()) return null
         return try {
             val digest = MessageDigest.getInstance("MD5")
-            paths.forEach { path -> digestFile(digest, path) }
+            for (path in paths) {
+                if (!digestFile(digest, path)) return null
+            }
             digest.digest().joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
             null
@@ -35,20 +44,22 @@ object HashUtils {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun digestFile(digest: MessageDigest, path: String) {
-        try {
+    /** 读取单个文件更新摘要；成功返回 true，不可读或异常返回 false（触发 null 传播）。 */
+    private fun digestFile(digest: MessageDigest, path: String): Boolean {
+        return try {
             val file = File(path)
-            if (file.canRead()) {
-                file.inputStream().use { fis ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    while (fis.read(buffer).also { bytesRead = it } != -1) {
-                        digest.update(buffer, 0, bytesRead)
-                    }
+            if (!file.canRead()) return false
+            file.inputStream().use { fis ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                while (fis.read(buffer).also { bytesRead = it } != -1) {
+                    digest.update(buffer, 0, bytesRead)
                 }
             }
+            true
         } catch (e: Exception) {
             com.lansync.app.data.FileLogger.w("HashUtils", "digestFile error for $path: ${e.message}")
+            false
         }
     }
 }
