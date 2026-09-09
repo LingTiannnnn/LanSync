@@ -9,9 +9,9 @@
 
 ## 1. 当前状态快照
 
-- **当前阶段**：**Phase 4 — 前台服务与门面（接线 + 删旧）** ✅ 完成；下一步 **Phase 5**（安全加固/协议版本化 或 工具链升级，待用户定）
-- **阶段状态**：✅ Phase 0/1/2/3/4 完成（Phase 4 待用户审阅 + 真机验证）
-- **测试基线**：**139/139 全绿**（Phase 4 末；删旧测试 13 例 + 新增 11 例；`testDebugUnitTest` + `assembleDebug` 均通过，见 §4）。
+- **当前阶段**：**Phase 5 — UI 一次成型（设计系统 + 5 Tab + 全量覆盖层）** ✅ 完成；下一步 **Phase 6**（安全加固/协议版本化）或 **Phase 7**（工具链升级），待用户定
+- **阶段状态**：✅ Phase 0/1/2/3/4/5 完成（Phase 4/5 运行时与 UI 视觉待真机验证）
+- **测试基线**：**139/139 全绿**（Phase 5 末，与 Phase 4 同——UI 一次成型未新增 JVM 单测，Compose 非单测目标；`testDebugUnitTest` + `assembleDebug` 均通过，见 §4）。
 - **旧生产代码**：🗑️ **已删除**（AppRepository/KtorServer/AppListClient/ConnectionManager/旧 JmDNSDiscovery/旧 scanner/packer/update + 2 旧测试）。legacy-known-issue L1–L5 随之全部消除。
 - **接线状态**：✅ **已接线**——`MainViewModel` → `LanSyncGraph.get()` → `LanSyncRepository` 门面 → 全部新构件；App 运行时走**全新栈**。`ForegroundSyncService` 承载 start/stop 生命周期。**运行时行为待真机验证**（FGS/mDNS/连接/下载，无设备无法自动化）。
 
@@ -26,7 +26,7 @@
 | **Phase 2** | 发现与连接层（DeviceDiscovery/JmDNSDeviceDiscovery + ConnectionCoordinator + PairingHistoryStore；配对协议复用 Phase 1 InMemoryPairingStore） | 阶段 4（连接协作者）提前 | ✅ 完成 | 严格对齐 SPEC §6/§7；`DefaultConnectionCoordinatorTest` 21 例 + `InMemoryPairingStoreTest` 9 例；117/117 全绿；不接扫描/UI、未改旧码 |
 | **Phase 3** | 扫描/打包/更新推荐（AppScanner + AppPacker + UpdateManager + LocalAppRepository + local_apps_cache.json） | 阶段 1/4 组件 | ✅ 完成 | 严格对齐 SPEC §5.3/§8/§3.2 + D2；`sync.UpdateManagerTest`(9)+`transfer.AppPackerTest`(6)+`localapps.LocalAppRepositoryTest`(5)+`ModelsTest`(+4)；141/141 全绿；不接 UI、未改旧码 |
 | **Phase 4** | 前台服务 + 门面接线（UpdateCoordinator + DownloadInstallController + IconCache + LanSyncRepository 门面 + ForegroundSyncService + 切换 MainViewModel + 删旧码；手写 DI 组合根 LanSyncGraph） | 阶段 3+4+5 | ✅ 完成 | 门面 **158 行**（≤300 硬约束）；139/139 全绿 + assembleDebug；L1–L5 全消除；运行时待真机 |
-| **Phase 5** | （前台服务已并入 Phase 4）下一步待用户定：安全加固/协议版本化 或 工具链升级 | 阶段 2/6 | ⏳ 待定 | — |
+| **Phase 5** | UI 一次成型（单一 Material3 设计系统 Color/Spacing/Theme/Typography + 底部 5 Tab + 全量覆盖层 + UiState 单一出口 + 字符串/颜色/间距零硬编码） | 阶段 5（UI） | ✅ 完成 | `assembleDebug` 通过；`testDebugUnitTest` 139/139 全绿（基线不变）；硬编码审计 0 违规；信息架构对齐 REPORT §2.12 |
 | **Phase 6** | 安全加固与协议版本化（token / 剥离 sourcePaths / SHA-256） | 阶段 6 | ⏳ 待启动 | 互操作矩阵 |
 | **Phase 7** | 收尾（工具链升级 / UI 拆分 / 文档对齐） | 阶段 2+7 | ⏳ 待启动 | — |
 
@@ -95,6 +95,7 @@ $env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
 - **2026-09-08 · Phase 2 完成**：新建 `DeviceDiscovery`/`JmDNSDeviceDiscovery`（SPEC §6，注入 scope）、`ConnectionEvent`/`ConnectionCoordinator`/`DefaultConnectionCoordinator`（Actor 单点收敛，SPEC §7.4–7.7）、`PairingHistoryStore`（TT3 §7.7 干净语义）、`ConnectionTransport`（传输抽象，手写 Fake 测试，不改 Phase 1 `LanSyncClient`）。迁移 `ConnectionManagerTest`：协议 9 例落 `InMemoryPairingStoreTest`、`incomingRequests` 流落 `DefaultConnectionCoordinatorTest`。测试 **117/117 全绿** + `assembleDebug` 通过。**未接线、未改旧生产代码**（旧 `JmDNSDiscovery`/`ConnectionManager`/`AppRepository` 冻结并存，Phase 4 删除）。设计决策见 §6。
 - **2026-09-09 · Phase 3 完成**：新建 `localapps/{InstalledAppScanner,AppScanner,LocalAppRepository}`、`transfer/AppPacker`、`sync/UpdateManager`（均与冻结旧件同名的**新包**并存：localapps/transfer/sync vs 旧 scanner/packer/update）。关键改进：UpdateManager 改为**纯比较**（不再自行 fetch，因 connectedDevices.appList 已由 ConnectionCoordinator 维护）；AppPacker 输出目录构造注入 + **移除死代码 MD5 digest**（D1）；LocalAppRepository 采「缓存骨架 + 后台刷新」且**不接 UI**（图标预加载改为暴露 `ScanResult.added/removedPackages` 交接线层，避开 L2 分层倒置）；AppScanner 落实 D2。迁移 `UpdateManagerTest`（3→sync 新类 9 例，补 findUpdates/calculateSyncDiffs 旧零覆盖）、`ModelsTest` +4 encodeDefaults 字节快照。测试 **141/141 全绿** + `assembleDebug` 通过。**未接线、未改旧生产代码**。设计决策见 §7。
 - **2026-09-09 · Phase 4 完成（接线 + 删旧）**：新建 `sync/UpdateCoordinator`（combine+节流，可控时钟）、`transfer/DownloadInstallController`（下载/安装/进度，DownloadProgress/InstallStatus 迁入）、`cache/IconCache`（data 层三级缓存，修 L2）、`repository/LanSyncRepository` 门面（**158 行 ≤300**，纯委托）、`repository/LanSyncGraph` 组合根（手写 DI，late-bind 破 server↔coordinator↔pairing 环）、`service/ForegroundSyncService`（specialUse FGS + 通知 + Manifest 权限）、适配器 `LanSyncClientTransport`/`NotifyingPairingStore`/`SharedPrefsPairingHistoryStore`。**切换** MainViewModel→LanSyncGraph、start/stop→FGS、类型迁移、AppIcon 薄壳化、删 forceStartSync+按钮（L1）。**删旧码** 8 主 + 2 测试。**L1–L5 全消除**。测试 **139/139 全绿** + assembleDebug 通过。**运行时（FGS/mDNS/连接/下载）待真机验证**。设计见 §8。
+- **2026-09-09 · Phase 5 完成（UI 一次成型）**：建立单一 Material3 设计系统——`ui/theme/Color.kt`（靛蓝品牌色板，唯一色值来源）、`Spacing.kt`（`LanSyncSpacing` 4dp 基栅格令牌 + `LocalSpacing` CompositionLocal + `LanSyncTheme.spacing` 访问器）、`Theme.kt`（完整 light/dark ColorScheme，**`dynamicColor` 默认关闭**以保跨设备一致设计系统）、`Typography.kt`（完整 M3 类型比例）；`strings.xml` 扩至全量 UI 文案。重写全部 10 个 UI 文件 + `MainActivity` + `MainViewModel` + `ForegroundSyncService`：**0 内联中文字面量 / 0 `Color` 字面量 / 0 裸 `.dp`**（grep 审计）；`UiState` 不可变 data class 单一出口。测试 **139/139 全绿**（基线不变）+ `assembleDebug` 通过。设计见 §9。
 
 ---
 
@@ -187,3 +188,27 @@ $env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
 **关键决策**：① 门面 ≤300 靠 UpdateCoordinator/DownloadInstallController 下沉 + 纯委托达成（158 行）；② 手写 DI（LanSyncGraph 单例）而非 Hilt，避免本阶段引入 KSP/插件风险（Hilt 留待后续，ARCH §4）；③ FGS 承载生命周期，ViewModel 只触发服务 + 观察 StateFlow（ARCH §8）；④ late-bind 破环（构造期不解引用）。
 
 **风险与待办（真机）**：FGS 在 API34 的 specialUse 需 Play 说明；POST_NOTIFICATIONS 运行时请求尚未加（API33+ 通知可见性）；退后台存活/mDNS/连接/下载/安装 golden path 须真机验证（TEST-PLAN §6）。
+
+---
+
+## 9. Phase 5 设计与落地（UI 一次成型）
+
+**目标**：全部 UI 一次成型——单一 Material3 设计系统、底部 5 Tab（设备/本地/远程/同步/文件）+ 全量覆盖层，信息架构对齐 REPORT §2.12。**硬性要求**：① `UiState` 不可变 data class 单一出口（禁止把仓库多路 StateFlow 散装暴露给 Composable）；② 所有字符串/颜色/间距走统一 theme，禁止硬编码。
+
+**设计系统（`ui/theme/`，唯一来源）**：
+- `Color.kt`：靛蓝品牌色板（Primary=靛蓝 #3F51B5 对齐启动器、Secondary=青绿、Tertiary=琥珀、Error=M3 红 + 中性色），`internal` 常量，仅供 `Theme.kt` 组装 ColorScheme。
+- `Theme.kt`：完整 light/dark `ColorScheme`（M3 1.1.x 角色集，无 surfaceContainer*）；**`dynamicColor` 默认 `false`**（关键决策：保跨设备一致的「单一设计系统」，非 Material You 随壁纸变色；如需一行可开）；`object LanSyncTheme` 访问器（对齐 M3 `MaterialTheme` 惯例）经 `LocalSpacing` 暴露 `spacing`。
+- `Spacing.kt`：`LanSyncSpacing` 令牌（4dp 基栅格 space2..space64 + icon*/appIcon*/radius*/stroke*/控件尺寸），`staticCompositionLocalOf` 注入。
+- `Typography.kt`：补全 M3 类型比例（headlineSmall/title*/body*/label*），组件禁止内联 fontSize/letterSpacing。
+
+**字符串（`res/values/strings.xml`，唯一来源）**：从 1 条扩至 ~150 条，覆盖 5 Tab + 5 覆盖层 + 通知 + VM 用户消息 + content description；含参数文案用位置化占位符 `%1$d/%1$s`。组件经 `stringResource(id, args)`、VM/Service/SAF 助手经 `getString(id, args)` 引用。
+
+**改造范围**：重写 `MainActivity` + 10 个 `ui/components/*`（DeviceListScreen/AppListScreen/RemoteAppListScreen/SyncScreen/FileListScreen/DownloadProgressDialog/IncomingConnectionDialog/InitialScanOverlay/SaveStatusDialog/AppIcon）+ `MainViewModel`（消息改 `getString`）+ `ForegroundSyncService`（通知文案改 `getString`）。**签名稳定**：共享子组件（SearchBar/CategoryTabs/SectionHeader/UpdateItem/EmptyStateCard）签名不变，仅内部换 token；`AppIcon` 尺寸 `Int`→`Dp`（唯一签名变更）。
+
+**硬性要求核验**：
+1. **UiState 单一出口** ✅：`MainViewModel` 仅暴露 `val uiState: StateFlow<UiState>`（不可变 data class），仓库 11 路 StateFlow 经 `combine` 归约；Composable 只接 `UiState`/派生值 + 回调，不接裸 Flow。
+2. **零硬编码** ✅（grep 审计，范围 `ui/` 非 theme 文件 + `MainActivity`）：内联中文字面量 **0**、`Color` 字面量（`Color(0x..)`/`Color.Green`/`Color.Gray`/`Color.Transparent`）**0**、裸 `\d+.dp` **0**（全部 `LanSyncTheme.spacing.*`）。清除的旧违规：DeviceListScreen 的 `Color.Green/Gray/0xFF2E7D32/0xFFF57F17/0xFF4CAF50`、AppListScreen 的 `Color.Transparent`、Theme 的紫粉模板色。
+
+**关键决策**：① `dynamicColor` 默认关闭——「单一设计系统」优先于 Material You 个性化（可一行开启）；② 间距用 CompositionLocal 令牌（`LanSyncTheme.spacing`）而非散落 dimens.xml；③ 连接状态色全走 colorScheme 角色（CONNECTED=secondary、CONNECTING/RECONNECTING=tertiary、ERROR/TIMEOUT=error、DISCOVERED=outline、DISCONNECTED=onSurfaceVariant），删除所有裸色；④ Compose UI 非 JVM 单测目标，门禁为 `assembleDebug` 编译 + grep 硬编码审计 + 139 基线不变（视觉/交互真机验收）。
+
+**遗留（非阻塞）**：① REPORT §2.12 提及的「强制启动同步」按钮已随 Phase 4 删除（= L1 legacy-known-issue，已裁决）；② 3 处 pre-existing 未用参数警告（`FileTabContent.saveTargetFileName`/`StatusCard.isScanningApps`/`SyncScreen.onRefreshDevice`）沿用旧签名未清；③ UI 视觉/暗色/大字号/横屏适配 + POST_NOTIFICATIONS 运行时弹窗须真机验证。

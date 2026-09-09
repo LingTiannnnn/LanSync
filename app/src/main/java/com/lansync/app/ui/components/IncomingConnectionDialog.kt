@@ -8,10 +8,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.lansync.app.R
 import com.lansync.app.data.server.InMemoryPairingStore
 import com.lansync.app.data.model.IncomingConnectRequest
+import com.lansync.app.ui.theme.LanSyncTheme
 import kotlinx.coroutines.delay
 
 @Composable
@@ -21,6 +23,7 @@ fun IncomingConnectionDialog(
     onReject: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val sp = LanSyncTheme.spacing
     var remainingSeconds by remember { mutableIntStateOf(InMemoryPairingStore.REQUEST_TIMEOUT_MS.toInt() / 1000) }
 
     LaunchedEffect(request.requestId) {
@@ -36,43 +39,62 @@ fun IncomingConnectionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Link, null, tint = MaterialTheme.colorScheme.primary) },
-        title = { Text("收到连接请求") },
+        title = { Text(stringResource(R.string.incoming_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(sp.space8)) {
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(sp.radiusMd),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(sp.space12),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.PhoneAndroid, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(sp.space8))
                         Column {
-                            Text(request.requesterName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                            Text("${request.requesterIp}:${request.requesterPort}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                request.requesterName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "${request.requesterIp}:${request.requesterPort}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         }
                     }
                 }
 
                 Surface(
                     color = if (remainingSeconds <= 5) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(sp.radiusMd),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(modifier = Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.padding(sp.space12), contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (remainingSeconds <= 5) {
-                                Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.Warning,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(sp.iconSm)
+                                )
+                                Spacer(Modifier.width(sp.space4))
                             } else {
-                                Icon(Icons.Default.Schedule, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.Schedule,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(sp.iconSm)
+                                )
+                                Spacer(Modifier.width(sp.space4))
                             }
                             Text(
-                                text = "${remainingSeconds}秒后自动拒绝",
+                                text = stringResource(R.string.incoming_countdown, remainingSeconds),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                                 color = if (remainingSeconds <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
@@ -84,16 +106,16 @@ fun IncomingConnectionDialog(
         },
         confirmButton = {
             Button(onClick = onAccept) {
-                Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("接受")
+                Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(sp.iconMd))
+                Spacer(Modifier.width(sp.space4))
+                Text(stringResource(R.string.action_accept))
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onReject) {
-                Icon(Icons.Default.Cancel, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("拒绝")
+                Icon(Icons.Default.Cancel, null, modifier = Modifier.size(sp.iconMd))
+                Spacer(Modifier.width(sp.space4))
+                Text(stringResource(R.string.action_reject))
             }
         }
     )

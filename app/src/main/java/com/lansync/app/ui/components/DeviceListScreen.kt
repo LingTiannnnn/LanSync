@@ -1,6 +1,5 @@
 package com.lansync.app.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,12 +9,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import com.lansync.app.R
 import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
+import com.lansync.app.ui.theme.LanSyncTheme
 
 @Composable
 fun DeviceListScreen(
@@ -34,10 +34,11 @@ fun DeviceListScreen(
     onDismissError: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val sp = LanSyncTheme.spacing
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(sp.space16)
     ) {
         StatusCard(
             isRunning = isRunning,
@@ -49,7 +50,7 @@ fun DeviceListScreen(
             onToggleRunning = onToggleRunning
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(sp.space16))
 
         if (connectionError != null) {
             Card(
@@ -59,32 +60,32 @@ fun DeviceListScreen(
                 )
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(sp.space12),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         Icons.Default.Warning,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(sp.iconLg)
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(sp.space10))
                     Text(
                         text = connectionError,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(onClick = onDismissError, modifier = Modifier.size(24.dp)) {
+                    IconButton(onClick = onDismissError, modifier = Modifier.size(sp.iconXl)) {
                         Icon(
                             Icons.Default.Close,
-                            contentDescription = "关闭",
-                            modifier = Modifier.size(16.dp)
+                            contentDescription = stringResource(R.string.cd_close),
+                            modifier = Modifier.size(sp.iconSm)
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(sp.space8))
         }
 
         Row(
@@ -93,19 +94,19 @@ fun DeviceListScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "发现的设备",
+                text = stringResource(R.string.devices_section_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             IconButton(onClick = onRefresh) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
-                    contentDescription = "刷新"
+                    contentDescription = stringResource(R.string.cd_refresh)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(sp.space8))
 
         if (devices.isEmpty()) {
             Card(
@@ -115,18 +116,20 @@ fun DeviceListScreen(
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(sp.space24),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
                         imageVector = Icons.Default.WifiTethering,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(sp.iconEmpty)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(sp.space8))
                     Text(
-                        text = if (isRunning) "正在搜索设备..." else "服务未启动",
+                        text = stringResource(
+                            if (isRunning) R.string.devices_searching else R.string.devices_service_stopped
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -134,7 +137,7 @@ fun DeviceListScreen(
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(sp.space8)
             ) {
                 items(devices, key = { it.displayKey }) { device ->
                     DeviceCard(
@@ -160,6 +163,7 @@ fun StatusCard(
     onToggleRunning: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val sp = LanSyncTheme.spacing
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -169,7 +173,7 @@ fun StatusCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(sp.space16)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -182,17 +186,21 @@ fun StatusCard(
                     Icon(
                         imageVector = if (isRunning) Icons.Default.CheckCircle else Icons.Default.CloudOff,
                         contentDescription = null,
-                        tint = if (isRunning) Color.Green else Color.Gray
+                        tint = if (isRunning) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outline
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(sp.space8))
                     Column {
                         Text(
-                            text = if (isRunning) "LanSync 运行中" else "LanSync 已停止",
-                            style = MaterialTheme.typography.bodyMedium
+                            text = stringResource(
+                                if (isRunning) R.string.status_running else R.string.status_stopped
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         if (isRunning && serverPort > 0) {
                             Text(
-                                text = "端口: $serverPort",
+                                text = stringResource(R.string.status_port, serverPort),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -202,12 +210,13 @@ fun StatusCard(
                 if (isStarting || isStopping) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
+                            modifier = Modifier.size(sp.iconLg),
+                            strokeWidth = sp.strokeThin,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(sp.space8))
                         Text(
-                            text = operationMessage ?: "处理中...",
+                            text = operationMessage ?: stringResource(R.string.status_processing),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -230,6 +239,7 @@ fun DeviceCard(
     onDisconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val sp = LanSyncTheme.spacing
     val state = device.connectionState
 
     val containerColor = when (state) {
@@ -243,44 +253,49 @@ fun DeviceCard(
     }
 
     val statusText = when (state) {
-        ConnectionState.DISCOVERED -> "已发现 - 点击连接"
-        ConnectionState.CONNECTING -> "正在连接..."
-        ConnectionState.CONNECTED -> "已连接 (${device.appList.size} 个应用)"
-        ConnectionState.RECONNECTING -> device.connectionError ?: "正在尝试重新连接..."
-        ConnectionState.ERROR -> "连接失败: ${device.connectionError ?: "未知错误"}"
-        ConnectionState.CONNECTION_TIMEOUT -> "连接超时"
-        ConnectionState.DISCONNECTED -> "已断开"
+        ConnectionState.DISCOVERED -> stringResource(R.string.device_state_discovered)
+        ConnectionState.CONNECTING -> stringResource(R.string.device_state_connecting)
+        ConnectionState.CONNECTED -> stringResource(R.string.device_state_connected, device.appList.size)
+        ConnectionState.RECONNECTING -> device.connectionError ?: stringResource(R.string.device_state_reconnecting)
+        ConnectionState.ERROR -> stringResource(
+            R.string.device_state_error,
+            device.connectionError ?: stringResource(R.string.error_unknown)
+        )
+        ConnectionState.CONNECTION_TIMEOUT -> stringResource(R.string.device_state_timeout)
+        ConnectionState.DISCONNECTED -> stringResource(R.string.device_state_disconnected)
     }
 
     val statusColor = when (state) {
-        ConnectionState.CONNECTED -> Color(0xFF2E7D32)
+        ConnectionState.CONNECTED -> MaterialTheme.colorScheme.secondary
         ConnectionState.CONNECTING -> MaterialTheme.colorScheme.tertiary
-        ConnectionState.RECONNECTING -> Color(0xFFF57F17)
+        ConnectionState.RECONNECTING -> MaterialTheme.colorScheme.tertiary
         ConnectionState.ERROR -> MaterialTheme.colorScheme.error
         ConnectionState.CONNECTION_TIMEOUT -> MaterialTheme.colorScheme.error
         ConnectionState.DISCOVERED -> MaterialTheme.colorScheme.outline
-        ConnectionState.DISCONNECTED -> Color.Gray
+        ConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (state == ConnectionState.CONNECTED) 4.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (state == ConnectionState.CONNECTED) sp.space4 else sp.hairline
+        )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(sp.space16)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(sp.space48),
                     contentAlignment = Alignment.Center
                 ) {
                     if (state == ConnectionState.CONNECTING || state == ConnectionState.RECONNECTING) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(28.dp),
-                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(sp.iconXxl),
+                            strokeWidth = sp.strokeThick,
                             color = statusColor
                         )
                     } else {
@@ -293,12 +308,12 @@ fun DeviceCard(
                             },
                             contentDescription = null,
                             tint = statusColor,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(sp.iconFeature)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(sp.space12))
 
                 Column(
                     modifier = Modifier.weight(1f)
@@ -313,7 +328,7 @@ fun DeviceCard(
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 2.dp)
+                        modifier = Modifier.padding(top = sp.space2)
                     ) {
                         Text(
                             text = "${device.ipAddress}:${device.port}",
@@ -326,14 +341,14 @@ fun DeviceCard(
 
                         if (state == ConnectionState.CONNECTED) {
                             Surface(
-                                color = Color(0xFF4CAF50).copy(alpha = 0.2f),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
                                 shape = MaterialTheme.shapes.small
                             ) {
                                 Text(
-                                    text = "在线",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                    text = stringResource(R.string.device_online_badge),
+                                    modifier = Modifier.padding(horizontal = sp.space6, vertical = sp.hairline),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFF2E7D32),
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -346,7 +361,7 @@ fun DeviceCard(
                     ) {
                         Text(
                             text = statusText,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = sp.space8, vertical = sp.space2),
                             style = MaterialTheme.typography.labelSmall,
                             color = statusColor,
                             maxLines = 1,
@@ -355,24 +370,28 @@ fun DeviceCard(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(sp.space8))
 
                 when (state) {
                     ConnectionState.DISCOVERED, ConnectionState.DISCONNECTED, ConnectionState.ERROR, ConnectionState.CONNECTION_TIMEOUT -> {
                         Button(onClick = onConnect) {
-                            Icon(Icons.Default.Link, contentDescription = "连接", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("连接")
+                            Icon(
+                                Icons.Default.Link,
+                                contentDescription = null,
+                                modifier = Modifier.size(sp.iconMd)
+                            )
+                            Spacer(modifier = Modifier.width(sp.space4))
+                            Text(stringResource(R.string.action_connect))
                         }
                     }
                     ConnectionState.CONNECTING -> {
                         OutlinedButton(onClick = {}, enabled = false) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
+                                modifier = Modifier.size(sp.iconSm),
+                                strokeWidth = sp.strokeThin
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("连接中")
+                            Spacer(modifier = Modifier.width(sp.space4))
+                            Text(stringResource(R.string.action_connecting))
                         }
                     }
                     ConnectionState.CONNECTED -> {
@@ -382,9 +401,13 @@ fun DeviceCard(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Icon(Icons.Default.LinkOff, contentDescription = "断开", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("断开")
+                            Icon(
+                                Icons.Default.LinkOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(sp.iconMd)
+                            )
+                            Spacer(modifier = Modifier.width(sp.space4))
+                            Text(stringResource(R.string.action_disconnect))
                         }
                     }
                     ConnectionState.RECONNECTING -> {
@@ -394,9 +417,13 @@ fun DeviceCard(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Icon(Icons.Default.LinkOff, contentDescription = "断开", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("断开")
+                            Icon(
+                                Icons.Default.LinkOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(sp.iconMd)
+                            )
+                            Spacer(modifier = Modifier.width(sp.space4))
+                            Text(stringResource(R.string.action_disconnect))
                         }
                     }
                 }

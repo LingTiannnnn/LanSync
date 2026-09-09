@@ -51,7 +51,7 @@ class ForegroundSyncService : Service() {
     }
 
     private fun startForegroundCompat() {
-        val notification = buildNotification("正在启动同步服务…")
+        val notification = buildNotification(getString(R.string.notif_starting))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
@@ -67,7 +67,7 @@ class ForegroundSyncService : Service() {
             observeJob = launch {
                 combine(repo.serverPort, repo.connectedDevices) { port, connected -> port to connected.size }
                     .collectLatest { (port, count) ->
-                        updateNotification("运行中 · 端口 $port · 已连接 $count 台")
+                        updateNotification(getString(R.string.notif_running, port, count))
                     }
             }
             FileLogger.i(TAG, "foreground sync started")
@@ -109,7 +109,7 @@ class ForegroundSyncService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openIntent)
-            .addAction(0, "停止同步", stopIntent)
+            .addAction(0, getString(R.string.notif_action_stop), stopIntent)
             .build()
     }
 
@@ -122,7 +122,7 @@ class ForegroundSyncService : Service() {
             val nm = getSystemService(NotificationManager::class.java) ?: return
             if (nm.getNotificationChannel(CHANNEL_ID) == null) {
                 nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, "同步服务", NotificationManager.IMPORTANCE_LOW)
+                    NotificationChannel(CHANNEL_ID, getString(R.string.notif_channel_name), NotificationManager.IMPORTANCE_LOW)
                 )
             }
         }

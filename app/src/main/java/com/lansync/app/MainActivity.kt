@@ -13,8 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lansync.app.data.transfer.DownloadInstallController
 import com.lansync.app.ui.components.*
@@ -113,19 +113,24 @@ private fun LanSyncTopBar(
     onRefreshDevices: () -> Unit,
     onLoadDownloadedFiles: () -> Unit
 ) {
+    val sp = LanSyncTheme.spacing
     TopAppBar(
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "LanSync", fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.app_name), fontWeight = FontWeight.Bold)
                 if (isScanningApps) {
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(sp.space8))
                     CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(sp.topBarIndicator),
+                        strokeWidth = sp.strokeThin,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.width(4.dp))
-                    Text("扫描中...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(sp.space4))
+                    Text(
+                        stringResource(R.string.top_bar_scanning),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         },
@@ -133,12 +138,12 @@ private fun LanSyncTopBar(
             when (selectedTab) {
                 2, 3 -> {
                     IconButton(onClick = onRefreshDevices) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.cd_refresh))
                     }
                 }
                 4 -> {
                     IconButton(onClick = onLoadDownloadedFiles) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新文件")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.cd_refresh_files))
                     }
                 }
             }
@@ -153,32 +158,32 @@ private fun LanSyncBottomBar(
 ) {
     NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
         NavigationBarItem(
-            icon = { Icon(Icons.Default.WifiTethering, contentDescription = "设备") },
-            label = { Text("设备") },
+            icon = { Icon(Icons.Default.WifiTethering, contentDescription = stringResource(R.string.tab_devices)) },
+            label = { Text(stringResource(R.string.tab_devices)) },
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Apps, contentDescription = "本地应用") },
-            label = { Text("本地应用") },
+            icon = { Icon(Icons.Default.Apps, contentDescription = stringResource(R.string.tab_local)) },
+            label = { Text(stringResource(R.string.tab_local)) },
             selected = selectedTab == 1,
             onClick = { onTabSelected(1) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Cloud, contentDescription = "远程应用") },
-            label = { Text("远程应用") },
+            icon = { Icon(Icons.Default.Cloud, contentDescription = stringResource(R.string.tab_remote)) },
+            label = { Text(stringResource(R.string.tab_remote)) },
             selected = selectedTab == 2,
             onClick = { onTabSelected(2) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Sync, contentDescription = "同步") },
-            label = { Text("同步") },
+            icon = { Icon(Icons.Default.Sync, contentDescription = stringResource(R.string.tab_sync)) },
+            label = { Text(stringResource(R.string.tab_sync)) },
             selected = selectedTab == 3,
             onClick = { onTabSelected(3) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Folder, contentDescription = "文件") },
-            label = { Text("文件") },
+            icon = { Icon(Icons.Default.Folder, contentDescription = stringResource(R.string.tab_files)) },
+            label = { Text(stringResource(R.string.tab_files)) },
             selected = selectedTab == 4,
             onClick = { onTabSelected(4) }
         )
@@ -226,15 +231,20 @@ private fun LocalTabContent(
     uiState: UiState,
     modifier: Modifier = Modifier
 ) {
+    val sp = LanSyncTheme.spacing
     if (uiState.isScanningApps && uiState.localApps.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize().then(modifier),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(modifier = Modifier.size(48.dp))
-                Spacer(Modifier.height(16.dp))
-                Text("正在扫描本地应用列表...", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                CircularProgressIndicator(modifier = Modifier.size(sp.iconEmpty))
+                Spacer(Modifier.height(sp.space16))
+                Text(
+                    stringResource(R.string.local_scanning_list),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     } else {
@@ -251,6 +261,7 @@ private fun RemoteTabContent(
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
+    val sp = LanSyncTheme.spacing
     if (uiState.connectedDevices.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize().then(modifier),
@@ -261,12 +272,20 @@ private fun RemoteTabContent(
                     imageVector = Icons.Default.CloudOff,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(sp.iconEmpty)
                 )
-                Spacer(Modifier.height(16.dp))
-                Text("尚未连接任何设备", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(4.dp))
-                Text("请在「设备」页面发现并连接设备后使用此功能", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(sp.space16))
+                Text(
+                    stringResource(R.string.remote_empty_title),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(sp.space4))
+                Text(
+                    stringResource(R.string.remote_empty_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
         }
     } else {

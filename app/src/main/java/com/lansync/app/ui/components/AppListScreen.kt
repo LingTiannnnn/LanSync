@@ -1,6 +1,5 @@
 package com.lansync.app.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,13 +10,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import com.lansync.app.R
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.UpdateInfo
+import com.lansync.app.ui.theme.LanSyncTheme
 
 enum class AppCategory { ALL, USER, SYSTEM }
 
@@ -29,6 +28,7 @@ fun AppListScreen(
     localApps: List<AppInfo>,
     modifier: Modifier = Modifier
 ) {
+    val sp = LanSyncTheme.spacing
     var searchQuery by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(AppCategory.ALL) }
 
@@ -56,7 +56,7 @@ fun AppListScreen(
         SearchBar(
             query = searchQuery,
             onQueryChange = { searchQuery = it },
-            placeholder = "搜索本地应用..."
+            placeholder = stringResource(R.string.search_local_placeholder)
         )
 
         CategoryTabs(
@@ -67,10 +67,10 @@ fun AppListScreen(
             systemCount = systemCount
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(sp.space4))
 
         SectionHeader(
-            title = "已安装应用",
+            title = stringResource(R.string.local_section_title),
             icon = Icons.Default.PhoneAndroid,
             count = filteredApps.size
         )
@@ -79,7 +79,7 @@ fun AppListScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(32.dp),
+                    .padding(sp.space32),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -87,15 +87,15 @@ fun AppListScreen(
                         imageVector = Icons.Default.Inbox,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(sp.iconEmpty)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(sp.space12))
                     Text(
                         text = when {
-                            searchQuery.isNotEmpty() -> "未找到匹配「$searchQuery」的应用"
-                            category == AppCategory.USER -> "暂无用户应用"
-                            category == AppCategory.SYSTEM -> "暂无系统应用"
-                            else -> "暂无应用数据"
+                            searchQuery.isNotEmpty() -> stringResource(R.string.local_empty_search, searchQuery)
+                            category == AppCategory.USER -> stringResource(R.string.local_empty_user)
+                            category == AppCategory.SYSTEM -> stringResource(R.string.local_empty_system)
+                            else -> stringResource(R.string.local_empty_all)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -105,8 +105,8 @@ fun AppListScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(horizontal = sp.space16, vertical = sp.space8),
+                verticalArrangement = Arrangement.spacedBy(sp.space8)
             ) {
                 items(
                     items = filteredApps,
@@ -126,12 +126,13 @@ internal fun SearchBar(
     onQueryChange: (String) -> Unit,
     placeholder: String
 ) {
+    val sp = LanSyncTheme.spacing
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = sp.space16, vertical = sp.space10),
         placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
         leadingIcon = {
             Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -139,12 +140,16 @@ internal fun SearchBar(
         trailingIcon = if (query.isNotEmpty()) {
             {
                 IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "清除", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.cd_clear),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         } else null,
         singleLine = true,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(sp.radiusLg),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
@@ -160,16 +165,17 @@ internal fun CategoryTabs(
     userCount: Int,
     systemCount: Int
 ) {
+    val sp = LanSyncTheme.spacing
     ScrollableTabRow(
         selectedTabIndex = selectedCategory.ordinal,
-        containerColor = Color.Transparent,
+        containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(horizontal = 16.dp),
-        edgePadding = 0.dp
+        modifier = Modifier.padding(horizontal = sp.space16),
+        edgePadding = sp.none
     ) {
-        TabItem("全部 ($totalCount)", AppCategory.ALL, selectedCategory, onCategoryChange)
-        TabItem("用户应用 ($userCount)", AppCategory.USER, selectedCategory, onCategoryChange)
-        TabItem("系统应用 ($systemCount)", AppCategory.SYSTEM, selectedCategory, onCategoryChange)
+        TabItem(stringResource(R.string.category_all, totalCount), AppCategory.ALL, selectedCategory, onCategoryChange)
+        TabItem(stringResource(R.string.category_user, userCount), AppCategory.USER, selectedCategory, onCategoryChange)
+        TabItem(stringResource(R.string.category_system, systemCount), AppCategory.SYSTEM, selectedCategory, onCategoryChange)
     }
 }
 
@@ -200,25 +206,26 @@ internal fun TabItem(
 
 @Composable
 fun AppItem(appInfo: AppInfo) {
+    val sp = LanSyncTheme.spacing
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(sp.space12),
             verticalAlignment = Alignment.CenterVertically
         ) {
             AppIcon(
                 packageName = appInfo.packageName,
-                size = 44
+                size = sp.appIconLg
             )
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(sp.space10))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -231,28 +238,28 @@ fun AppItem(appInfo: AppInfo) {
                         modifier = Modifier.weight(1f, fill = false)
                     )
                     if (!appInfo.isExtractable) {
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(sp.space6))
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = RoundedCornerShape(sp.radiusXs)
                         ) {
                             Text(
-                                text = "不可提取",
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                text = stringResource(R.string.badge_not_extractable),
+                                modifier = Modifier.padding(horizontal = sp.space4, vertical = sp.hairline),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
                     }
                     if (appInfo.isSplitApk) {
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(sp.space6))
                         Surface(
                             color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = RoundedCornerShape(sp.radiusXs)
                         ) {
                             Text(
-                                text = "分包",
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                text = stringResource(R.string.badge_split),
+                                modifier = Modifier.padding(horizontal = sp.space4, vertical = sp.hairline),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
@@ -260,10 +267,10 @@ fun AppItem(appInfo: AppInfo) {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(sp.space2))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(sp.space8),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -276,7 +283,7 @@ fun AppItem(appInfo: AppInfo) {
                     if (appInfo.fileSize > 0) {
                         val sizeMb = remember(appInfo.fileSize) { appInfo.fileSize / (1024 * 1024) }
                         Text(
-                            text = "${sizeMb}MB",
+                            text = stringResource(R.string.size_mb, sizeMb),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -294,6 +301,7 @@ fun UpdateItem(
     onToggleSelected: (String) -> Unit,
     onInstall: () -> Unit
 ) {
+    val sp = LanSyncTheme.spacing
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -302,26 +310,26 @@ fun UpdateItem(
             else
                 MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(end = 12.dp),
+                .padding(end = sp.space12),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
                 checked = isSelected,
                 onCheckedChange = { onToggleSelected(updateInfo.remoteApp.packageName) },
-                modifier = Modifier.padding(start = 4.dp)
+                modifier = Modifier.padding(start = sp.space4)
             )
 
             AppIcon(
                 packageName = updateInfo.remoteApp.packageName,
-                size = 44
+                size = sp.appIconLg
             )
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(sp.space10))
 
             Column(
                 modifier = Modifier.weight(1f, fill = false)
@@ -337,21 +345,21 @@ fun UpdateItem(
                     )
                     Surface(
                         color = MaterialTheme.colorScheme.tertiaryContainer,
-                        shape = RoundedCornerShape(6.dp)
+                        shape = RoundedCornerShape(sp.radiusSm)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            modifier = Modifier.padding(horizontal = sp.space4, vertical = sp.hairline)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.NewReleases,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                modifier = Modifier.size(11.dp)
+                                modifier = Modifier.size(sp.iconXxs)
                             )
-                            Spacer(modifier = Modifier.width(2.dp))
+                            Spacer(modifier = Modifier.width(sp.space2))
                             Text(
-                                text = "可更新",
+                                text = stringResource(R.string.badge_updatable),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
@@ -359,7 +367,7 @@ fun UpdateItem(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(sp.space2))
 
                 Text(
                     text = if (updateInfo.localApp != null)
@@ -374,15 +382,15 @@ fun UpdateItem(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier.padding(top = sp.space2)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Cloud,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(sp.iconXs)
                     )
-                    Spacer(modifier = Modifier.width(3.dp))
+                    Spacer(modifier = Modifier.width(sp.space4))
                     Text(
                         text = updateInfo.providerDevice.deviceName,
                         style = MaterialTheme.typography.labelSmall,
@@ -390,12 +398,12 @@ fun UpdateItem(
                         maxLines = 1
                     )
                     if (updateInfo.remoteApp.fileSize > 0) {
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(sp.space6))
                         val sizeMb = remember(updateInfo.remoteApp.fileSize) {
                             updateInfo.remoteApp.fileSize / (1024 * 1024)
                         }
                         Text(
-                            text = "${sizeMb}MB",
+                            text = stringResource(R.string.size_mb, sizeMb),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -403,12 +411,12 @@ fun UpdateItem(
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(sp.space8))
 
             Button(
                 onClick = onInstall,
-                modifier = Modifier.height(36.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp),
+                modifier = Modifier.height(sp.buttonHeight),
+                contentPadding = PaddingValues(horizontal = sp.space10),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
@@ -416,10 +424,10 @@ fun UpdateItem(
                 Icon(
                     imageVector = Icons.Default.Download,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(sp.iconSm)
                 )
-                Spacer(modifier = Modifier.width(3.dp))
-                Text("安装", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.width(sp.space4))
+                Text(stringResource(R.string.action_install), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -435,10 +443,11 @@ fun SectionHeader(
     onSelectAll: (() -> Unit)? = null,
     onClearSelection: (() -> Unit)? = null
 ) {
+    val sp = LanSyncTheme.spacing
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = sp.space4),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -447,22 +456,22 @@ fun SectionHeader(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(sp.iconLg)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(sp.space6))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(sp.space6))
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(sp.radiusMd)
             ) {
                 Text(
                     text = count.toString(),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = sp.space8, vertical = sp.space2),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                     fontWeight = FontWeight.Bold
@@ -473,9 +482,13 @@ fun SectionHeader(
         if (showSelectButtons) {
             TextButton(
                 onClick = if (areAllSelected) onClearSelection!! else onSelectAll!!,
-                contentPadding = PaddingValues(horizontal = 12.dp)
+                contentPadding = PaddingValues(horizontal = sp.space12)
             ) {
-                Text(if (areAllSelected) "清除选择" else "全选")
+                Text(
+                    stringResource(
+                        if (areAllSelected) R.string.action_clear_selection else R.string.action_select_all
+                    )
+                )
             }
         }
     }
@@ -483,10 +496,11 @@ fun SectionHeader(
 
 @Composable
 fun EmptyStateCard(message: String) {
+    val sp = LanSyncTheme.spacing
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp),
+            .padding(vertical = sp.space24),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -494,16 +508,16 @@ fun EmptyStateCard(message: String) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(32.dp),
+                .padding(sp.space32),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = Icons.Default.Inbox,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(sp.iconEmpty)
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(sp.space12))
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,

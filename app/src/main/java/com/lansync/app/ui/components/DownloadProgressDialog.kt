@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,13 +14,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
+import com.lansync.app.R
 import com.lansync.app.data.transfer.DownloadInstallController
+import com.lansync.app.ui.theme.LanSyncTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -34,6 +33,7 @@ fun DownloadProgressDialog(
     onInstall: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val sp = LanSyncTheme.spacing
     var installClicked by remember { mutableStateOf(false) }
 
     LaunchedEffect(installClicked) {
@@ -56,26 +56,25 @@ fun DownloadProgressDialog(
                 },
                 contentDescription = null,
                 tint = when (progress.status) {
-                    DownloadInstallController.DownloadProgress.Status.DOWNLOADING, DownloadInstallController.DownloadProgress.Status.VERIFYING -> MaterialTheme.colorScheme.primary
-                    DownloadInstallController.DownloadProgress.Status.COMPLETED -> MaterialTheme.colorScheme.primary
                     DownloadInstallController.DownloadProgress.Status.FAILED -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.primary
                 }
             )
         },
         title = {
             Text(
                 text = when (progress.status) {
-                    DownloadInstallController.DownloadProgress.Status.DOWNLOADING -> "下载中"
-                    DownloadInstallController.DownloadProgress.Status.VERIFYING -> "校验中"
-                    DownloadInstallController.DownloadProgress.Status.COMPLETED -> "下载完成"
-                    DownloadInstallController.DownloadProgress.Status.FAILED -> "下载失败"
+                    DownloadInstallController.DownloadProgress.Status.DOWNLOADING -> stringResource(R.string.download_state_downloading)
+                    DownloadInstallController.DownloadProgress.Status.VERIFYING -> stringResource(R.string.download_state_verifying)
+                    DownloadInstallController.DownloadProgress.Status.COMPLETED -> stringResource(R.string.download_state_completed)
+                    DownloadInstallController.DownloadProgress.Status.FAILED -> stringResource(R.string.download_state_failed)
                 }
             )
         },
         text = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(sp.space8)
             ) {
                 Text(
                     text = progress.packageName,
@@ -91,7 +90,7 @@ fun DownloadProgressDialog(
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Text(
-                        text = "${progress.progress}%",
+                        text = stringResource(R.string.download_progress_percent, progress.progress),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -100,34 +99,34 @@ fun DownloadProgressDialog(
         },
         confirmButton = {
             if (progress.status == DownloadInstallController.DownloadProgress.Status.COMPLETED) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(sp.space8)) {
                     if (onInstall != null && !installClicked) {
                         OutlinedButton(onClick = {
                             installClicked = true
                             onInstall()
                         }) {
-                            Icon(Icons.Default.InstallMobile, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("安装")
+                            Icon(Icons.Default.InstallMobile, contentDescription = null, modifier = Modifier.size(sp.iconMd))
+                            Spacer(Modifier.width(sp.space4))
+                            Text(stringResource(R.string.action_install))
                         }
                     } else if (installClicked) {
                         OutlinedButton(onClick = {}, enabled = false) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(sp.iconSm),
+                                strokeWidth = sp.strokeThin,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Spacer(Modifier.width(4.dp))
-                            Text("安装中...")
+                            Spacer(Modifier.width(sp.space4))
+                            Text(stringResource(R.string.action_installing))
                         }
                     }
                     TextButton(onClick = onDismiss) {
-                        Text("确定")
+                        Text(stringResource(R.string.action_ok))
                     }
                 }
             } else if (progress.status == DownloadInstallController.DownloadProgress.Status.FAILED) {
                 TextButton(onClick = onDismiss) {
-                    Text("确定")
+                    Text(stringResource(R.string.action_ok))
                 }
             }
         }
@@ -139,6 +138,7 @@ fun InstallStatusSnackbar(
     status: DownloadInstallController.InstallStatus,
     onDismiss: () -> Unit
 ) {
+    val sp = LanSyncTheme.spacing
     var isVisible by remember { mutableStateOf(true) }
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -160,7 +160,7 @@ fun InstallStatusSnackbar(
     ) {
         Box(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(sp.space16)
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
@@ -192,22 +192,22 @@ fun InstallStatusSnackbar(
             when (status) {
                 is DownloadInstallController.InstallStatus.Installing -> {
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(sp.radiusXs),
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        shadowElevation = 6.dp
+                        shadowElevation = sp.space6
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(sp.space12),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(sp.iconXl),
+                                strokeWidth = sp.strokeThin,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(sp.space12))
                             Text(
-                                text = "正在安装 ${status.packageName}...",
+                                text = stringResource(R.string.install_installing, status.packageName),
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.weight(1f)
                             )
@@ -216,12 +216,12 @@ fun InstallStatusSnackbar(
                 }
                 is DownloadInstallController.InstallStatus.Success -> {
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(sp.radiusXs),
                         color = MaterialTheme.colorScheme.tertiaryContainer,
-                        shadowElevation = 6.dp
+                        shadowElevation = sp.space6
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(sp.space12),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -229,9 +229,9 @@ fun InstallStatusSnackbar(
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onTertiaryContainer
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(sp.space12))
                             Text(
-                                text = "${status.packageName} 安装已发起",
+                                text = stringResource(R.string.install_success, status.packageName),
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 modifier = Modifier.weight(1f)
                             )
@@ -240,12 +240,12 @@ fun InstallStatusSnackbar(
                 }
                 is DownloadInstallController.InstallStatus.Failed -> {
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(sp.radiusXs),
                         color = MaterialTheme.colorScheme.errorContainer,
-                        shadowElevation = 6.dp
+                        shadowElevation = sp.space6
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(sp.space12),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -253,7 +253,7 @@ fun InstallStatusSnackbar(
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onErrorContainer
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(sp.space12))
                             Text(
                                 text = status.message,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
@@ -266,7 +266,7 @@ fun InstallStatusSnackbar(
                                     onDismiss()
                                 }
                             }) {
-                                Text("关闭")
+                                Text(stringResource(R.string.action_close))
                             }
                         }
                     }

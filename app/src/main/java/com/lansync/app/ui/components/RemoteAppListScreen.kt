@@ -10,14 +10,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import com.lansync.app.R
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.RemoteAppEntry
 import com.lansync.app.data.model.UpdateInfo
+import com.lansync.app.ui.theme.LanSyncTheme
 
 private const val ITEM_TYPE_REMOTE = "remote_app_item"
 
@@ -35,6 +37,7 @@ fun RemoteAppListScreen(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val sp = LanSyncTheme.spacing
     var searchQuery by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(AppCategory.ALL) }
     var hasTriggeredInitialRefresh by remember { mutableStateOf(false) }
@@ -104,7 +107,7 @@ fun RemoteAppListScreen(
         SearchBar(
             query = searchQuery,
             onQueryChange = { searchQuery = it },
-            placeholder = "搜索远程应用..."
+            placeholder = stringResource(R.string.search_remote_placeholder)
         )
 
         CategoryTabs(
@@ -115,10 +118,10 @@ fun RemoteAppListScreen(
             systemCount = systemAppCount
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(sp.space4))
 
         SectionHeader(
-            title = "远程应用",
+            title = stringResource(R.string.remote_section_title),
             icon = Icons.Default.Cloud,
             count = filteredApps.size,
             showSelectButtons = filteredApps.isNotEmpty(),
@@ -131,7 +134,7 @@ fun RemoteAppListScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(32.dp),
+                    .padding(sp.space32),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -139,17 +142,17 @@ fun RemoteAppListScreen(
                         imageVector = Icons.Default.CloudOff,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(sp.iconEmpty)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(sp.space12))
                     Text(
-                        text = "暂无连接的远程设备",
+                        text = stringResource(R.string.remote_no_device_title),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(sp.space4))
                     Text(
-                        text = "请在「设备」页面发现并连接设备后使用此功能",
+                        text = stringResource(R.string.remote_empty_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -168,7 +171,7 @@ fun RemoteAppListScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(32.dp),
+                    .padding(sp.space32),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -176,23 +179,23 @@ fun RemoteAppListScreen(
                         imageVector = Icons.Default.SyncProblem,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(sp.iconEmpty)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(sp.space12))
                     Text(
-                        text = "应用列表为空",
+                        text = stringResource(R.string.remote_empty_applist),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(sp.space8))
                     Button(onClick = onRefresh) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(sp.iconMd)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("刷新应用列表")
+                        Spacer(modifier = Modifier.width(sp.space6))
+                        Text(stringResource(R.string.action_refresh_applist))
                     }
                 }
             }
@@ -200,7 +203,7 @@ fun RemoteAppListScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(32.dp),
+                    .padding(sp.space32),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -208,15 +211,15 @@ fun RemoteAppListScreen(
                         imageVector = Icons.Default.Inbox,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(sp.iconEmpty)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(sp.space12))
                     Text(
                         text = when {
-                            searchQuery.isNotEmpty() -> "未找到匹配「$searchQuery」的远程应用"
-                            category == AppCategory.USER -> "暂无远程用户应用"
-                            category == AppCategory.SYSTEM -> "暂无远程系统应用"
-                            else -> "暂无远程应用数据"
+                            searchQuery.isNotEmpty() -> stringResource(R.string.remote_empty_search, searchQuery)
+                            category == AppCategory.USER -> stringResource(R.string.remote_empty_user)
+                            category == AppCategory.SYSTEM -> stringResource(R.string.remote_empty_system)
+                            else -> stringResource(R.string.remote_empty_all)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -226,8 +229,8 @@ fun RemoteAppListScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(horizontal = sp.space16, vertical = sp.space8),
+                verticalArrangement = Arrangement.spacedBy(sp.space8)
             ) {
                 items(
                     items = filteredApps,
@@ -247,17 +250,17 @@ fun RemoteAppListScreen(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 8.dp
+                    shadowElevation = sp.space8
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                            .padding(horizontal = sp.space16, vertical = sp.space10),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "已选择 ${selectedPackages.size} 个应用",
+                            text = stringResource(R.string.selection_count_apps, selectedPackages.size),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
@@ -270,10 +273,10 @@ fun RemoteAppListScreen(
                             Icon(
                                 imageVector = Icons.Default.CloudDownload,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(sp.iconMd)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("拉取安装", fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(sp.space6))
+                            Text(stringResource(R.string.action_pull_install), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -289,10 +292,11 @@ fun MultiDeviceSummary(
     isRefreshing: Boolean,
     onRefresh: () -> Unit
 ) {
+    val sp = LanSyncTheme.spacing
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = sp.space16, vertical = sp.space4),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
         )
@@ -300,7 +304,7 @@ fun MultiDeviceSummary(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = sp.space12, vertical = sp.space8),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -309,17 +313,17 @@ fun MultiDeviceSummary(
                     imageVector = Icons.Default.Devices,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(sp.iconMd)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(sp.space6))
                 Column {
                     Text(
-                        text = "已连接 $connectedCount 台设备",
+                        text = stringResource(R.string.summary_connected_devices, connectedCount),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "共 $totalApps 个远程应用",
+                        text = stringResource(R.string.summary_remote_apps, totalApps),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -328,22 +332,22 @@ fun MultiDeviceSummary(
             if (isRefreshing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
+                        modifier = Modifier.size(sp.iconSm),
+                        strokeWidth = sp.strokeThin
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(sp.space6))
                     Text(
-                        text = "刷新中...",
+                        text = stringResource(R.string.status_refreshing_short),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
-                IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = onRefresh, modifier = Modifier.size(sp.space32)) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "刷新",
-                        modifier = Modifier.size(18.dp),
+                        contentDescription = stringResource(R.string.cd_refresh),
+                        modifier = Modifier.size(sp.iconMd),
                         tint = MaterialTheme.colorScheme.secondary
                     )
                 }
@@ -351,7 +355,7 @@ fun MultiDeviceSummary(
         }
     }
 
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(sp.space4))
 }
 
 @Composable
@@ -361,6 +365,7 @@ fun RemoteAppItem(
     onToggleSelected: (String) -> Unit,
     onPull: () -> Unit
 ) {
+    val sp = LanSyncTheme.spacing
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -369,26 +374,26 @@ fun RemoteAppItem(
             else
                 MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(end = 12.dp),
+                .padding(end = sp.space12),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
                 checked = isSelected,
                 onCheckedChange = { onToggleSelected(entry.app.packageName) },
-                modifier = Modifier.padding(start = 4.dp)
+                modifier = Modifier.padding(start = sp.space4)
             )
 
             AppIcon(
                 packageName = entry.app.packageName,
-                size = 44
+                size = sp.appIconLg
             )
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(sp.space10))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -401,14 +406,14 @@ fun RemoteAppItem(
                         modifier = Modifier.weight(1f, fill = false)
                     )
                     if (!entry.app.isExtractable) {
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(sp.space6))
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = RoundedCornerShape(sp.radiusXs)
                         ) {
                             Text(
-                                text = "不可提取",
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                text = stringResource(R.string.badge_not_extractable),
+                                modifier = Modifier.padding(horizontal = sp.space4, vertical = sp.hairline),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -416,10 +421,10 @@ fun RemoteAppItem(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(sp.space2))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(sp.space8),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -432,7 +437,7 @@ fun RemoteAppItem(
                     if (entry.app.fileSize > 0) {
                         val sizeMb = remember(entry.app.fileSize) { entry.app.fileSize / (1024 * 1024) }
                         Text(
-                            text = "${sizeMb}MB",
+                            text = stringResource(R.string.size_mb, sizeMb),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -441,15 +446,15 @@ fun RemoteAppItem(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier.padding(top = sp.space2)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PhoneAndroid,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(sp.iconXs)
                     )
-                    Spacer(modifier = Modifier.width(3.dp))
+                    Spacer(modifier = Modifier.width(sp.space4))
                     Text(
                         text = entry.sourceDevice.deviceName,
                         style = MaterialTheme.typography.labelSmall,
@@ -459,12 +464,12 @@ fun RemoteAppItem(
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(sp.space8))
 
             Button(
                 onClick = onPull,
-                modifier = Modifier.height(36.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp),
+                modifier = Modifier.height(sp.buttonHeight),
+                contentPadding = PaddingValues(horizontal = sp.space10),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
@@ -472,10 +477,10 @@ fun RemoteAppItem(
                 Icon(
                     imageVector = Icons.Default.CloudDownload,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(sp.iconSm)
                 )
-                Spacer(modifier = Modifier.width(3.dp))
-                Text("拉取", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.width(sp.space4))
+                Text(stringResource(R.string.action_pull), style = MaterialTheme.typography.labelMedium)
             }
         }
     }

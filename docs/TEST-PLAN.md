@@ -267,11 +267,12 @@
 | Phase 4 DownloadInstallController | DownloadInstallControllerTest(7) | ✅ 已落地（下载/安装进度状态） |
 | 旧 ConnectionManagerTest / update.UpdateManagerTest | — | 🗑️ Phase 4 随旧码删除（行为已由 InMemoryPairingStoreTest / sync.UpdateManagerTest / DefaultConnectionCoordinatorTest 覆盖） |
 | §6 真机互操作矩阵 | — | ⏳ 接线已完成，待真机执行（T1 旧 APK 已确认存在） |
+| Phase 5 UI 一次成型（设计系统 + 5 Tab + 全量覆盖层） | 无新增 JVM 单测（Compose UI 非单测目标） | ✅ `assembleDebug` 通过 + 硬编码审计（`ui/` 非 theme 文件 + `MainActivity`：0 内联中文字面量 / 0 `Color` 字面量 / 0 裸 `.dp`）；139 基线不变 |
 
-> **合计（Phase 4 末）**：**14 文件 139 例**（= Phase 3 的 141 − 删旧 `ConnectionManagerTest` 10 − 删旧 `update.UpdateManagerTest` 3 + `UpdateCoordinatorTest` 4 + `DownloadInstallControllerTest` 7），0 失败/0 错误/0 跳过（均 JVM 单元/集成，无 instrumented）。权威阶段状态见仓库根 `PROGRESS.md`。
+> **合计（Phase 4 末）**：**14 文件 139 例**（= Phase 3 的 141 − 删旧 `ConnectionManagerTest` 10 − 删旧 `update.UpdateManagerTest` 3 + `UpdateCoordinatorTest` 4 + `DownloadInstallControllerTest` 7），0 失败/0 错误/0 跳过（均 JVM 单元/集成，无 instrumented）。**Phase 5 末**：UI 一次成型未新增 JVM 单测（Compose UI 非单测目标），基线仍 **139/139**，`assembleDebug` 通过。权威阶段状态见仓库根 `PROGRESS.md`。
 > **✅ 绿色基线已跑通（2026-09-08）**：`testDebugUnitTest`（Gradle 8.13，离线，`GRADLE_USER_HOME=C:\Users\LingTian\.gradle`）实跑 **95/95 全绿，0 失败 0 错误 0 跳过**（`LanSyncRoutingTest` 33 / `LanSyncClientTest` 12 / `DownloadedFileNameTest` 10 / `ConnectionManagerTest` 10 / `ModelsTest` 9 / `InMemoryPairingStoreTest` 8 / `HashUtilsTest` 6 / `UpdateManagerTest` 3 / `AppConfigTest` 2 / `HashUtilsConsistencyTest` 2）；应用构建卫生修复（移除死依赖/jetifier、`PREFER_SETTINGS`）后**复跑仍 95/95 全绿**。运行方式见 §7 本机实测注。
 
-> **停止点**：Phase 4（前台服务 + 门面接线 + 删旧）已跑通 **139/139 全绿** + `assembleDebug` 通过；App 已切换到全新栈（旧上帝类删除）。运行时行为（FGS/mDNS/连接/下载/安装）**待真机验证**。权威阶段状态/裁决/决策日志见仓库根 **`PROGRESS.md`**。下一步 Phase 5（安全加固/协议版本化 或 工具链升级）待用户确认。
+> **停止点**：Phase 5（UI 一次成型：单一 Material3 设计系统 + 5 Tab + 全量覆盖层 + UiState 单一出口 + 字符串/颜色/间距零硬编码）已完成，`assembleDebug` 通过、`testDebugUnitTest` **139/139 全绿**（基线不变）。UI 视觉/交互与运行时行为（FGS/mDNS/连接/下载/安装）**待真机验证**。权威阶段状态/裁决/决策日志见仓库根 **`PROGRESS.md`**。下一步 Phase 6（安全加固/协议版本化）或 Phase 7（工具链升级）待用户确认。
 
 ---
 

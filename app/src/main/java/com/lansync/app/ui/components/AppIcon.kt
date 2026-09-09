@@ -21,8 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.lansync.app.data.cache.IconCache
+import com.lansync.app.ui.theme.DefaultSpacing
+import com.lansync.app.ui.theme.LanSyncTheme
 
 /**
  * 应用图标 Composable（ui 层**薄壳**）。
@@ -30,16 +32,19 @@ import com.lansync.app.data.cache.IconCache
  * 三级缓存（内存 LruCache → 磁盘 PNG → PackageManager 绘制）与 `preload` 已下沉 data 层 [IconCache]
  * （修复 legacy-known-issue **L2 分层倒置**：data 不再 `import ui.components.preloadIcon`）。
  * 本组件仅消费 [IconCache.get] 返回的 [Bitmap] 并转 `ImageBitmap` 渲染；缺失时回退占位图标。
+ *
+ * 尺寸/圆角走设计令牌（[LanSyncTheme.spacing]），无硬编码 dp。
  */
 @Composable
 fun AppIcon(
     packageName: String,
     modifier: Modifier = Modifier,
-    size: Int = 48
+    size: Dp = DefaultSpacing.appIconXl
 ) {
+    val sp = LanSyncTheme.spacing
     val context = LocalContext.current
     val iconCache = remember { IconCache.getInstance(context) }
-    val targetSize = (size * 2).coerceAtLeast(96)
+    val targetSize = (size.value * 2).toInt().coerceAtLeast(96)
 
     var bitmap by remember(packageName) { mutableStateOf<Bitmap?>(null) }
     var loadFailed by remember(packageName) { mutableStateOf(false) }
@@ -52,8 +57,8 @@ fun AppIcon(
 
     Box(
         modifier = modifier
-            .size(size.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .size(size)
+            .clip(RoundedCornerShape(sp.radiusLg))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {
@@ -61,14 +66,14 @@ fun AppIcon(
             Image(
                 bitmap = bitmap!!.asImageBitmap(),
                 contentDescription = null,
-                modifier = Modifier.size((size - 8).dp)
+                modifier = Modifier.size(size - sp.space8)
             )
         } else {
             Icon(
                 imageVector = Icons.Default.Android,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size((size - 16).dp)
+                modifier = Modifier.size(size - sp.space16)
             )
         }
     }

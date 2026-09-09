@@ -7,10 +7,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.lansync.app.R
+import com.lansync.app.ui.theme.LanSyncTheme
 
 @Composable
 fun InitialScanOverlay() {
+    val sp = LanSyncTheme.spacing
     Box(
         modifier = Modifier
             .fillMaxSize(),
@@ -24,7 +27,7 @@ fun InitialScanOverlay() {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(32.dp),
+                    .padding(sp.space32),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -32,30 +35,30 @@ fun InitialScanOverlay() {
                     imageVector = Icons.Default.PhoneAndroid,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(64.dp)
+                    modifier = Modifier.size(sp.iconHero)
                 )
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(sp.space24))
                 Text(
-                    text = "正在扫描本地应用列表",
+                    text = stringResource(R.string.initial_scan_title),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(sp.space12))
                 Text(
-                    text = "首次使用需要扫描设备上安装的所有应用\n请稍候，此过程可能需要一些时间",
+                    text = stringResource(R.string.initial_scan_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(sp.space32))
                 LinearProgressIndicator(
                     modifier = Modifier
                         .fillMaxWidth(0.7f)
-                        .height(6.dp),
+                        .height(sp.progressBarHeight),
                     color = MaterialTheme.colorScheme.primary
                 )
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(sp.space24))
                 Text(
-                    text = "扫描完成后将自动启动同步服务",
+                    text = stringResource(R.string.initial_scan_footer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )

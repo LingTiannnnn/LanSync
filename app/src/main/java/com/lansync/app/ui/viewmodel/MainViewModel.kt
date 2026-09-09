@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.lansync.app.R
 import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.IncomingConnectRequest
@@ -59,6 +60,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var _lastDownloadedUpdateInfo: UpdateInfo? = null
+
+    /** UI 文案统一走字符串资源（Phase 5：禁止硬编码字符串）。 */
+    private fun str(@androidx.annotation.StringRes id: Int, vararg args: Any): String =
+        getApplication<Application>().getString(id, *args)
 
     init {
         observeRepositoryState()
@@ -133,7 +138,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (_uiState.value.isRunning) {
                 _uiState.value = _uiState.value.copy(
                     isStopping = true,
-                    operationMessage = "正在停止服务..."
+                    operationMessage = str(R.string.op_stopping_service)
                 )
                 try {
                     ForegroundSyncService.stop(getApplication())
@@ -146,7 +151,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 _uiState.value = _uiState.value.copy(
                     isStarting = true,
-                    operationMessage = "正在启动服务..."
+                    operationMessage = str(R.string.op_starting_service)
                 )
                 try {
                     ForegroundSyncService.start(getApplication())
@@ -169,12 +174,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val success = repository.connectDevice(device)
                 if (!success) {
                     _uiState.value = _uiState.value.copy(
-                        connectionError = "连接 ${device.deviceName} 失败"
+                        connectionError = str(R.string.error_connect_failed, device.deviceName)
                     )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    connectionError = "连接异常: ${e.message}"
+                    connectionError = str(R.string.error_connect_exception, e.message ?: "")
                 )
             }
         }
@@ -204,7 +209,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isFetchingRemoteApps = true,
-                operationMessage = "正在刷新..."
+                operationMessage = str(R.string.op_refreshing)
             )
             try {
                 repository.refreshDeviceAppLists()
@@ -258,12 +263,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val result = repository.downloadAndInstallApp(update)
                 if (result is ApkInstaller.InstallationResult.Error) {
                     Log.w(TAG, "Batch: FAILED for ${update.remoteApp.packageName}: ${result.message}")
-                    errors.add("${update.remoteApp.appName}: ${result.message}")
+                    errors.add(str(R.string.batch_error_line, update.remoteApp.appName, result.message))
                 }
             }
 
             if (errors.isNotEmpty()) {
-                val errorMsg = "批量更新完成，其中 ${errors.size}/${updates.size} 个失败:\n${errors.joinToString("\n")}"
+                val errorMsg = str(
+                    R.string.batch_update_partial_failure,
+                    errors.size, updates.size, errors.joinToString("\n")
+                )
                 Log.w(TAG, errorMsg)
                 _uiState.value = _uiState.value.copy(
                     operationMessage = errorMsg
@@ -360,12 +368,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val result = repository.downloadAndInstallApp(updateInfo)
                 if (result is ApkInstaller.InstallationResult.Error) {
                     Log.w(TAG, "Pull FAILED for ${entry.app.packageName}: ${result.message}")
-                    errors.add("${entry.app.appName}: ${result.message}")
+                    errors.add(str(R.string.batch_error_line, entry.app.appName, result.message))
                 }
             }
 
             if (errors.isNotEmpty()) {
-                val errorMsg = "拉取完成，其中 ${errors.size}/${targets.size} 个失败:\n${errors.joinToString("\n")}"
+                val errorMsg = str(
+                    R.string.pull_partial_failure,
+                    errors.size, targets.size, errors.joinToString("\n")
+                )
                 Log.w(TAG, errorMsg)
                 _uiState.value = _uiState.value.copy(
                     operationMessage = errorMsg

@@ -10,9 +10,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
+import com.lansync.app.R
+import com.lansync.app.ui.theme.LanSyncTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -23,6 +25,10 @@ sealed class SaveDialogState {
     data class Error(val fileName: String, val message: String) : SaveDialogState()
 }
 
+/**
+ * 将下载缓存文件复制到用户经 SAF 选择的目录（重名自动追加时间戳）。
+ * 用户可见文案统一走字符串资源（[R.string]），无硬编码字面量。
+ */
 suspend fun copyFileToSafDirectory(
     context: Context,
     treeUri: Uri,
@@ -33,11 +39,11 @@ suspend fun copyFileToSafDirectory(
         val sourceFile = File(downloadsDir, fileName)
 
         if (!sourceFile.exists()) {
-            return@withContext SaveDialogState.Error(fileName, "源文件不存在")
+            return@withContext SaveDialogState.Error(fileName, context.getString(R.string.save_err_source_missing))
         }
 
         val documentFile = DocumentFile.fromTreeUri(context, treeUri)
-            ?: return@withContext SaveDialogState.Error(fileName, "无法访问选择的目录")
+            ?: return@withContext SaveDialogState.Error(fileName, context.getString(R.string.save_err_dir_inaccessible))
 
         val mimeType = when {
             fileName.endsWith(".apks") -> "application/zip"
@@ -55,7 +61,7 @@ suspend fun copyFileToSafDirectory(
         }
 
         val createdFile = documentFile.createFile(mimeType, targetName)
-            ?: return@withContext SaveDialogState.Error(fileName, "无法在目标目录创建文件")
+            ?: return@withContext SaveDialogState.Error(fileName, context.getString(R.string.save_err_create_failed))
 
         context.contentResolver.openOutputStream(createdFile.uri)?.use { output ->
             sourceFile.inputStream().use { input ->
@@ -65,19 +71,19 @@ suspend fun copyFileToSafDirectory(
                     output.write(buffer, 0, bytesRead)
                 }
             }
-        } ?: return@withContext SaveDialogState.Error(fileName, "无法写入文件")
+        } ?: return@withContext SaveDialogState.Error(fileName, context.getString(R.string.save_err_write_failed))
 
         SaveDialogState.Completed(fileName)
     } catch (e: SecurityException) {
-        SaveDialogState.Error(fileName, "权限不足：${e.message}")
+        SaveDialogState.Error(fileName, context.getString(R.string.save_err_permission, e.message ?: ""))
     } catch (e: java.io.IOException) {
         if (e.message?.contains("No space") == true || e.message?.contains("ENOSPC") == true) {
-            SaveDialogState.Error(fileName, "存储空间不足，请清理后重试")
+            SaveDialogState.Error(fileName, context.getString(R.string.save_err_no_space))
         } else {
-            SaveDialogState.Error(fileName, "保存失败：${e.message}")
+            SaveDialogState.Error(fileName, context.getString(R.string.save_err_generic, e.message ?: ""))
         }
     } catch (e: Exception) {
-        SaveDialogState.Error(fileName, "保存失败：${e.message}")
+        SaveDialogState.Error(fileName, context.getString(R.string.save_err_generic, e.message ?: ""))
     }
 }
 
@@ -86,6 +92,7 @@ fun SaveStatusDialog(
     state: SaveDialogState,
     onDismiss: () -> Unit
 ) {
+    val sp = LanSyncTheme.spacing
     AlertDialog(
         onDismissRequest = {
             if (state !is SaveDialogState.Saving) onDismiss()
@@ -108,16 +115,16 @@ fun SaveStatusDialog(
         title = {
             Text(
                 text = when (state) {
-                    is SaveDialogState.Saving -> "保存中"
-                    is SaveDialogState.Completed -> "保存完成"
-                    is SaveDialogState.Error -> "保存失败"
+                    is SaveDialogState.Saving -> stringResource(R.string.save_state_saving)
+                    is SaveDialogState.Completed -> stringResource(R.string.save_state_completed)
+                    is SaveDialogState.Error -> stringResource(R.string.save_state_error)
                 }
             )
         },
         text = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(sp.space8)
             ) {
                 Text(
                     text = when (state) {
@@ -136,16 +143,16 @@ fun SaveStatusDialog(
                             color = MaterialTheme.colorScheme.primary,
                             trackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(sp.space4))
                         Text(
-                            text = "正在保存到选择的目录...",
+                            text = stringResource(R.string.save_saving_hint),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     is SaveDialogState.Completed -> {
                         Text(
-                            text = "文件已成功保存到目标目录",
+                            text = stringResource(R.string.save_completed_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -153,12 +160,12 @@ fun SaveStatusDialog(
                     is SaveDialogState.Error -> {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(sp.radiusXs),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = state.message,
-                                modifier = Modifier.padding(8.dp),
+                                modifier = Modifier.padding(sp.space8),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
@@ -171,12 +178,12 @@ fun SaveStatusDialog(
             when (state) {
                 is SaveDialogState.Completed -> {
                     TextButton(onClick = onDismiss) {
-                        Text("确定")
+                        Text(stringResource(R.string.action_ok))
                     }
                 }
                 is SaveDialogState.Error -> {
                     TextButton(onClick = onDismiss) {
-                        Text("确定")
+                        Text(stringResource(R.string.action_ok))
                     }
                 }
                 is SaveDialogState.Saving -> {}
