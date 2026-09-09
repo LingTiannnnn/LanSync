@@ -263,12 +263,15 @@
 | §4 下载+MD5 链路 | LanSyncClientTest(12) + DownloadedFileNameTest(10) | ✅ 部分（DL-6/7/8/9/10 待补） |
 | §5 配对状态机（接收方） | InMemoryPairingStoreTest(9) | ✅ 已落地（含迁移 clearAll） |
 | §5 连接状态机 CS-1…CS-17（ConnectionCoordinator） | DefaultConnectionCoordinatorTest(21) | ✅ Phase 2 已落地 |
-| §6 真机互操作矩阵 | — | ⏳ 待接线后执行（T1 旧 APK 实物已确认存在，用户将于后续功能测试阶段实机验证） |
+| Phase 4 UpdateCoordinator | UpdateCoordinatorTest(4) | ✅ 已落地（combine/节流/立即重算） |
+| Phase 4 DownloadInstallController | DownloadInstallControllerTest(7) | ✅ 已落地（下载/安装进度状态） |
+| 旧 ConnectionManagerTest / update.UpdateManagerTest | — | 🗑️ Phase 4 随旧码删除（行为已由 InMemoryPairingStoreTest / sync.UpdateManagerTest / DefaultConnectionCoordinatorTest 覆盖） |
+| §6 真机互操作矩阵 | — | ⏳ 接线已完成，待真机执行（T1 旧 APK 已确认存在） |
 
-> **合计（Phase 3 末）**：**14 文件 141 例**（= Phase 2 的 117 + `sync.UpdateManagerTest` 9 + `transfer.AppPackerTest` 6 + `localapps.LocalAppRepositoryTest` 5 + `ModelsTest` 增 4），0 失败/0 错误/0 跳过（均 JVM 单元/集成，无 instrumented）。权威阶段状态见仓库根 `PROGRESS.md`。
+> **合计（Phase 4 末）**：**14 文件 139 例**（= Phase 3 的 141 − 删旧 `ConnectionManagerTest` 10 − 删旧 `update.UpdateManagerTest` 3 + `UpdateCoordinatorTest` 4 + `DownloadInstallControllerTest` 7），0 失败/0 错误/0 跳过（均 JVM 单元/集成，无 instrumented）。权威阶段状态见仓库根 `PROGRESS.md`。
 > **✅ 绿色基线已跑通（2026-09-08）**：`testDebugUnitTest`（Gradle 8.13，离线，`GRADLE_USER_HOME=C:\Users\LingTian\.gradle`）实跑 **95/95 全绿，0 失败 0 错误 0 跳过**（`LanSyncRoutingTest` 33 / `LanSyncClientTest` 12 / `DownloadedFileNameTest` 10 / `ConnectionManagerTest` 10 / `ModelsTest` 9 / `InMemoryPairingStoreTest` 8 / `HashUtilsTest` 6 / `UpdateManagerTest` 3 / `AppConfigTest` 2 / `HashUtilsConsistencyTest` 2）；应用构建卫生修复（移除死依赖/jetifier、`PREFER_SETTINGS`）后**复跑仍 95/95 全绿**。运行方式见 §7 本机实测注。
 
-> **停止点**：Phase 3（扫描/打包/更新推荐）已跑通 **141/141 全绿** + `assembleDebug` 通过。权威阶段状态/裁决/决策日志见仓库根 **`PROGRESS.md`**（每阶段结束更新并 git commit）。下一步 Phase 4（协调层收尾 + 接线）待用户确认。
+> **停止点**：Phase 4（前台服务 + 门面接线 + 删旧）已跑通 **139/139 全绿** + `assembleDebug` 通过；App 已切换到全新栈（旧上帝类删除）。运行时行为（FGS/mDNS/连接/下载/安装）**待真机验证**。权威阶段状态/裁决/决策日志见仓库根 **`PROGRESS.md`**。下一步 Phase 5（安全加固/协议版本化 或 工具链升级）待用户确认。
 
 ---
 

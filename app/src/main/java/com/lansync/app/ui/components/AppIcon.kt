@@ -1,9 +1,6 @@
 package com.lansync.app.ui.components
 
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.drawable.AdaptiveIconDrawable
-import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -25,20 +22,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.lansync.app.data.cache.AppIconDiskCache
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.lansync.app.data.cache.IconCache
 
-private const val MAX_MEMORY_CACHE_ENTRIES = 120
-
-private val memoryCache = object : LruCache<String, Bitmap>(MAX_MEMORY_CACHE_ENTRIES) {
-    override fun sizeOf(key: String, value: Bitmap): Int {
-        // 使用 Bitmap 的实际内存占用字节数作为缓存大小
-        val byteCount = value.allocationByteCount
-        return (byteCount / 1024).coerceAtLeast(1)
-    }
-}
-
+/**
+ * 应用图标 Composable（ui 层**薄壳**）。
+ *
+ * 三级缓存（内存 LruCache → 磁盘 PNG → PackageManager 绘制）与 `preload` 已下沉 data 层 [IconCache]
+ * （修复 legacy-known-issue **L2 分层倒置**：data 不再 `import ui.components.preloadIcon`）。
+ * 本组件仅消费 [IconCache.get] 返回的 [Bitmap] 并转 `ImageBitmap` 渲染；缺失时回退占位图标。
+ */
 @Composable
 fun AppIcon(
     packageName: String,
@@ -46,26 +38,16 @@ fun AppIcon(
     size: Int = 48
 ) {
     val context = LocalContext.current
-    val diskCache = remember { AppIconDiskCache.getInstance(context) }
+    val iconCache = remember { IconCache.getInstance(context) }
     val targetSize = (size * 2).coerceAtLeast(96)
 
-    val cached = remember(packageName) { memoryCache.get(packageName) }
-    var bitmap by remember(packageName) { mutableStateOf(cached) }
+    var bitmap by remember(packageName) { mutableStateOf<Bitmap?>(null) }
     var loadFailed by remember(packageName) { mutableStateOf(false) }
 
     LaunchedEffect(packageName) {
         if (bitmap != null || loadFailed) return@LaunchedEffect
-
-        val loaded = withContext(Dispatchers.IO) {
-            loadIcon(context, diskCache, packageName, targetSize)
-        }
-
-        if (loaded != null) {
-            memoryCache.put(packageName, loaded)
-            bitmap = loaded
-        } else {
-            loadFailed = true
-        }
+        val loaded = iconCache.get(packageName, targetSize)
+        if (loaded != null) bitmap = loaded else loadFailed = true
     }
 
     Box(
@@ -89,62 +71,5 @@ fun AppIcon(
                 modifier = Modifier.size((size - 16).dp)
             )
         }
-    }
-}
-
-private suspend fun loadIcon(
-    context: Context,
-    diskCache: AppIconDiskCache,
-    packageName: String,
-    targetSize: Int
-): Bitmap? = withContext(Dispatchers.IO) {
-    val fromDisk = diskCache.get(packageName, targetSize)
-    if (fromDisk != null) return@withContext fromDisk
-
-    try {
-        val pm = context.packageManager
-        val appInfo = pm.getApplicationInfo(packageName, 0)
-        var drawable = appInfo.loadIcon(pm)
-
-        if (drawable is AdaptiveIconDrawable) {
-            drawable = drawable.foreground
-        }
-
-        val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
-        drawable.setBounds(0, 0, targetSize, targetSize)
-        drawable.draw(canvas)
-
-        diskCache.put(packageName, bitmap)
-        bitmap
-    } catch (_: Exception) {
-        null
-    }
-}
-
-fun preloadIcon(context: Context, packageName: String, targetSize: Int = 96) {
-    if (memoryCache.get(packageName) != null) return
-    val diskCache = AppIconDiskCache.getInstance(context)
-    if (diskCache.exists(packageName)) return
-
-    try {
-        val pm = context.packageManager
-        val appInfo = pm.getApplicationInfo(packageName, 0)
-        var drawable = appInfo.loadIcon(pm)
-
-        if (drawable is AdaptiveIconDrawable) {
-            drawable = drawable.foreground
-        }
-
-        val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
-        drawable.setBounds(0, 0, targetSize, targetSize)
-        drawable.draw(canvas)
-
-        memoryCache.put(packageName, bitmap)
-        diskCache.put(packageName, bitmap)
-    } catch (_: Exception) {
     }
 }

@@ -10,7 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.lansync.app.data.connection.ConnectionManager
+import com.lansync.app.data.server.InMemoryPairingStore
 import com.lansync.app.data.model.IncomingConnectRequest
 import kotlinx.coroutines.delay
 
@@ -21,7 +21,7 @@ fun IncomingConnectionDialog(
     onReject: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var remainingSeconds by remember { mutableIntStateOf(ConnectionManager.REQUEST_TIMEOUT_MS.toInt() / 1000) }
+    var remainingSeconds by remember { mutableIntStateOf(InMemoryPairingStore.REQUEST_TIMEOUT_MS.toInt() / 1000) }
 
     LaunchedEffect(request.requestId) {
         while (remainingSeconds > 0) {

@@ -21,7 +21,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.lansync.app.data.repository.AppRepository
+import com.lansync.app.data.transfer.DownloadInstallController
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -29,7 +29,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun DownloadProgressDialog(
-    progress: AppRepository.DownloadProgress,
+    progress: DownloadInstallController.DownloadProgress,
     onDismiss: () -> Unit,
     onInstall: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -44,31 +44,31 @@ fun DownloadProgressDialog(
     }
 
     AlertDialog(
-        onDismissRequest = { if (progress.status != AppRepository.DownloadProgress.Status.DOWNLOADING) onDismiss() },
+        onDismissRequest = { if (progress.status != DownloadInstallController.DownloadProgress.Status.DOWNLOADING) onDismiss() },
         modifier = modifier,
         icon = {
             Icon(
                 imageVector = when (progress.status) {
-                    AppRepository.DownloadProgress.Status.DOWNLOADING -> Icons.Default.Downloading
-                    AppRepository.DownloadProgress.Status.VERIFYING -> Icons.Default.VerifiedUser
-                    AppRepository.DownloadProgress.Status.COMPLETED -> Icons.Default.CheckCircle
-                    AppRepository.DownloadProgress.Status.FAILED -> Icons.Default.Error
+                    DownloadInstallController.DownloadProgress.Status.DOWNLOADING -> Icons.Default.Downloading
+                    DownloadInstallController.DownloadProgress.Status.VERIFYING -> Icons.Default.VerifiedUser
+                    DownloadInstallController.DownloadProgress.Status.COMPLETED -> Icons.Default.CheckCircle
+                    DownloadInstallController.DownloadProgress.Status.FAILED -> Icons.Default.Error
                 },
                 contentDescription = null,
                 tint = when (progress.status) {
-                    AppRepository.DownloadProgress.Status.DOWNLOADING, AppRepository.DownloadProgress.Status.VERIFYING -> MaterialTheme.colorScheme.primary
-                    AppRepository.DownloadProgress.Status.COMPLETED -> MaterialTheme.colorScheme.primary
-                    AppRepository.DownloadProgress.Status.FAILED -> MaterialTheme.colorScheme.error
+                    DownloadInstallController.DownloadProgress.Status.DOWNLOADING, DownloadInstallController.DownloadProgress.Status.VERIFYING -> MaterialTheme.colorScheme.primary
+                    DownloadInstallController.DownloadProgress.Status.COMPLETED -> MaterialTheme.colorScheme.primary
+                    DownloadInstallController.DownloadProgress.Status.FAILED -> MaterialTheme.colorScheme.error
                 }
             )
         },
         title = {
             Text(
                 text = when (progress.status) {
-                    AppRepository.DownloadProgress.Status.DOWNLOADING -> "下载中"
-                    AppRepository.DownloadProgress.Status.VERIFYING -> "校验中"
-                    AppRepository.DownloadProgress.Status.COMPLETED -> "下载完成"
-                    AppRepository.DownloadProgress.Status.FAILED -> "下载失败"
+                    DownloadInstallController.DownloadProgress.Status.DOWNLOADING -> "下载中"
+                    DownloadInstallController.DownloadProgress.Status.VERIFYING -> "校验中"
+                    DownloadInstallController.DownloadProgress.Status.COMPLETED -> "下载完成"
+                    DownloadInstallController.DownloadProgress.Status.FAILED -> "下载失败"
                 }
             )
         },
@@ -83,7 +83,7 @@ fun DownloadProgressDialog(
                     fontWeight = FontWeight.Bold
                 )
 
-                if (progress.status != AppRepository.DownloadProgress.Status.FAILED) {
+                if (progress.status != DownloadInstallController.DownloadProgress.Status.FAILED) {
                     LinearProgressIndicator(
                         progress = (progress.progress / 100f).coerceIn(0f, 1f),
                         modifier = Modifier.fillMaxWidth(),
@@ -99,7 +99,7 @@ fun DownloadProgressDialog(
             }
         },
         confirmButton = {
-            if (progress.status == AppRepository.DownloadProgress.Status.COMPLETED) {
+            if (progress.status == DownloadInstallController.DownloadProgress.Status.COMPLETED) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (onInstall != null && !installClicked) {
                         OutlinedButton(onClick = {
@@ -125,7 +125,7 @@ fun DownloadProgressDialog(
                         Text("确定")
                     }
                 }
-            } else if (progress.status == AppRepository.DownloadProgress.Status.FAILED) {
+            } else if (progress.status == DownloadInstallController.DownloadProgress.Status.FAILED) {
                 TextButton(onClick = onDismiss) {
                     Text("确定")
                 }
@@ -136,7 +136,7 @@ fun DownloadProgressDialog(
 
 @Composable
 fun InstallStatusSnackbar(
-    status: AppRepository.InstallStatus,
+    status: DownloadInstallController.InstallStatus,
     onDismiss: () -> Unit
 ) {
     var isVisible by remember { mutableStateOf(true) }
@@ -190,7 +190,7 @@ fun InstallStatusSnackbar(
                 }
         ) {
             when (status) {
-                is AppRepository.InstallStatus.Installing -> {
+                is DownloadInstallController.InstallStatus.Installing -> {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -214,7 +214,7 @@ fun InstallStatusSnackbar(
                         }
                     }
                 }
-                is AppRepository.InstallStatus.Success -> {
+                is DownloadInstallController.InstallStatus.Success -> {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
                         color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -238,7 +238,7 @@ fun InstallStatusSnackbar(
                         }
                     }
                 }
-                is AppRepository.InstallStatus.Failed -> {
+                is DownloadInstallController.InstallStatus.Failed -> {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
                         color = MaterialTheme.colorScheme.errorContainer,

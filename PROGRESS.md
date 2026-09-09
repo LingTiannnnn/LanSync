@@ -9,11 +9,11 @@
 
 ## 1. 当前状态快照
 
-- **当前阶段**：**Phase 3 — 扫描/打包/更新推荐** ✅ 完成；下一步 **Phase 4**（协调层收尾 + 接线：UpdateCoordinator + DownloadInstallController + 整合进 AppRepository/门面切换 + DI + 删旧码）
-- **阶段状态**：✅ Phase 0/1/2/3 完成（Phase 3 待用户审阅）
-- **测试基线**：**141/141 全绿**（Phase 3 末，`testDebugUnitTest` + `assembleDebug` 均通过，见 §4）。
-- **旧生产代码**：🧊 **冻结**（互操作基线建立前不做任何卫生修改；Phase 4 切换门面时整体删除）。
-- **接线状态**：新构件（server/transfer/connection/discovery）均为**并行**存在，**尚未整合进 `AppRepository`**；App 运行时仍走旧路径。接线属 Phase 4。
+- **当前阶段**：**Phase 4 — 前台服务与门面（接线 + 删旧）** ✅ 完成；下一步 **Phase 5**（安全加固/协议版本化 或 工具链升级，待用户定）
+- **阶段状态**：✅ Phase 0/1/2/3/4 完成（Phase 4 待用户审阅 + 真机验证）
+- **测试基线**：**139/139 全绿**（Phase 4 末；删旧测试 13 例 + 新增 11 例；`testDebugUnitTest` + `assembleDebug` 均通过，见 §4）。
+- **旧生产代码**：🗑️ **已删除**（AppRepository/KtorServer/AppListClient/ConnectionManager/旧 JmDNSDiscovery/旧 scanner/packer/update + 2 旧测试）。legacy-known-issue L1–L5 随之全部消除。
+- **接线状态**：✅ **已接线**——`MainViewModel` → `LanSyncGraph.get()` → `LanSyncRepository` 门面 → 全部新构件；App 运行时走**全新栈**。`ForegroundSyncService` 承载 start/stop 生命周期。**运行时行为待真机验证**（FGS/mDNS/连接/下载，无设备无法自动化）。
 
 ---
 
@@ -25,8 +25,8 @@
 | **Phase 1** | 传输层骨架（DTO + Ktor 路由 + 客户端 + HashUtils 新语义） | 阶段 1（部分）+ 阶段 3 服务器契约 | ✅ 完成 | 95/95 全绿；`assembleDebug` 通过；构建卫生 4 项修复 |
 | **Phase 2** | 发现与连接层（DeviceDiscovery/JmDNSDeviceDiscovery + ConnectionCoordinator + PairingHistoryStore；配对协议复用 Phase 1 InMemoryPairingStore） | 阶段 4（连接协作者）提前 | ✅ 完成 | 严格对齐 SPEC §6/§7；`DefaultConnectionCoordinatorTest` 21 例 + `InMemoryPairingStoreTest` 9 例；117/117 全绿；不接扫描/UI、未改旧码 |
 | **Phase 3** | 扫描/打包/更新推荐（AppScanner + AppPacker + UpdateManager + LocalAppRepository + local_apps_cache.json） | 阶段 1/4 组件 | ✅ 完成 | 严格对齐 SPEC §5.3/§8/§3.2 + D2；`sync.UpdateManagerTest`(9)+`transfer.AppPackerTest`(6)+`localapps.LocalAppRepositoryTest`(5)+`ModelsTest`(+4)；141/141 全绿；不接 UI、未改旧码 |
-| **Phase 4** | 协调层收尾 + 接线（UpdateCoordinator + DownloadInstallController + 整合进 AppRepository/门面切换 + DI + 删旧码） | 阶段 3+4 | ⏳ 待启动 | 消除 legacy-known-issue L1–L5 |
-| **Phase 5** | 前台服务与生命周期 | 阶段 5 | ⏳ 待启动 | — |
+| **Phase 4** | 前台服务 + 门面接线（UpdateCoordinator + DownloadInstallController + IconCache + LanSyncRepository 门面 + ForegroundSyncService + 切换 MainViewModel + 删旧码；手写 DI 组合根 LanSyncGraph） | 阶段 3+4+5 | ✅ 完成 | 门面 **158 行**（≤300 硬约束）；139/139 全绿 + assembleDebug；L1–L5 全消除；运行时待真机 |
+| **Phase 5** | （前台服务已并入 Phase 4）下一步待用户定：安全加固/协议版本化 或 工具链升级 | 阶段 2/6 | ⏳ 待定 | — |
 | **Phase 6** | 安全加固与协议版本化（token / 剥离 sourcePaths / SHA-256） | 阶段 6 | ⏳ 待启动 | 互操作矩阵 |
 | **Phase 7** | 收尾（工具链升级 / UI 拆分 / 文档对齐） | 阶段 2+7 | ⏳ 待启动 | — |
 
@@ -54,7 +54,7 @@
 | **D2** | AppScanner null 指纹 | **裁决②：接受现状**——`md5 ?: ""` 且 `isExtractable=true` 为合法态，不降级 | ✅ 写入 SPEC §8.4；重开条件：真机误伤正常应用 |
 | **D3** | 错误协议 | 服务端统一 `LanSyncErrorDto(code,message)` + `LanSyncErrorCode` 枚举；`e.message` 只进 `FileLogger`；状态码保持 SPEC §3 | ✅ Phase 1 `LanSyncError`/`LanSyncRouting`（ARCH §7） |
 
-### 3.3 legacy-known-issue（旧代码冻结，随 Phase 4 删除消除，不做单独卫生修改）
+### 3.3 legacy-known-issue（✅ 已于 Phase 4 全部消除：旧 AppRepository/KtorServer/AppListClient/ConnectionManager 等已删除，MainViewModel 切换到新门面）
 | 编号 | 问题 | 位置 | 消除时机 |
 |---|---|---|---|
 | L1 | `forceStartSync()` 与 `start()` 重复 | `AppRepository.kt` L624–647 | Phase 4 门面切换、旧 `AppRepository` 整体删除 |
@@ -72,6 +72,7 @@
 - **`assembleDebug`**：✅ BUILD SUCCESSFUL（含死依赖移除 + jetifier 移除后）。
 - **Phase 2 末基线**：`testDebugUnitTest` → **117 用例，0 失败 / 0 错误 / 0 跳过**（= Phase 1 的 95 + `DefaultConnectionCoordinatorTest` 21 + `InMemoryPairingStoreTest` 增 1）。`assembleDebug` ✅ 通过。
 - **Phase 3 末基线**：`testDebugUnitTest` → **141 用例，0 失败 / 0 错误 / 0 跳过**（= 117 + `sync.UpdateManagerTest` 9 + `transfer.AppPackerTest` 6 + `localapps.LocalAppRepositoryTest` 5 + `ModelsTest` 增 4）。`assembleDebug` ✅ 通过。
+- **Phase 4 末基线**：`testDebugUnitTest` → **139 用例，0 失败 / 0 错误 / 0 跳过**（= 141 − 删旧 `ConnectionManagerTest` 10 − 删旧 `update.UpdateManagerTest` 3 + `UpdateCoordinatorTest` 4 + `DownloadInstallControllerTest` 7）。`assembleDebug` ✅ 通过（含 FGS Manifest/权限/资源合并）。**App 现运行全新栈**。
 
 ### 运行方式（本机实测，务必照此）
 ```powershell
@@ -93,6 +94,7 @@ $env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
 - **2026-09-08 · 流程**：建立本 `PROGRESS.md` 作为跨会话唯一事实源；约定每阶段结束更新 + `git commit`。
 - **2026-09-08 · Phase 2 完成**：新建 `DeviceDiscovery`/`JmDNSDeviceDiscovery`（SPEC §6，注入 scope）、`ConnectionEvent`/`ConnectionCoordinator`/`DefaultConnectionCoordinator`（Actor 单点收敛，SPEC §7.4–7.7）、`PairingHistoryStore`（TT3 §7.7 干净语义）、`ConnectionTransport`（传输抽象，手写 Fake 测试，不改 Phase 1 `LanSyncClient`）。迁移 `ConnectionManagerTest`：协议 9 例落 `InMemoryPairingStoreTest`、`incomingRequests` 流落 `DefaultConnectionCoordinatorTest`。测试 **117/117 全绿** + `assembleDebug` 通过。**未接线、未改旧生产代码**（旧 `JmDNSDiscovery`/`ConnectionManager`/`AppRepository` 冻结并存，Phase 4 删除）。设计决策见 §6。
 - **2026-09-09 · Phase 3 完成**：新建 `localapps/{InstalledAppScanner,AppScanner,LocalAppRepository}`、`transfer/AppPacker`、`sync/UpdateManager`（均与冻结旧件同名的**新包**并存：localapps/transfer/sync vs 旧 scanner/packer/update）。关键改进：UpdateManager 改为**纯比较**（不再自行 fetch，因 connectedDevices.appList 已由 ConnectionCoordinator 维护）；AppPacker 输出目录构造注入 + **移除死代码 MD5 digest**（D1）；LocalAppRepository 采「缓存骨架 + 后台刷新」且**不接 UI**（图标预加载改为暴露 `ScanResult.added/removedPackages` 交接线层，避开 L2 分层倒置）；AppScanner 落实 D2。迁移 `UpdateManagerTest`（3→sync 新类 9 例，补 findUpdates/calculateSyncDiffs 旧零覆盖）、`ModelsTest` +4 encodeDefaults 字节快照。测试 **141/141 全绿** + `assembleDebug` 通过。**未接线、未改旧生产代码**。设计决策见 §7。
+- **2026-09-09 · Phase 4 完成（接线 + 删旧）**：新建 `sync/UpdateCoordinator`（combine+节流，可控时钟）、`transfer/DownloadInstallController`（下载/安装/进度，DownloadProgress/InstallStatus 迁入）、`cache/IconCache`（data 层三级缓存，修 L2）、`repository/LanSyncRepository` 门面（**158 行 ≤300**，纯委托）、`repository/LanSyncGraph` 组合根（手写 DI，late-bind 破 server↔coordinator↔pairing 环）、`service/ForegroundSyncService`（specialUse FGS + 通知 + Manifest 权限）、适配器 `LanSyncClientTransport`/`NotifyingPairingStore`/`SharedPrefsPairingHistoryStore`。**切换** MainViewModel→LanSyncGraph、start/stop→FGS、类型迁移、AppIcon 薄壳化、删 forceStartSync+按钮（L1）。**删旧码** 8 主 + 2 测试。**L1–L5 全消除**。测试 **139/139 全绿** + assembleDebug 通过。**运行时（FGS/mDNS/连接/下载）待真机验证**。设计见 §8。
 
 ---
 
@@ -158,3 +160,30 @@ $env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
 4. **AppPacker 去死代码**：删除旧 `createApksFile` 中从不使用的 MD5 digest（SPEC §8.1），哈希统一由服务端 `sendPackedFile` 对产物计算（D1）。
 
 **未做（按边界）**：不接 UI；未接线进 `AppRepository`（Phase 4）；`UpdateCoordinator`（combine+节流编排）与 `DownloadInstallController` 归入 Phase 4；`AppScanner` 无 JVM 单测（Android 耦合，真机验收）。
+
+---
+
+## 8. Phase 4 设计与落地（前台服务 + 门面接线 + 删旧）
+
+**目标**：把 Phase 1–3 的并行新构件**接线**成可运行的全新栈，用**组合门面**替代旧上帝类，引入**前台服务**承载生命周期，并**删除旧冻结代码**（消除 L1–L5）。
+
+**门面（硬约束 ≤300 行）**：`repository/LanSyncRepository.kt` = **158 行**，纯「组合 + 委托 + 生命周期编排」，零业务逻辑：转发 11 个 StateFlow；start/stop（server.start→port→discovery→coordinator→updateCoordinator + discovery 流→RawDevicesUpdated）；委托连接/下载安装/扫描/刷新。
+
+**组合根**：`repository/LanSyncGraph.kt`（手写 DI 单例）构建对象图；用**可空 late-bind 引用**打破 `server↔coordinator↔pairingStore` 构造环（notifyingPairing→coordinator、localIdentityProvider→server.getPort 均运行期解引用）。
+
+**协作者**：
+- `sync/UpdateCoordinator`：combine(localApps, connectedDevices)→节流→availableUpdates/syncDiffs；节流时间戳为单 collect 协程局部状态（消除旧 lastUpdateRecalculationMs 竞态）；`nowMillis` 可注入（可控时钟测试）
+- `transfer/DownloadInstallController`：downloadApp/installApp/downloadAndInstallApp/文件管理 + downloadProgress/installStatus（D1，复用 LanSyncClient）
+- `cache/IconCache`：data 层三级缓存（内存 Lru→磁盘 PNG→PackageManager 绘制）+ preload；**修 L2**（ui/AppIcon 薄壳化，data 不再 import ui）
+- `service/ForegroundSyncService`：specialUse FGS，承载 repo.start/stop；常驻通知（端口/连接数 + 停止/打开）；START_STICKY；Manifest 加 service + FOREGROUND_SERVICE(_SPECIAL_USE) + POST_NOTIFICATIONS
+- 适配器：`LanSyncClientTransport`（LanSyncClient→ConnectionTransport，映射 ConnectResult→ConnectOutcome）、`NotifyingPairingStore`（receiveRequest→coordinator.IncomingRequestReceived，不改 Phase 1）、`SharedPrefsPairingHistoryStore`（TT3 持久化配对历史）
+
+**切换（UI）**：MainViewModel `AppRepository.getInstance`→`LanSyncGraph.get`；start/stop→`ForegroundSyncService.start/stop`；类型迁移（DownloadProgress/InstallStatus→DownloadInstallController、DownloadedFileInfo→LanSyncClient）；删 forceStartSync + DeviceListScreen 按钮（L1）；AppIcon 改用 IconCache；IncomingConnectionDialog 的 REQUEST_TIMEOUT_MS→InMemoryPairingStore；MainViewModel.extractPackageNameFromFile→DownloadedFileName.parsePackageName（P7 收敛）。
+
+**删除旧码**（8 主 + 2 测试）：AppRepository、KtorServer、AppListClient、ConnectionManager、旧 JmDNSDiscovery、旧 scanner/packer/update 的 AppScanner/AppPacker/UpdateManager；ConnectionManagerTest、update.UpdateManagerTest。**L1–L5 全部消除**。
+
+**测试**（139/139 全绿）：新增 `UpdateCoordinatorTest`(4)、`DownloadInstallControllerTest`(7)；删旧 13；门面/FGS/IconCache/AppScanner/JmDNSDeviceDiscovery 属 Android 耦合或纯委托，编译校验 + assembleDebug（运行时真机验收）。
+
+**关键决策**：① 门面 ≤300 靠 UpdateCoordinator/DownloadInstallController 下沉 + 纯委托达成（158 行）；② 手写 DI（LanSyncGraph 单例）而非 Hilt，避免本阶段引入 KSP/插件风险（Hilt 留待后续，ARCH §4）；③ FGS 承载生命周期，ViewModel 只触发服务 + 观察 StateFlow（ARCH §8）；④ late-bind 破环（构造期不解引用）。
+
+**风险与待办（真机）**：FGS 在 API34 的 specialUse 需 Play 说明；POST_NOTIFICATIONS 运行时请求尚未加（API33+ 通知可见性）；退后台存活/mDNS/连接/下载/安装 golden path 须真机验证（TEST-PLAN §6）。

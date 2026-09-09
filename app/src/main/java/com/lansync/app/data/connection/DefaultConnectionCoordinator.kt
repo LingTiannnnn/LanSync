@@ -90,6 +90,8 @@ class DefaultConnectionCoordinator(
     override fun handleIncoming(requestId: String, accepted: Boolean) =
         submit(ConnectionEvent.IncomingDecision(requestId, accepted))
 
+    override fun dismissIncoming(requestId: String) = submit(ConnectionEvent.DismissIncoming(requestId))
+
     // ==================== Actor：唯一状态写入点 ====================
 
     private fun handleEvent(event: ConnectionEvent) {
@@ -102,6 +104,7 @@ class DefaultConnectionCoordinator(
             is ConnectionEvent.AppListFetched -> onAppListFetched(event.displayKey, event.apps)
             is ConnectionEvent.IncomingRequestReceived -> onIncomingRequestReceived(event.request)
             is ConnectionEvent.IncomingDecision -> onIncomingDecision(event.requestId, event.accepted)
+            is ConnectionEvent.DismissIncoming -> onDismissIncoming(event.requestId)
             is ConnectionEvent.RemoteDisconnect -> onRemoteDisconnect(event.key)
             is ConnectionEvent.LocalDisconnect -> onLocalDisconnect(event.device)
         }
@@ -337,6 +340,10 @@ class DefaultConnectionCoordinator(
             return
         }
         respondIncoming(request, accepted)
+    }
+
+    private fun onDismissIncoming(requestId: String) {
+        if (pendingIncoming.remove(requestId) != null) publishIncoming()
     }
 
     private fun respondIncoming(request: IncomingConnectRequest, accepted: Boolean) {

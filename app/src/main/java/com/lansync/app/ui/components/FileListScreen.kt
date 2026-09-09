@@ -13,8 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.lansync.app.data.client.AppListClient
-import com.lansync.app.data.repository.AppRepository
+import com.lansync.app.data.transfer.LanSyncClient
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -22,7 +21,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileListScreen(
-    files: List<AppListClient.DownloadedFileInfo>,
+    files: List<LanSyncClient.DownloadedFileInfo>,
     onInstall: (String) -> Unit,
     onSave: (String) -> Unit,
     onDelete: (List<String>) -> Unit,
@@ -161,7 +160,7 @@ fun FileListScreen(
 
 @Composable
 private fun DownloadedFileItem(
-    file: AppListClient.DownloadedFileInfo,
+    file: LanSyncClient.DownloadedFileInfo,
     isSelected: Boolean,
     onSelect: () -> Unit,
     onSave: () -> Unit,

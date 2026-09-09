@@ -28,7 +28,6 @@ fun DeviceListScreen(
     operationMessage: String? = null,
     connectionError: String? = null,
     onToggleRunning: () -> Unit,
-    onForceStartSync: () -> Unit,
     onRefresh: () -> Unit,
     onConnect: (DeviceInfo) -> Unit,
     onDisconnect: (DeviceInfo) -> Unit,
@@ -47,8 +46,7 @@ fun DeviceListScreen(
             isStarting = isStarting,
             isStopping = isStopping,
             operationMessage = operationMessage,
-            onToggleRunning = onToggleRunning,
-            onForceStartSync = onForceStartSync
+            onToggleRunning = onToggleRunning
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -160,7 +158,6 @@ fun StatusCard(
     isStopping: Boolean = false,
     operationMessage: String? = null,
     onToggleRunning: () -> Unit,
-    onForceStartSync: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -220,19 +217,6 @@ fun StatusCard(
                         checked = isRunning,
                         onCheckedChange = { onToggleRunning() }
                     )
-                }
-            }
-
-            if (isScanningApps && !isRunning) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = onForceStartSync,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text("强制启动同步")
                 }
             }
         }

@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.lansync.app.data.repository.AppRepository
+import com.lansync.app.data.transfer.DownloadInstallController
 import com.lansync.app.ui.components.*
 import com.lansync.app.ui.theme.LanSyncTheme
 import com.lansync.app.ui.viewmodel.MainViewModel
@@ -207,7 +207,6 @@ private fun LanSyncTabContent(
                 operationMessage = uiState.operationMessage,
                 connectionError = uiState.connectionError,
                 onToggleRunning = { viewModel.toggleRunning() },
-                onForceStartSync = { viewModel.forceStartSync() },
                 onRefresh = { viewModel.refreshDevices() },
                 onConnect = { viewModel.connectDevice(it) },
                 onDisconnect = { viewModel.disconnectDevice(it) },
@@ -342,7 +341,7 @@ private fun LanSyncOverlays(
         DownloadProgressDialog(
             progress = uiState.currentDownloadProgress!!,
             onDismiss = { viewModel.clearDownloadProgress() },
-            onInstall = if (uiState.currentDownloadProgress?.status == AppRepository.DownloadProgress.Status.COMPLETED) {
+            onInstall = if (uiState.currentDownloadProgress?.status == DownloadInstallController.DownloadProgress.Status.COMPLETED) {
                 { viewModel.installLastDownloaded() }
             } else null
         )

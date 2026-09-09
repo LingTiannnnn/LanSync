@@ -44,4 +44,7 @@ interface ConnectionCoordinator {
 
     /** 对端配对请求裁决（SPEC §7.7）：接受→建连+记录历史；拒绝→即时 rejected。 */
     fun handleIncoming(requestId: String, accepted: Boolean)
+
+    /** 忽略/滑走某待确认配对请求（仅移出 incomingRequests，不响应发起方；其 15s 后自然超时）。 */
+    fun dismissIncoming(requestId: String)
 }

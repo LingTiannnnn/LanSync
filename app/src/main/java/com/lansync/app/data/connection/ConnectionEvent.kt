@@ -48,6 +48,9 @@ sealed interface ConnectionEvent {
     /** 对端配对请求的裁决（用户点击或自动接受），SPEC §7.7。 */
     data class IncomingDecision(val requestId: String, val accepted: Boolean) : ConnectionEvent
 
+    /** 对端配对请求被用户忽略/滑走（仅移出待确认列表，不响应发起方；其 15s 后自然超时）。 */
+    data class DismissIncoming(val requestId: String) : ConnectionEvent
+
     /** 远端主动断开（SPEC §7.4，按 displayKey/identityKey 匹配）。 */
     data class RemoteDisconnect(val key: String) : ConnectionEvent
 

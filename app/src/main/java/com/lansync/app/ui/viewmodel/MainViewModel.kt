@@ -10,9 +10,12 @@ import com.lansync.app.data.model.IncomingConnectRequest
 import com.lansync.app.data.model.RemoteAppEntry
 import com.lansync.app.data.model.SyncDiff
 import com.lansync.app.data.model.UpdateInfo
-import com.lansync.app.data.client.AppListClient
 import com.lansync.app.data.installer.ApkInstaller
-import com.lansync.app.data.repository.AppRepository
+import com.lansync.app.data.repository.LanSyncGraph
+import com.lansync.app.data.transfer.DownloadInstallController
+import com.lansync.app.data.transfer.DownloadedFileName
+import com.lansync.app.data.transfer.LanSyncClient
+import com.lansync.app.service.ForegroundSyncService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,8 +34,8 @@ data class UiState(
     val isScanningApps: Boolean = false,
     val needsInitialScan: Boolean = false,
     val isDownloading: Boolean = false,
-    val currentDownloadProgress: AppRepository.DownloadProgress? = null,
-    val installStatus: AppRepository.InstallStatus? = null,
+    val currentDownloadProgress: DownloadInstallController.DownloadProgress? = null,
+    val installStatus: DownloadInstallController.InstallStatus? = null,
     val serverPort: Int = 0,
     val isLoading: Boolean = false,
     val connectionError: String? = null,
@@ -41,7 +44,7 @@ data class UiState(
     val isFetchingRemoteApps: Boolean = false,
     val operationMessage: String? = null,
     val incomingRequests: List<IncomingConnectRequest> = emptyList(),
-    val downloadedFiles: List<AppListClient.DownloadedFileInfo> = emptyList()
+    val downloadedFiles: List<LanSyncClient.DownloadedFileInfo> = emptyList()
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -50,7 +53,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private const val TAG = "MainViewModel"
     }
 
-    private val repository = AppRepository.getInstance(application)
+    private val repository = LanSyncGraph.get(application)
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -68,14 +71,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 repository.scanLocalApps()
                 _uiState.value = _uiState.value.copy(needsInitialScan = false)
-                repository.start()
+                ForegroundSyncService.start(getApplication())
             }
             return
         }
 
-        viewModelScope.launch {
-            repository.start()
-        }
+        ForegroundSyncService.start(getApplication())
         viewModelScope.launch {
             repository.scanLocalApps()
         }
@@ -120,7 +121,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isScanningApps = isScanningApps,
                     serverPort = serverPort,
                     currentDownloadProgress = downloadProgress,
-                    isDownloading = downloadProgress?.status == AppRepository.DownloadProgress.Status.DOWNLOADING,
+                    isDownloading = downloadProgress?.status == DownloadInstallController.DownloadProgress.Status.DOWNLOADING,
                     installStatus = installStatus
                 )
             }.collect { }
@@ -135,7 +136,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     operationMessage = "正在停止服务..."
                 )
                 try {
-                    repository.stop()
+                    ForegroundSyncService.stop(getApplication())
                 } finally {
                     _uiState.value = _uiState.value.copy(
                         isStopping = false,
@@ -148,7 +149,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     operationMessage = "正在启动服务..."
                 )
                 try {
-                    repository.start()
+                    ForegroundSyncService.start(getApplication())
                 } finally {
                     _uiState.value = _uiState.value.copy(
                         isStarting = false,
@@ -157,10 +158,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-    }
-
-    fun forceStartSync() {
-        repository.forceStartSync()
     }
 
     fun connectDevice(device: DeviceInfo) {
@@ -309,30 +306,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun installDownloadedFile(fileName: String) {
         viewModelScope.launch {
-            // 使用与 AppListClient.extractPackageName 一致的包名提取逻辑
-            val pkgName = extractPackageNameFromFile(fileName)
+            // 包名解析统一走 DownloadedFileName（消除 P7 重复实现）
+            val pkgName = DownloadedFileName.parsePackageName(fileName)
             val result = repository.installDownloadedFile(fileName, pkgName)
             Log.i(TAG, "installDownloadedFile: $fileName -> ${result::class.simpleName}")
-        }
-    }
-
-    /**
-     * 从下载文件名中提取包名
-     * 文件名格式: com_example_app_123.apks -> com.example.app (去掉末尾versionCode)
-     */
-    private fun extractPackageNameFromFile(fileName: String): String {
-        val nameWithoutExt = when {
-            fileName.endsWith(".apks") -> fileName.removeSuffix(".apks")
-            fileName.endsWith(".apk") -> fileName.removeSuffix(".apk")
-            else -> fileName
-        }
-        val parts = nameWithoutExt.split("_")
-        // 找到最后一个数字分段（即 versionCode），前面的部分即为包名
-        val versionEnd = parts.indexOfLast { it.toLongOrNull() != null }
-        return if (versionEnd <= 0) {
-            nameWithoutExt.replace("_", ".")
-        } else {
-            parts.take(versionEnd).joinToString(".")
         }
     }
 
