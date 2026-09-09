@@ -112,4 +112,36 @@ class ModelsTest {
         assertEquals(original.port, deserialized.port)
         assertEquals(1, deserialized.appList.size)
     }
+
+    // ===== 补充：encodeDefaults=false 字节快照（TEST-PLAN §2.3 / SPEC §1.2.1）=====
+
+    @Test
+    fun `DeviceInfoResponse omits version default field`() {
+        val s = json.encodeToString(DeviceInfoResponse(deviceName = "Pixel"))
+        assertTrue(s.contains("\"deviceName\""))
+        assertFalse(s.contains("version")) // 死字段默认值被省略（SPEC §2.9）
+    }
+
+    @Test
+    fun `GenericStatusResponse default serializes to empty object`() {
+        assertEquals("{}", json.encodeToString(GenericStatusResponse()))
+        assertTrue(json.encodeToString(GenericStatusResponse(status = "pong")).contains("\"status\":\"pong\""))
+    }
+
+    @Test
+    fun `AppInfo omits false boolean defaults and includes when true`() {
+        val base = AppInfo("com.a", "A", "1.0", 1L, emptyList(), "m", true, 1L)
+        val s = json.encodeToString(base) // isSystemApp/isSplitApk 默认 false
+        assertFalse(s.contains("isSystemApp"))
+        assertFalse(s.contains("isSplitApk"))
+        val s2 = json.encodeToString(base.copy(isSystemApp = true, isSplitApk = true))
+        assertTrue(s2.contains("\"isSystemApp\":true"))
+        assertTrue(s2.contains("\"isSplitApk\":true"))
+    }
+
+    @Test
+    fun `ConnectStatusResponse omits accepted when false default`() {
+        val s = json.encodeToString(ConnectStatusResponse(status = "rejected"))
+        assertFalse(s.contains("accepted"))
+    }
 }

@@ -257,18 +257,18 @@
 |---|---|---|
 | §2 迁移旧测试为基线 | ConnectionManagerTest(10)/UpdateManagerTest(3)/ModelsTest(9)/HashUtilsConsistencyTest(2)/AppConfigTest(2) | ✅ 在基线 |
 | §2.4 HashUtils null 传播修订 | HashUtilsTest(6，原 4) | ✅ 已修订 |
-| §2.3 补 findUpdates 缺口 | — | ❌ 未补（UpdateManagerTest 仍仅测 deduplicate） |
-| §2.3 补 ModelsTest encodeDefaults 单测快照 | —（改由路由层覆盖） | ⚠️ 未在 ModelsTest 落地；`LanSyncRoutingTest` 已断言 deviceinfo 无 version、disconnect `{}` |
+| §2.3 补 findUpdates 缺口 | sync/UpdateManagerTest(9) | ✅ Phase 3 已补（findUpdates + calculateSyncDiffs + dedup 平级） |
+| §2.3 补 ModelsTest encodeDefaults 单测快照 | ModelsTest(13) | ✅ Phase 3 已落地（+4 字节快照；路由层亦保留断言） |
 | §3 路由特征化测试 | LanSyncRoutingTest(33) | ✅ 已落地 |
 | §4 下载+MD5 链路 | LanSyncClientTest(12) + DownloadedFileNameTest(10) | ✅ 部分（DL-6/7/8/9/10 待补） |
 | §5 配对状态机（接收方） | InMemoryPairingStoreTest(9) | ✅ 已落地（含迁移 clearAll） |
 | §5 连接状态机 CS-1…CS-17（ConnectionCoordinator） | DefaultConnectionCoordinatorTest(21) | ✅ Phase 2 已落地 |
 | §6 真机互操作矩阵 | — | ⏳ 待接线后执行（T1 旧 APK 实物已确认存在，用户将于后续功能测试阶段实机验证） |
 
-> **合计（Phase 2 末）**：**11 文件 117 例**（= Phase 1 的 95 + `DefaultConnectionCoordinatorTest` 21 + `InMemoryPairingStoreTest` 增 1），0 失败/0 错误/0 跳过（均 JVM 单元/集成，无 instrumented）。权威阶段状态见仓库根 `PROGRESS.md`。
+> **合计（Phase 3 末）**：**14 文件 141 例**（= Phase 2 的 117 + `sync.UpdateManagerTest` 9 + `transfer.AppPackerTest` 6 + `localapps.LocalAppRepositoryTest` 5 + `ModelsTest` 增 4），0 失败/0 错误/0 跳过（均 JVM 单元/集成，无 instrumented）。权威阶段状态见仓库根 `PROGRESS.md`。
 > **✅ 绿色基线已跑通（2026-09-08）**：`testDebugUnitTest`（Gradle 8.13，离线，`GRADLE_USER_HOME=C:\Users\LingTian\.gradle`）实跑 **95/95 全绿，0 失败 0 错误 0 跳过**（`LanSyncRoutingTest` 33 / `LanSyncClientTest` 12 / `DownloadedFileNameTest` 10 / `ConnectionManagerTest` 10 / `ModelsTest` 9 / `InMemoryPairingStoreTest` 8 / `HashUtilsTest` 6 / `UpdateManagerTest` 3 / `AppConfigTest` 2 / `HashUtilsConsistencyTest` 2）；应用构建卫生修复（移除死依赖/jetifier、`PREFER_SETTINGS`）后**复跑仍 95/95 全绿**。运行方式见 §7 本机实测注。
 
-> **停止点**：Phase 2（发现+连接层）已跑通 **117/117 全绿** + `assembleDebug` 通过。权威阶段状态/裁决/决策日志见仓库根 **`PROGRESS.md`**（每阶段结束更新并 git commit）。下一步 Phase 3（更新/下载安装协调）待用户确认。
+> **停止点**：Phase 3（扫描/打包/更新推荐）已跑通 **141/141 全绿** + `assembleDebug` 通过。权威阶段状态/裁决/决策日志见仓库根 **`PROGRESS.md`**（每阶段结束更新并 git commit）。下一步 Phase 4（协调层收尾 + 接线）待用户确认。
 
 ---
 
