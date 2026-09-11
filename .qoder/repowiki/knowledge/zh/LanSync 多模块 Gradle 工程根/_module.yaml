@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: ""
+title: LanSync 多模块 Gradle 工程根
+scope:
+    - REPORT.md
+    - .gitignore
+    - build.gradle.kts
+    - gradle.properties
+    - gradlew.bat
+    - settings.gradle.kts
+    - gradle/
+source_files: []
+depends_on: []
+related_to: []

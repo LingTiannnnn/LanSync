@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: android_app
+title: LanSync Android 应用（局域网应用同步客户端）
+scope:
+    - app/
+source_files: []
+depends_on: []
+related_to: []
