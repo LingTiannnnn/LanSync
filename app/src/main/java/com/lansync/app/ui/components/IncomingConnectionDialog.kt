@@ -9,22 +9,32 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.lansync.app.R
-import com.lansync.app.data.server.InMemoryPairingStore
 import com.lansync.app.data.model.IncomingConnectRequest
+import com.lansync.app.data.server.InMemoryPairingStore
+import com.lansync.app.ui.theme.LanSyncMetrics
 import com.lansync.app.ui.theme.LanSyncTheme
 import kotlinx.coroutines.delay
 
+/**
+ * 配对请求 ModalBottomSheet（COMPONENTS.md §10 / SCREENS O1）。
+ * 顶圆角 28、系统返回键可关；倒计时结束自动拒绝。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IncomingConnectionDialog(
+fun IncomingConnectionSheet(
     request: IncomingConnectRequest,
     onAccept: () -> Unit,
     onReject: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     val sp = LanSyncTheme.spacing
-    var remainingSeconds by remember { mutableIntStateOf(InMemoryPairingStore.REQUEST_TIMEOUT_MS.toInt() / 1000) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var remainingSeconds by remember(request.requestId) {
+        mutableIntStateOf((InMemoryPairingStore.REQUEST_TIMEOUT_MS / 1000L).toInt())
+    }
 
     LaunchedEffect(request.requestId) {
         while (remainingSeconds > 0) {
@@ -36,87 +46,118 @@ fun IncomingConnectionDialog(
         }
     }
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Link, null, tint = MaterialTheme.colorScheme.primary) },
-        title = { Text(stringResource(R.string.incoming_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(sp.space8)) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(sp.radiusMd),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(sp.space12),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.PhoneAndroid, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Spacer(Modifier.width(sp.space8))
-                        Column {
-                            Text(
-                                request.requesterName,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                "${request.requesterIp}:${request.requesterPort}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
+        sheetState = sheetState,
+        shape = RoundedCornerShape(
+            topStart = sp.radiusXl,
+            topEnd = sp.radiusXl,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = sp.space24)
+                .padding(bottom = sp.space32),
+            verticalArrangement = Arrangement.spacedBy(sp.space16),
+        ) {
+            Text(
+                text = stringResource(R.string.incoming_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
 
-                Surface(
-                    color = if (remainingSeconds <= 5) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(sp.radiusMd),
-                    modifier = Modifier.fillMaxWidth()
+            Surface(
+                color = LanSyncTheme.containers.low,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(sp.space16),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(modifier = Modifier.padding(sp.space12), contentAlignment = Alignment.Center) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (remainingSeconds <= 5) {
-                                Icon(
-                                    Icons.Default.Warning,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(sp.iconSm)
-                                )
-                                Spacer(Modifier.width(sp.space4))
-                            } else {
-                                Icon(
-                                    Icons.Default.Schedule,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(sp.iconSm)
-                                )
-                                Spacer(Modifier.width(sp.space4))
-                            }
-                            Text(
-                                text = stringResource(R.string.incoming_countdown, remainingSeconds),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = if (remainingSeconds <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .size(LanSyncMetrics.deviceIcon)
+                            .padding(sp.none),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.PhoneAndroid,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(sp.iconXxl),
+                        )
                     }
+                    Spacer(Modifier.width(sp.space12))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = request.requesterName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = "${request.requesterIp}:${request.requesterPort}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                    StatusChip(
+                        text = stringResource(R.string.incoming_countdown, remainingSeconds),
+                        containerColor = if (remainingSeconds <= 5) {
+                            MaterialTheme.colorScheme.errorContainer
+                        } else {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        },
+                        contentColor = if (remainingSeconds <= 5) {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        },
+                        leadingIcon = Icons.Default.Schedule,
+                    )
                 }
             }
-        },
-        confirmButton = {
-            Button(onClick = onAccept) {
-                Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(sp.iconMd))
-                Spacer(Modifier.width(sp.space4))
-                Text(stringResource(R.string.action_accept))
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onReject) {
-                Icon(Icons.Default.Cancel, null, modifier = Modifier.size(sp.iconMd))
-                Spacer(Modifier.width(sp.space4))
-                Text(stringResource(R.string.action_reject))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(sp.space12, Alignment.End),
+            ) {
+                OutlinedButton(
+                    onClick = onReject,
+                    modifier = Modifier.heightIn(min = LanSyncMetrics.minTouchTarget),
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(sp.iconMd))
+                    Spacer(Modifier.width(sp.space4))
+                    Text(stringResource(R.string.action_reject))
+                }
+                Button(
+                    onClick = onAccept,
+                    modifier = Modifier.heightIn(min = LanSyncMetrics.minTouchTarget),
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(sp.iconMd))
+                    Spacer(Modifier.width(sp.space4))
+                    Text(stringResource(R.string.action_accept), fontWeight = FontWeight.SemiBold)
+                }
             }
         }
+    }
+}
+
+/** 兼容旧名。 */
+@Composable
+fun IncomingConnectionDialog(
+    request: IncomingConnectRequest,
+    onAccept: () -> Unit,
+    onReject: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    IncomingConnectionSheet(
+        request = request,
+        onAccept = onAccept,
+        onReject = onReject,
+        onDismiss = onDismiss,
     )
 }

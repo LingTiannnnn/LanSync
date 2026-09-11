@@ -8,11 +8,11 @@ import androidx.compose.ui.unit.dp
 /**
  * LanSync 间距 / 尺寸设计令牌（设计系统唯一 dp 来源）。
  *
- * Phase 5 硬性要求：**间距走统一 theme，禁止硬编码**。组件内所有 `.dp` 字面量（内外边距、
- * 图标尺寸、圆角、描边、进度条高度、按钮高度）一律替换为本令牌字段，经 [LocalSpacing] 由
+ * 组件内布局 `.dp` 字面量一律替换为本令牌字段，经 [LocalSpacing] 由
  * [LanSyncTheme] 注入，通过 `LanSyncTheme.spacing.xxx` 访问。
+ * 关键列表/底栏尺寸见 [LanSyncMetrics]。
  *
- * 布局间距采用 4dp 基栅格（含 2dp 半步）：2/4/6/8/10/12/16/20/24/28/32/40/48/56/64。
+ * 布局间距采用 4dp 基栅格（含 2dp 半步）。
  */
 @Immutable
 data class LanSyncSpacing(
@@ -54,11 +54,12 @@ data class LanSyncSpacing(
     val appIconLg: Dp = 44.dp,
     val appIconXl: Dp = 48.dp,
 
-    // ---- 圆角 ----
-    val radiusXs: Dp = 4.dp,
-    val radiusSm: Dp = 6.dp,
-    val radiusMd: Dp = 8.dp,
-    val radiusLg: Dp = 12.dp,
+    // ---- 圆角（对齐 LanSyncShapes）----
+    val radiusXs: Dp = 8.dp,
+    val radiusSm: Dp = 12.dp,
+    val radiusMd: Dp = 16.dp,
+    val radiusLg: Dp = 24.dp,
+    val radiusXl: Dp = 28.dp,
 
     // ---- 描边 / 进度条 / 控件尺寸 ----
     val strokeThin: Dp = 2.dp,
@@ -67,6 +68,16 @@ data class LanSyncSpacing(
     val buttonHeight: Dp = 36.dp,
     val topBarIndicator: Dp = 18.dp,
     val chipIcon: Dp = 16.dp,
+    val minTouch: Dp = 48.dp,
+    val listItemMin: Dp = 72.dp,
+    val listItemTall: Dp = 88.dp,
+    val deviceCardMin: Dp = 84.dp,
+    val navIndicatorW: Dp = 64.dp,
+    val navIndicatorH: Dp = 32.dp,
+    val filterChipH: Dp = 36.dp,
+    val searchH: Dp = 48.dp,
+    val appIcon: Dp = 44.dp,
+    val deviceIcon: Dp = 48.dp,
 )
 
 /** 默认令牌实例（编译期常量语义，运行期不可变）。 */

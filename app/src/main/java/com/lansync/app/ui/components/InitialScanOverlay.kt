@@ -1,5 +1,6 @@
 package com.lansync.app.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -17,51 +18,70 @@ fun InitialScanOverlay() {
     Box(
         modifier = Modifier
             .fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Surface(
-            modifier = Modifier
-                .fillMaxSize(),
-            color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(sp.space32),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = Icons.Default.PhoneAndroid,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(sp.iconHero)
-                )
-                Spacer(Modifier.height(sp.space24))
-                Text(
-                    text = stringResource(R.string.initial_scan_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(Modifier.height(sp.space12))
-                Text(
-                    text = stringResource(R.string.initial_scan_body),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(sp.space32))
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .height(sp.progressBarHeight),
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(sp.space24))
-                Text(
-                    text = stringResource(R.string.initial_scan_footer),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.extraLarge,
+                    tonalElevation = sp.space8,
+                    modifier = Modifier.padding(sp.space32),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(sp.space32),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(sp.iconHero)
+                                .background(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    MaterialTheme.shapes.extraLarge,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PhoneAndroid,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(sp.iconEmptyLg),
+                            )
+                        }
+                        Spacer(Modifier.height(sp.space24))
+                        Text(
+                            text = stringResource(R.string.initial_scan_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(sp.space12))
+                        Text(
+                            text = stringResource(R.string.initial_scan_body),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(sp.space24))
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth(0.7f)
+                                .height(sp.progressBarHeight),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                        Spacer(Modifier.height(sp.space16))
+                        Text(
+                            text = stringResource(R.string.initial_scan_footer),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                }
             }
         }
     }

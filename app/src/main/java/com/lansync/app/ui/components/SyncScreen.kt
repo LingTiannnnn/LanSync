@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -33,28 +34,32 @@ fun SyncScreen(
     onClearSelection: () -> Unit,
     onInstallUpdate: (UpdateInfo) -> Unit,
     onInstallSelectedUpdates: () -> Unit,
+    onRefreshDevices: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sp = LanSyncTheme.spacing
-    var selectedDevice by remember { mutableStateOf<DeviceInfo?>(connectedDevices.firstOrNull()) }
-    var searchQuery by remember { mutableStateOf("") }
+    // 只保存 displayKey（String 可入 Bundle）；DeviceInfo 非 Parcelable，rememberSaveable 会在恢复时崩溃
+    var selectedDeviceKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showDiffsOnly by rememberSaveable { mutableStateOf(false) }
 
     if (connectedDevices.isEmpty()) {
         Box(modifier = modifier.fillMaxSize().padding(sp.space16), contentAlignment = Alignment.Center) {
-            EmptySyncState()
+            EmptySyncState(onRefresh = onRefreshDevices)
         }
     } else {
         Column(modifier = modifier.fillMaxSize()) {
             Column(modifier = Modifier.weight(1f).padding(sp.space16)) {
+                val currentDevice = connectedDevices.firstOrNull { it.displayKey == selectedDeviceKey }
+                    ?: connectedDevices.firstOrNull()
+
                 ConnectedDeviceChips(
                     devices = connectedDevices,
-                    selectedDevice = selectedDevice,
-                    onSelectDevice = { selectedDevice = it }
+                    selectedDevice = currentDevice,
+                    onSelectDevice = { selectedDeviceKey = it.displayKey }
                 )
 
                 Spacer(Modifier.height(sp.space8))
-
-                val currentDevice = selectedDevice ?: connectedDevices.firstOrNull()
 
                 if (currentDevice != null) {
                     Row(
@@ -79,12 +84,6 @@ fun SyncScreen(
                         placeholder = stringResource(R.string.search_user_placeholder)
                     )
 
-                    SectionHeader(
-                        title = stringResource(R.string.sync_section_user),
-                        icon = Icons.Default.Person,
-                        count = currentDevice.appList.count { !it.isSystemApp }
-                    )
-
                     val deviceUpdates by remember(searchQuery, currentDevice, availableUpdates) {
                         derivedStateOf {
                             availableUpdates.filter { update ->
@@ -99,14 +98,32 @@ fun SyncScreen(
                         derivedStateOf {
                             syncDiffs.filter { diff ->
                                 diff.sourceDevice.displayKey == currentDevice.displayKey &&
-                                    diff.diffType == SyncDiff.DiffType.NEWER_ON_REMOTE &&
                                     (searchQuery.isEmpty() ||
                                         diff.appInfo.appName.contains(searchQuery, ignoreCase = true))
                             }
                         }
                     }
 
-                    if (deviceUpdates.isEmpty() && deviceDiffs.isEmpty() && currentDevice.appList.isNotEmpty() && searchQuery.isEmpty()) {
+                    SyncModeRow(
+                        updatableCount = deviceUpdates.size,
+                        diffCount = deviceDiffs.count { it.diffType == SyncDiff.DiffType.NEWER_ON_REMOTE },
+                        showDiffsOnly = showDiffsOnly,
+                        onModeChange = { showDiffsOnly = it },
+                    )
+
+                    if (!showDiffsOnly) {
+                        SectionHeader(
+                            title = stringResource(R.string.sync_section_user),
+                            icon = Icons.Default.Person,
+                            count = currentDevice.appList.count { !it.isSystemApp }
+                        )
+                    }
+
+                    val newerOnRemoteDiffs = remember(deviceDiffs) {
+                        deviceDiffs.filter { it.diffType == SyncDiff.DiffType.NEWER_ON_REMOTE }
+                    }
+
+                    if (deviceUpdates.isEmpty() && newerOnRemoteDiffs.isEmpty() && currentDevice.appList.isNotEmpty() && searchQuery.isEmpty()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -133,7 +150,7 @@ fun SyncScreen(
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(sp.space8)
                         ) {
-                            if (deviceUpdates.isNotEmpty()) {
+                            if (!showDiffsOnly && deviceUpdates.isNotEmpty()) {
                                 item(key = "header_updates") {
                                     SectionHeader(
                                         title = stringResource(R.string.sync_section_updatable),
@@ -155,20 +172,36 @@ fun SyncScreen(
                                 }
                             }
 
-                            if (deviceDiffs.isNotEmpty()) {
+                            if (showDiffsOnly && newerOnRemoteDiffs.isNotEmpty()) {
                                 item(key = "header_diffs") {
                                     SectionHeader(
-                                        title = stringResource(R.string.sync_section_diffs),
+                                        title = stringResource(R.string.sync_section_newer_on_remote),
                                         icon = Icons.Default.CompareArrows,
-                                        count = deviceDiffs.size
+                                        count = newerOnRemoteDiffs.size
                                     )
                                 }
-                                items(deviceDiffs, key = { "diff_${it.appInfo.packageName}" }) { diff ->
+                                items(newerOnRemoteDiffs, key = { "diff_${it.appInfo.packageName}" }) { diff ->
                                     DiffItem(diff = diff)
                                 }
                             }
 
-                            if (deviceUpdates.isEmpty() && deviceDiffs.isEmpty()) {
+                            if (showDiffsOnly && deviceDiffs.any { it.diffType == SyncDiff.DiffType.ONLY_ON_REMOTE }) {
+                                val onlyRemote = deviceDiffs.filter { it.diffType == SyncDiff.DiffType.ONLY_ON_REMOTE }
+                                item(key = "header_only_remote") {
+                                    SectionHeader(
+                                        title = stringResource(R.string.sync_section_only_remote),
+                                        icon = Icons.Default.CloudDownload,
+                                        count = onlyRemote.size
+                                    )
+                                }
+                                items(onlyRemote, key = { "only_remote_${it.appInfo.packageName}" }) { diff ->
+                                    DiffItem(diff = diff)
+                                }
+                            }
+
+                            if ((!showDiffsOnly && deviceUpdates.isEmpty()) ||
+                                (showDiffsOnly && newerOnRemoteDiffs.isEmpty() && deviceDiffs.none { it.diffType == SyncDiff.DiffType.ONLY_ON_REMOTE })
+                            ) {
                                 item(key = "empty") {
                                     EmptyStateCard(
                                         message = if (searchQuery.isNotEmpty())
@@ -184,67 +217,53 @@ fun SyncScreen(
             }
 
             if (selectedUpdates.isNotEmpty()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = sp.space8
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = sp.space16, vertical = sp.space10),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.selection_count_apps, selectedUpdates.size),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Button(
-                            onClick = onInstallSelectedUpdates,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = null,
-                                modifier = Modifier.size(sp.iconMd)
-                            )
-                            Spacer(modifier = Modifier.width(sp.space6))
-                            Text(stringResource(R.string.action_batch_update), fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+                BatchBar(
+                    label = stringResource(R.string.selection_count_apps, selectedUpdates.size),
+                    actionLabel = stringResource(R.string.action_batch_update),
+                    onAction = onInstallSelectedUpdates,
+                )
             }
         }
     }
 }
 
 @Composable
-fun EmptySyncState() {
+fun EmptySyncState(onRefresh: (() -> Unit)? = null) {
+    EmptyState(
+        icon = Icons.Default.LinkOff,
+        title = stringResource(R.string.remote_empty_title),
+        body = stringResource(R.string.remote_empty_hint),
+        actionLabel = if (onRefresh != null) stringResource(R.string.cd_refresh) else null,
+        onAction = onRefresh,
+    )
+}
+
+@Composable
+private fun SyncModeRow(
+    updatableCount: Int,
+    diffCount: Int,
+    showDiffsOnly: Boolean,
+    onModeChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val sp = LanSyncTheme.spacing
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = sp.space8),
+        horizontalArrangement = Arrangement.spacedBy(sp.space8),
     ) {
-        Icon(
-            imageVector = Icons.Default.LinkOff,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(sp.iconEmpty)
+        LanSyncFilterChip(
+            selected = !showDiffsOnly,
+            onClick = { onModeChange(false) },
+            label = stringResource(R.string.sync_mode_updatable, updatableCount),
+            modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.height(sp.space16))
-        Text(
-            text = stringResource(R.string.remote_empty_title),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(sp.space4))
-        Text(
-            text = stringResource(R.string.remote_empty_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline
+        LanSyncFilterChip(
+            selected = showDiffsOnly,
+            onClick = { onModeChange(true) },
+            label = stringResource(R.string.sync_mode_diffs, diffCount),
+            modifier = Modifier.weight(1f),
         )
     }
 }

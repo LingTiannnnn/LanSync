@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -19,6 +20,7 @@ import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.RemoteAppEntry
 import com.lansync.app.data.model.UpdateInfo
+import com.lansync.app.ui.theme.LanSyncMetrics
 import com.lansync.app.ui.theme.LanSyncTheme
 
 private const val ITEM_TYPE_REMOTE = "remote_app_item"
@@ -38,8 +40,8 @@ fun RemoteAppListScreen(
     modifier: Modifier = Modifier
 ) {
     val sp = LanSyncTheme.spacing
-    var searchQuery by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(AppCategory.ALL) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var category by rememberSaveable { mutableStateOf(AppCategory.ALL) }
     var hasTriggeredInitialRefresh by remember { mutableStateOf(false) }
 
     val remoteEntries by remember(connectedDevices) {
@@ -135,35 +137,20 @@ fun RemoteAppListScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(sp.space32),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.CloudOff,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(sp.iconEmpty)
-                    )
-                    Spacer(modifier = Modifier.height(sp.space12))
-                    Text(
-                        text = stringResource(R.string.remote_no_device_title),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(sp.space4))
-                    Text(
-                        text = stringResource(R.string.remote_empty_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
+                EmptyState(
+                    icon = Icons.Default.CloudOff,
+                    title = stringResource(R.string.remote_no_device_title),
+                    body = stringResource(R.string.remote_empty_hint),
+                )
             }
         } else {
             MultiDeviceSummary(
                 connectedCount = connectedDeviceCount,
                 totalApps = totalAppCount,
                 isRefreshing = isRefreshing,
-                onRefresh = onRefresh
+                onRefresh = onRefresh,
             )
         }
 
@@ -172,59 +159,35 @@ fun RemoteAppListScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(sp.space32),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.SyncProblem,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(sp.iconEmpty)
-                    )
-                    Spacer(modifier = Modifier.height(sp.space12))
-                    Text(
-                        text = stringResource(R.string.remote_empty_applist),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(sp.space8))
-                    Button(onClick = onRefresh) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(sp.iconMd)
-                        )
-                        Spacer(modifier = Modifier.width(sp.space6))
-                        Text(stringResource(R.string.action_refresh_applist))
-                    }
-                }
+                EmptyState(
+                    icon = Icons.Default.SyncProblem,
+                    title = stringResource(R.string.remote_empty_applist),
+                    actionLabel = stringResource(R.string.action_refresh_applist),
+                    onAction = onRefresh,
+                )
             }
         } else if (filteredApps.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(sp.space32),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.Inbox,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(sp.iconEmpty)
-                    )
-                    Spacer(modifier = Modifier.height(sp.space12))
-                    Text(
-                        text = when {
-                            searchQuery.isNotEmpty() -> stringResource(R.string.remote_empty_search, searchQuery)
-                            category == AppCategory.USER -> stringResource(R.string.remote_empty_user)
-                            category == AppCategory.SYSTEM -> stringResource(R.string.remote_empty_system)
-                            else -> stringResource(R.string.remote_empty_all)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                EmptyState(
+                    icon = Icons.Default.Inbox,
+                    title = when {
+                        searchQuery.isNotEmpty() ->
+                            stringResource(R.string.remote_empty_search, searchQuery)
+                        category == AppCategory.USER ->
+                            stringResource(R.string.remote_empty_user)
+                        category == AppCategory.SYSTEM ->
+                            stringResource(R.string.remote_empty_system)
+                        else ->
+                            stringResource(R.string.remote_empty_all)
+                    },
+                )
             }
         } else {
             LazyColumn(
@@ -247,39 +210,11 @@ fun RemoteAppListScreen(
             }
 
             if (selectedPackages.isNotEmpty()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = sp.space8
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = sp.space16, vertical = sp.space10),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.selection_count_apps, selectedPackages.size),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Button(
-                            onClick = { onPullSelected(filteredApps) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CloudDownload,
-                                contentDescription = null,
-                                modifier = Modifier.size(sp.iconMd)
-                            )
-                            Spacer(modifier = Modifier.width(sp.space6))
-                            Text(stringResource(R.string.action_pull_install), fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+                BatchBar(
+                    label = stringResource(R.string.selection_count_apps, selectedPackages.size),
+                    actionLabel = stringResource(R.string.action_pull_install),
+                    onAction = { onPullSelected(filteredApps) },
+                )
             }
         }
     }
@@ -293,68 +228,17 @@ fun MultiDeviceSummary(
     onRefresh: () -> Unit
 ) {
     val sp = LanSyncTheme.spacing
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = sp.space16, vertical = sp.space4),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = sp.space12, vertical = sp.space8),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Devices,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(sp.iconMd)
-                )
-                Spacer(modifier = Modifier.width(sp.space6))
-                Column {
-                    Text(
-                        text = stringResource(R.string.summary_connected_devices, connectedCount),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = stringResource(R.string.summary_remote_apps, totalApps),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            if (isRefreshing) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(sp.iconSm),
-                        strokeWidth = sp.strokeThin
-                    )
-                    Spacer(modifier = Modifier.width(sp.space6))
-                    Text(
-                        text = stringResource(R.string.status_refreshing_short),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                IconButton(onClick = onRefresh, modifier = Modifier.size(sp.space32)) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = stringResource(R.string.cd_refresh),
-                        modifier = Modifier.size(sp.iconMd),
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
-                }
-            }
-        }
-    }
-
+    SummaryCard(
+        primary = stringResource(R.string.summary_connected_devices, connectedCount),
+        secondary = stringResource(R.string.summary_remote_apps, totalApps),
+        actionLabel = if (isRefreshing) {
+            stringResource(R.string.status_refreshing_short)
+        } else {
+            stringResource(R.string.cd_refresh)
+        },
+        onAction = if (isRefreshing) null else onRefresh,
+        modifier = Modifier.padding(horizontal = sp.space16, vertical = sp.space4),
+    )
     Spacer(modifier = Modifier.height(sp.space4))
 }
 
@@ -367,14 +251,17 @@ fun RemoteAppItem(
 ) {
     val sp = LanSyncTheme.spacing
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = LanSyncMetrics.listItemMin),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surface
+            containerColor = if (isSelected) {
+                LanSyncTheme.containers.highest
+            } else {
+                LanSyncTheme.containers.low
+            },
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline)
+        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline),
     ) {
         Row(
             modifier = Modifier

@@ -8,14 +8,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.lansync.app.R
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.UpdateInfo
+import com.lansync.app.ui.theme.LanSyncMetrics
 import com.lansync.app.ui.theme.LanSyncTheme
 
 enum class AppCategory { ALL, USER, SYSTEM }
@@ -29,8 +32,8 @@ fun AppListScreen(
     modifier: Modifier = Modifier
 ) {
     val sp = LanSyncTheme.spacing
-    var searchQuery by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(AppCategory.ALL) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var category by rememberSaveable { mutableStateOf(AppCategory.ALL) }
 
     val filteredApps by remember(searchQuery, category, localApps) {
         derivedStateOf {
@@ -121,43 +124,6 @@ fun AppListScreen(
 }
 
 @Composable
-internal fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    placeholder: String
-) {
-    val sp = LanSyncTheme.spacing
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = sp.space16, vertical = sp.space10),
-        placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-        leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        },
-        trailingIcon = if (query.isNotEmpty()) {
-            {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = stringResource(R.string.cd_clear),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else null,
-        singleLine = true,
-        shape = RoundedCornerShape(sp.radiusLg),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-        )
-    )
-}
-
-@Composable
 internal fun CategoryTabs(
     selectedCategory: AppCategory,
     onCategoryChange: (AppCategory) -> Unit,
@@ -208,17 +174,19 @@ internal fun TabItem(
 fun AppItem(appInfo: AppInfo) {
     val sp = LanSyncTheme.spacing
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = LanSyncMetrics.listItemMin),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = LanSyncTheme.containers.low,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline)
+        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(sp.space12),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             AppIcon(
                 packageName = appInfo.packageName,
@@ -303,21 +271,25 @@ fun UpdateItem(
 ) {
     val sp = LanSyncTheme.spacing
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = LanSyncMetrics.listItemMin),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surface
+            containerColor = if (isSelected) {
+                LanSyncTheme.containers.highest
+            } else {
+                LanSyncTheme.containers.low
+            },
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline)
+        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(end = sp.space12),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            UpdateAccentBar()
             Checkbox(
                 checked = isSelected,
                 onCheckedChange = { onToggleSelected(updateInfo.remoteApp.packageName) },
@@ -433,96 +405,14 @@ fun UpdateItem(
     }
 }
 
-@Composable
-fun SectionHeader(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    count: Int,
-    showSelectButtons: Boolean = false,
-    areAllSelected: Boolean = false,
-    onSelectAll: (() -> Unit)? = null,
-    onClearSelection: (() -> Unit)? = null
-) {
-    val sp = LanSyncTheme.spacing
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = sp.space4),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(sp.iconLg)
-            )
-            Spacer(modifier = Modifier.width(sp.space6))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.width(sp.space6))
-            Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                shape = RoundedCornerShape(sp.radiusMd)
-            ) {
-                Text(
-                    text = count.toString(),
-                    modifier = Modifier.padding(horizontal = sp.space8, vertical = sp.space2),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        if (showSelectButtons) {
-            TextButton(
-                onClick = if (areAllSelected) onClearSelection!! else onSelectAll!!,
-                contentPadding = PaddingValues(horizontal = sp.space12)
-            ) {
-                Text(
-                    stringResource(
-                        if (areAllSelected) R.string.action_clear_selection else R.string.action_select_all
-                    )
-                )
-            }
-        }
-    }
-}
-
+/** 兼容旧调用：委托到 [EmptyState]。 */
 @Composable
 fun EmptyStateCard(message: String) {
-    val sp = LanSyncTheme.spacing
-    Card(
+    EmptyState(
+        icon = Icons.Default.Inbox,
+        title = message,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = sp.space24),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(sp.space32),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Default.Inbox,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(sp.iconEmpty)
-            )
-            Spacer(modifier = Modifier.height(sp.space12))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+            .padding(vertical = LanSyncTheme.spacing.space24),
+    )
 }

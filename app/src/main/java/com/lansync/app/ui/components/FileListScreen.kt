@@ -100,30 +100,26 @@ fun FileListScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(sp.space32),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.FolderOpen,
-                        null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(sp.iconEmptyLg)
-                    )
-                    Spacer(Modifier.height(sp.space12))
-                    Text(
-                        text = stringResource(R.string.files_empty_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(Modifier.height(sp.space4))
-                    Text(
-                        text = stringResource(R.string.files_empty_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                EmptyState(
+                    icon = Icons.Default.FolderOpen,
+                    title = stringResource(R.string.files_empty_title),
+                    body = stringResource(R.string.files_empty_hint),
+                    actionLabel = stringResource(R.string.files_empty_cta),
+                    onAction = onRefresh,
+                )
             }
         } else {
+            val totalBytes = files.sumOf { it.fileSize }
+            SummaryCard(
+                primary = stringResource(R.string.files_summary_primary, files.size),
+                secondary = stringResource(
+                    R.string.files_summary_secondary,
+                    formatFileSize(totalBytes),
+                ),
+                modifier = Modifier.padding(horizontal = sp.space16, vertical = sp.space8),
+            )
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = sp.space8),

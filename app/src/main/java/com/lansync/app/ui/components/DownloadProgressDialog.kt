@@ -139,8 +139,9 @@ fun InstallStatusSnackbar(
     onDismiss: () -> Unit
 ) {
     val sp = LanSyncTheme.spacing
-    var isVisible by remember { mutableStateOf(true) }
-    val offsetX = remember { Animatable(0f) }
+    // keyed on status：换一条安装反馈时必须重置可见性，否则首条关闭后后续不再显示
+    var isVisible by remember(status) { mutableStateOf(true) }
+    val offsetX = remember(status) { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(status) {
