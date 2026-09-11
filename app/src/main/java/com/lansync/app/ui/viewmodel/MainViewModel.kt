@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lansync.app.R
+import com.lansync.app.data.FileLogger
 import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.IncomingConnectRequest
@@ -74,16 +75,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!repository.hasLocalAppCache()) {
             _uiState.value = _uiState.value.copy(needsInitialScan = true)
             viewModelScope.launch {
-                repository.scanLocalApps()
-                _uiState.value = _uiState.value.copy(needsInitialScan = false)
-                ForegroundSyncService.start(getApplication())
+                try {
+                    FileLogger.i(TAG, "initial scan start")
+                    repository.scanLocalApps()
+                    FileLogger.i(TAG, "initial scan done")
+                    _uiState.value = _uiState.value.copy(needsInitialScan = false)
+                    ForegroundSyncService.start(getApplication())
+                } catch (t: Throwable) {
+                    FileLogger.e(TAG, "autoStart initial path failed", t)
+                    _uiState.value = _uiState.value.copy(needsInitialScan = false)
+                }
             }
             return
         }
 
-        ForegroundSyncService.start(getApplication())
+        try {
+            ForegroundSyncService.start(getApplication())
+        } catch (t: Throwable) {
+            FileLogger.e(TAG, "ForegroundSyncService.start failed", t)
+        }
         viewModelScope.launch {
-            repository.scanLocalApps()
+            try {
+                repository.scanLocalApps()
+            } catch (t: Throwable) {
+                FileLogger.e(TAG, "background rescan failed", t)
+            }
         }
     }
 
@@ -213,6 +229,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             try {
                 repository.refreshDeviceAppLists()
+                // 短暂保持进行中状态，让顶栏刷新动画可感知
+                kotlinx.coroutines.delay(600)
             } finally {
                 _uiState.value = _uiState.value.copy(
                     isFetchingRemoteApps = false,

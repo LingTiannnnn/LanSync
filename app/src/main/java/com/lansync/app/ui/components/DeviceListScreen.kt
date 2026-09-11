@@ -32,6 +32,8 @@ fun DeviceListScreen(
     isStopping: Boolean = false,
     operationMessage: String? = null,
     connectionError: String? = null,
+    updatableCount: Int = 0,
+    localAppCount: Int = 0,
     onToggleRunning: () -> Unit,
     onRefresh: () -> Unit,
     onConnect: (DeviceInfo) -> Unit,
@@ -48,6 +50,18 @@ fun DeviceListScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
+        IdentityStrip(
+            deviceName = android.os.Build.MODEL,
+            isRunning = isRunning,
+            serverPort = serverPort,
+            isStarting = isStarting,
+            isStopping = isStopping,
+            onToggleRunning = onToggleRunning,
+            updatableCount = updatableCount,
+            connectedCount = connected.size,
+            localAppCount = localAppCount,
+        )
+
         if (connectionError != null) {
             Card(
                 modifier = Modifier
@@ -95,10 +109,8 @@ fun DeviceListScreen(
                     .fillMaxSize()
                     .padding(sp.space32),
             )
-            return@Column
-        }
-
-        LazyColumn(
+        } else {
+            LazyColumn(
             modifier = Modifier.fillMaxSize(),
             // Scaffold paddingValues 已含 NavigationBar（含手势区）高度，此处不得再叠 navigationBars
             contentPadding = PaddingValues(
@@ -165,15 +177,6 @@ fun DeviceListScreen(
                     )
                 }
             }
-
-            if (isScanningApps) {
-                item(key = "scanning") {
-                    StatusChip(
-                        text = stringResource(R.string.top_bar_scanning),
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                }
             }
         }
     }
@@ -294,7 +297,10 @@ fun DeviceCard(
 
     Card(
         modifier = modifier.heightIn(min = LanSyncMetrics.deviceCardMin),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (state == ConnectionState.CONNECTED) sp.space4 else sp.hairline,
         ),

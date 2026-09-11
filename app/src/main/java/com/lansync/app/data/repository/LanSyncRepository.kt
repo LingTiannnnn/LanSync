@@ -105,7 +105,10 @@ class LanSyncRepository(
     /** 扫描刷新 + 图标预加载/清理（data 层，消除 L2）+ 通知已连接设备刷新。 */
     suspend fun scanLocalApps() {
         val result = localAppRepository.scanAndRefresh()
-        if (result.addedPackages.isNotEmpty()) iconCache.preload(result.addedPackages.toList())
+        if (result.addedPackages.isNotEmpty()) {
+            // 首次安装可能一次新增数百包，全量预加载易拖垮启动；列表可见时再按需 get()
+            iconCache.preload(result.addedPackages.take(MAX_ICON_PRELOAD).toList())
+        }
         result.removedPackages.forEach { iconCache.remove(it) }
         notifyConnectedDevicesToRefresh()
     }
@@ -153,5 +156,6 @@ class LanSyncRepository(
 
     private companion object {
         const val TAG = "LanSyncRepository"
+        const val MAX_ICON_PRELOAD = 32
     }
 }

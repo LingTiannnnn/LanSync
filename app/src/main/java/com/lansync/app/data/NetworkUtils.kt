@@ -29,26 +29,18 @@ object NetworkUtils {
     }
 
     fun getLocalIpAddressViaWifi(context: Context): InetAddress {
+        // Android 10+ 上 connectionInfo.ipAddress 常因隐私限制返回 0（API 已废弃），
+        // 优先走 NetworkInterface；仅旧系统或接口枚举失败时再试 WifiManager。
+        getLocalIpAddress().takeIf { it.isNotBlank() }?.let { return InetAddress.getByName(it) }
+
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        @Suppress("DEPRECATION")
         val ipInt = wifiManager.connectionInfo.ipAddress
         if (ipInt != 0) {
             val ipAddress = Formatter.formatIpAddress(ipInt)
             return InetAddress.getByName(ipAddress)
         }
-        FileLogger.w(TAG, "WiFi ipAddress is 0, trying network interface fallback")
-        try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val intf = interfaces.nextElement()
-                val addrs = intf.inetAddresses
-                while (addrs.hasMoreElements()) {
-                    val addr = addrs.nextElement()
-                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) return addr
-                }
-            }
-        } catch (e: Exception) {
-            FileLogger.e(TAG, "Error finding fallback IP", e)
-        }
+        FileLogger.i(TAG, "WiFi ipAddress is 0; network interface fallback used")
         return InetAddress.getByName("127.0.0.1")
     }
 

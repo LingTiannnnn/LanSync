@@ -41,7 +41,8 @@ fun RemoteAppListScreen(
 ) {
     val sp = LanSyncTheme.spacing
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf(AppCategory.ALL) }
+    var categoryOrdinal by rememberSaveable { mutableStateOf(AppCategory.ALL.ordinal) }
+    val category = AppCategory.values().getOrElse(categoryOrdinal) { AppCategory.ALL }
     var hasTriggeredInitialRefresh by remember { mutableStateOf(false) }
 
     val remoteEntries by remember(connectedDevices) {
@@ -114,7 +115,7 @@ fun RemoteAppListScreen(
 
         CategoryTabs(
             selectedCategory = category,
-            onCategoryChange = { category = it },
+            onCategoryChange = { categoryOrdinal = it.ordinal },
             totalCount = totalAppCount,
             userCount = userAppCount,
             systemCount = systemAppCount
@@ -260,6 +261,7 @@ fun RemoteAppItem(
             } else {
                 LanSyncTheme.containers.low
             },
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline),
     ) {

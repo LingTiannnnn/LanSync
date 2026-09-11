@@ -1,6 +1,8 @@
 package com.lansync.app.ui.theme
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -119,7 +121,7 @@ object LanSyncContainers {
 
 val LocalContainers = staticCompositionLocalOf { LanSyncContainers.Light }
 
-/** 动效 token。 */
+/** 动效 token（静态默认，避免每次组合新建实例）。 */
 @Immutable
 data class LanSyncMotion(
     val shortMillis: Int = 150,
@@ -128,7 +130,15 @@ data class LanSyncMotion(
     val pressScale: Float = 0.96f,
 )
 
-val LocalMotion = staticCompositionLocalOf { LanSyncMotion() }
+private val DefaultMotion = LanSyncMotion()
+
+val LocalMotion = staticCompositionLocalOf { DefaultMotion }
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 /**
  * 设计系统访问器：间距 / 容器色 / 动效。
@@ -164,12 +174,14 @@ fun LanSyncTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
-            // 禁止：window.statusBarColor / navigationBarColor = 不透明背景（白条根因）
-            val lightBars = !darkTheme && colorScheme.background.luminance() > 0.5f
-            WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = lightBars
-                isAppearanceLightNavigationBars = lightBars
+            // 某些 ContextWrapper 链上不一定直接是 Activity，强转会闪退
+            val activity = view.context.findActivity()
+            if (activity != null) {
+                val lightBars = !darkTheme && colorScheme.background.luminance() > 0.5f
+                WindowCompat.getInsetsController(activity.window, view).apply {
+                    isAppearanceLightStatusBars = lightBars
+                    isAppearanceLightNavigationBars = lightBars
+                }
             }
         }
     }
@@ -177,7 +189,6 @@ fun LanSyncTheme(
     CompositionLocalProvider(
         LocalSpacing provides DefaultSpacing,
         LocalContainers provides containers,
-        LocalMotion provides LanSyncMotion(),
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

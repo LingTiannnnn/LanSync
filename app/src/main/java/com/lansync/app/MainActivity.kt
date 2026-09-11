@@ -6,6 +6,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -27,8 +32,8 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             LanSyncTheme {
                 LanSyncApp()
@@ -41,7 +46,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    // Material3 1.1 Scaffold 会在 layout{} 内 subcompose topBar；复杂 topBar 易触发 SlotTable 崩溃，
+    // 故改用 Column 顶栏/内容/底栏三段布局，绕开该问题。
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -66,50 +73,25 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            topBar = {
-                val isSyncMultiSelect =
-                    selectedTab == 3 && uiState.selectedUpdates.isNotEmpty()
-                val showIdentityStrip = selectedTab == 0 && !isSyncMultiSelect
-                Column {
-                    if (showIdentityStrip) {
-                        IdentityStrip(
-                            deviceName = android.os.Build.MODEL,
-                            isRunning = uiState.isRunning,
-                            serverPort = uiState.serverPort,
-                            isStarting = uiState.isStarting,
-                            isStopping = uiState.isStopping,
-                            onToggleRunning = { viewModel.toggleRunning() },
-                            updatableCount = uiState.availableUpdates.size,
-                            connectedCount = uiState.connectedDevices.size,
-                            localAppCount = uiState.localApps.size,
-                        )
-                    }
-                    LanSyncTopBar(
-                        isScanningApps = uiState.isScanningApps,
-                        selectedTab = selectedTab,
-                        syncSelectedCount = uiState.selectedUpdates.size,
-                        isSyncMultiSelect = isSyncMultiSelect,
-                        // IdentityStrip 已消费 statusBars；下方 TopAppBar 不得再叠一层
-                        consumesStatusBars = showIdentityStrip,
-                        onRefreshDevices = { viewModel.refreshDevices() },
-                        onLoadDownloadedFiles = { viewModel.loadDownloadedFiles() },
-                        onClearSyncSelection = { viewModel.clearSelection() },
-                    )
-                }
-            },
-            bottomBar = {
-                LanSyncBottomBar(
-                    selectedTab = selectedTab,
-                    onTabSelected = { tab ->
-                        selectedTab = tab
-                        if (tab == 4) viewModel.loadDownloadedFiles()
-                    }
-                )
-            },
-            floatingActionButton = { }
-        ) { paddingValues ->
+    val isSyncMultiSelect = selectedTab == 3 && uiState.selectedUpdates.isNotEmpty()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        LanSyncTopBar(
+            isScanningApps = uiState.isScanningApps,
+            selectedTab = selectedTab,
+            syncSelectedCount = uiState.selectedUpdates.size,
+            isSyncMultiSelect = isSyncMultiSelect,
+            isRefreshing = uiState.isFetchingRemoteApps,
+            onRefreshDevices = { viewModel.refreshDevices() },
+            onLoadDownloadedFiles = { viewModel.loadDownloadedFiles() },
+            onClearSyncSelection = { viewModel.clearSelection() },
+        )
+
+        Box(modifier = Modifier.weight(1f)) {
             LanSyncTabContent(
                 selectedTab = selectedTab,
                 uiState = uiState,
@@ -117,7 +99,7 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
                 saveTargetFileName = saveTargetFileName,
                 saveDirLauncher = saveDirLauncher,
                 onSaveTargetFileNameChange = { saveTargetFileName = it },
-                modifier = Modifier.padding(paddingValues)
+                modifier = Modifier.fillMaxSize(),
             )
 
             LanSyncOverlays(
@@ -125,9 +107,17 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
                 viewModel = viewModel,
                 saveDialogState = saveDialogState,
                 onDismissSaveDialog = { saveDialogState = null },
-                paddingValues = paddingValues
+                paddingValues = PaddingValues(),
             )
         }
+
+        LanSyncBottomBar(
+            selectedTab = selectedTab,
+            onTabSelected = { tab ->
+                selectedTab = tab
+                if (tab == 4) viewModel.loadDownloadedFiles()
+            },
+        )
     }
 }
 
@@ -147,18 +137,14 @@ private fun LanSyncTopBar(
     selectedTab: Int,
     syncSelectedCount: Int,
     isSyncMultiSelect: Boolean,
-    consumesStatusBars: Boolean,
+    isRefreshing: Boolean,
     onRefreshDevices: () -> Unit,
     onLoadDownloadedFiles: () -> Unit,
     onClearSyncSelection: () -> Unit,
 ) {
     val sp = LanSyncTheme.spacing
-    // IdentityStrip 贴 statusBars 时，下方 TopAppBar 必须零 inset，避免双倍留白
-    val topBarInsets =
-        if (consumesStatusBars) WindowInsets(0, 0, 0, 0) else TopAppBarDefaults.windowInsets
     if (isSyncMultiSelect) {
         TopAppBar(
-            windowInsets = topBarInsets,
             navigationIcon = {
                 IconButton(onClick = onClearSyncSelection) {
                     Icon(
@@ -185,58 +171,97 @@ private fun LanSyncTopBar(
                 actionIconContentColor = MaterialTheme.colorScheme.primary,
             ),
         )
-        return
-    }
-
-    TopAppBar(
-        windowInsets = topBarInsets,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(tabTitleRes(selectedTab)),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                if (isScanningApps) {
-                    Spacer(Modifier.width(sp.space8))
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(sp.topBarIndicator),
-                        strokeWidth = sp.strokeThin,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.width(sp.space4))
+    } else {
+        TopAppBar(
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(R.string.top_bar_scanning),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = stringResource(tabTitleRes(selectedTab)),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    if (isScanningApps) {
+                        Spacer(Modifier.width(sp.space8))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(sp.topBarIndicator),
+                            strokeWidth = sp.strokeThin,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(sp.space4))
+                        Text(
+                            stringResource(R.string.top_bar_scanning),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            actions = {
+                when (selectedTab) {
+                    // 设备 / 远程 / 同步：刷新已连接设备的应用列表
+                    0, 2, 3 -> {
+                        RefreshActionButton(
+                            contentDescription = stringResource(R.string.cd_refresh),
+                            isRefreshing = isRefreshing,
+                            onClick = onRefreshDevices,
+                        )
+                    }
+                    // 文件：重新扫描本地下载缓存目录
+                    4 -> {
+                        RefreshActionButton(
+                            contentDescription = stringResource(R.string.cd_refresh_files),
+                            isRefreshing = false,
+                            onClick = onLoadDownloadedFiles,
+                        )
+                    }
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+        )
+    }
+}
+
+/** 刷新按钮：点击后图标旋转一圈，进行中显示转圈，给用户明确触发反馈。 */
+@Composable
+private fun RefreshActionButton(
+    contentDescription: String,
+    isRefreshing: Boolean,
+    onClick: () -> Unit,
+) {
+    val sp = LanSyncTheme.spacing
+    val rotation = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+
+    IconButton(
+        onClick = {
+            onClick()
+            if (!isRefreshing) {
+                scope.launch {
+                    rotation.animateTo(
+                        targetValue = rotation.value + 360f,
+                        animationSpec = tween(durationMillis = 700, easing = LinearEasing),
                     )
                 }
             }
         },
-        actions = {
-            when (selectedTab) {
-                0, 2, 3 -> {
-                    IconButton(onClick = onRefreshDevices) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = stringResource(R.string.cd_refresh),
-                        )
-                    }
-                }
-                4 -> {
-                    IconButton(onClick = onLoadDownloadedFiles) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = stringResource(R.string.cd_refresh_files),
-                        )
-                    }
-                }
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-    )
+        enabled = !isRefreshing,
+    ) {
+        if (isRefreshing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(sp.iconXl),
+                strokeWidth = sp.strokeThin,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = contentDescription,
+                modifier = Modifier.rotate(rotation.value),
+            )
+        }
+    }
 }
 
 private data class LanSyncNavTab(
@@ -303,6 +328,8 @@ private fun LanSyncTabContent(
                 isStopping = uiState.isStopping,
                 operationMessage = uiState.operationMessage,
                 connectionError = uiState.connectionError,
+                updatableCount = uiState.availableUpdates.size,
+                localAppCount = uiState.localApps.size,
                 onToggleRunning = { viewModel.toggleRunning() },
                 onRefresh = { viewModel.refreshDevices() },
                 onConnect = { viewModel.connectDevice(it) },
@@ -362,8 +389,6 @@ private fun RemoteTabContent(
                 icon = Icons.Default.CloudOff,
                 title = stringResource(R.string.remote_empty_title),
                 body = stringResource(R.string.remote_empty_hint),
-                actionLabel = stringResource(R.string.cd_refresh),
-                onAction = { viewModel.refreshDevices() },
             )
         }
     } else {

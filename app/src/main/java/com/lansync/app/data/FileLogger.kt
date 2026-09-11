@@ -100,7 +100,15 @@ object FileLogger {
     }
 
     fun e(tag: String, message: String, t: Throwable? = null) {
-        enqueue("ERROR", tag, message + if (t != null) "\n  ${t.message}\n  ${t.stackTraceToString().lines().take(8).joinToString("\n  ")}" else "")
+        enqueue(
+            "ERROR",
+            tag,
+            message + if (t != null) {
+                "\n  ${t.javaClass.name}: ${t.message}\n  ${t.stackTraceToString()}"
+            } else {
+                ""
+            },
+        )
     }
 
     fun json(tag: String, label: String, data: Any?) {
@@ -139,6 +147,23 @@ object FileLogger {
     }
 
     fun getLogFilePath(): String? = logDir?.resolve(LOG_FILE_NAME)?.absolutePath
+
+    /** 同步冲刷通道内日志（崩溃处理器用，避免进程被杀丢栈）。 */
+    fun flushSync() {
+        if (!isInitialized) return
+        try {
+            kotlinx.coroutines.runBlocking {
+                val remaining = mutableListOf<String>()
+                while (true) {
+                    remaining += logChannel.tryReceive().getOrNull() ?: break
+                }
+                for (entry in remaining) {
+                    writeToFile(entry)
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
 
     fun clearLog() {
         val dir = logDir ?: return

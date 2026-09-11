@@ -40,7 +40,7 @@ fun IdentityStrip(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.primaryContainer)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            // TopAppBar 已消费 statusBars，此处不得再叠 inset（会形成空额头）
             .padding(horizontal = sp.space16, vertical = sp.space12),
     ) {
         Row(
@@ -99,8 +99,10 @@ fun IdentityStrip(
         Spacer(Modifier.height(sp.space12))
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = sp.space8),
+            horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             HeroStat(value = updatableCount, label = stringResource(R.string.hero_stat_updatable))
             HeroStat(value = connectedCount, label = stringResource(R.string.hero_stat_connected))

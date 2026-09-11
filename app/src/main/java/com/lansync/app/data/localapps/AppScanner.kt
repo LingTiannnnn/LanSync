@@ -33,7 +33,18 @@ class AppScanner(private val context: Context) : InstalledAppScanner {
             pm.getInstalledPackages(PackageManager.GET_META_DATA)
         }
         FileLogger.i(TAG, "getInstalledPackages returned ${packages.size} packages")
-        val results = packages.mapNotNull { extractAppInfo(it, pm) }
+        val results = ArrayList<AppInfo>(packages.size)
+        packages.forEachIndexed { index, packageInfo ->
+            try {
+                extractAppInfo(packageInfo, pm)?.let { results.add(it) }
+            } catch (t: Throwable) {
+                // OutOfMemoryError 等 Error 不能只靠 catch(Exception)
+                FileLogger.w(TAG, "extractAppInfo failed for ${packageInfo.packageName}: $t")
+            }
+            if (index > 0 && index % 50 == 0) {
+                FileLogger.i(TAG, "scan progress $index/${packages.size}")
+            }
+        }
         FileLogger.i(TAG, "Scan complete: ${results.size} apps (user=${results.count { !it.isSystemApp }}, system=${results.count { it.isSystemApp }})")
         results
     }

@@ -33,7 +33,8 @@ fun AppListScreen(
 ) {
     val sp = LanSyncTheme.spacing
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf(AppCategory.ALL) }
+    var categoryOrdinal by rememberSaveable { mutableStateOf(AppCategory.ALL.ordinal) }
+    val category = AppCategory.values().getOrElse(categoryOrdinal) { AppCategory.ALL }
 
     val filteredApps by remember(searchQuery, category, localApps) {
         derivedStateOf {
@@ -64,18 +65,10 @@ fun AppListScreen(
 
         CategoryTabs(
             selectedCategory = category,
-            onCategoryChange = { category = it },
+            onCategoryChange = { categoryOrdinal = it.ordinal },
             totalCount = totalCount,
             userCount = userCount,
             systemCount = systemCount
-        )
-
-        Spacer(modifier = Modifier.height(sp.space4))
-
-        SectionHeader(
-            title = stringResource(R.string.local_section_title),
-            icon = Icons.Default.PhoneAndroid,
-            count = filteredApps.size
         )
 
         if (filteredApps.isEmpty()) {
@@ -132,12 +125,12 @@ internal fun CategoryTabs(
     systemCount: Int
 ) {
     val sp = LanSyncTheme.spacing
-    ScrollableTabRow(
+    // 与 SearchBar 左右 16dp 对齐；TabRow 三等分由控件完成
+    TabRow(
         selectedTabIndex = selectedCategory.ordinal,
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(horizontal = sp.space16),
-        edgePadding = sp.none
     ) {
         TabItem(stringResource(R.string.category_all, totalCount), AppCategory.ALL, selectedCategory, onCategoryChange)
         TabItem(stringResource(R.string.category_user, userCount), AppCategory.USER, selectedCategory, onCategoryChange)
@@ -157,12 +150,13 @@ internal fun TabItem(
         selected = isSelected,
         onClick = { onClick(category) },
         text = {
+            // 选中态保持同一字号，仅用颜色区分；避免加粗后截断「(数量)」
             Text(
                 text = label,
-                style = if (isSelected) MaterialTheme.typography.labelLarge
-                else MaterialTheme.typography.labelMedium,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 1
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         },
         selectedContentColor = MaterialTheme.colorScheme.primary,
@@ -178,7 +172,9 @@ fun AppItem(appInfo: AppInfo) {
             .fillMaxWidth()
             .heightIn(min = LanSyncMetrics.listItemMin),
         colors = CardDefaults.cardColors(
+            // 自定义 container 不在 colorScheme 内，必须显式 contentColor，否则暗色下可能发黑
             containerColor = LanSyncTheme.containers.low,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline),
     ) {
@@ -280,6 +276,7 @@ fun UpdateItem(
             } else {
                 LanSyncTheme.containers.low
             },
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline),
     ) {

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -29,11 +31,11 @@ import com.lansync.app.ui.theme.LanSyncTheme
 /**
  * 应用图标 Composable（ui 层**薄壳**）。
  *
- * 三级缓存（内存 LruCache → 磁盘 PNG → PackageManager 绘制）与 `preload` 已下沉 data 层 [IconCache]
- * （修复 legacy-known-issue **L2 分层倒置**：data 不再 `import ui.components.preloadIcon`）。
- * 本组件仅消费 [IconCache.get] 返回的 [Bitmap] 并转 `ImageBitmap` 渲染；缺失时回退占位图标。
+ * 获取链路：内存 LruCache → 磁盘 PNG → `PackageManager.getApplicationInfo` + `loadIcon`。
+ * `loadIcon` 返回的是**系统当前应用的图标**（含桌面主题/图标包覆盖后的结果），
+ * 因此同包在装了图标包的设备上会显示主题图标，而非 APK 内原始资源。
  *
- * 尺寸/圆角走设计令牌（[LanSyncTheme.spacing]），无硬编码 dp。
+ * 失败或未缓存时使用与成功态一致的圆角底 + 单色占位，避免圆形机器人与圆角矩形图标风格冲突。
  */
 @Composable
 fun AppIcon(
@@ -55,25 +57,29 @@ fun AppIcon(
         if (loaded != null) bitmap = loaded else loadFailed = true
     }
 
+    val shape = RoundedCornerShape(sp.radiusLg)
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(sp.radiusLg))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .clip(shape)
+            .background(
+                if (bitmap != null) Color.Transparent
+                else LanSyncTheme.containers.high,
+            ),
         contentAlignment = Alignment.Center
     ) {
         if (bitmap != null) {
             Image(
                 bitmap = bitmap!!.asImageBitmap(),
                 contentDescription = null,
-                modifier = Modifier.size(size - sp.space8)
+                modifier = Modifier.fillMaxSize(),
             )
         } else {
             Icon(
                 imageVector = Icons.Default.Android,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(size - sp.space16)
+                modifier = Modifier.size(size * 0.45f),
             )
         }
     }

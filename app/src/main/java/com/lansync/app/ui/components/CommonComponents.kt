@@ -183,6 +183,7 @@ fun MeshHint(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = LanSyncTheme.containers.low,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shape = MaterialTheme.shapes.medium,
     ) {
         Row(
@@ -247,6 +248,7 @@ fun SummaryCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = LanSyncTheme.containers.low,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shape = MaterialTheme.shapes.medium,
     ) {
         Row(

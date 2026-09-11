@@ -45,7 +45,7 @@ fun SyncScreen(
 
     if (connectedDevices.isEmpty()) {
         Box(modifier = modifier.fillMaxSize().padding(sp.space16), contentAlignment = Alignment.Center) {
-            EmptySyncState(onRefresh = onRefreshDevices)
+            EmptySyncState()
         }
     } else {
         Column(modifier = modifier.fillMaxSize()) {
@@ -228,13 +228,11 @@ fun SyncScreen(
 }
 
 @Composable
-fun EmptySyncState(onRefresh: (() -> Unit)? = null) {
+fun EmptySyncState() {
     EmptyState(
         icon = Icons.Default.LinkOff,
         title = stringResource(R.string.remote_empty_title),
         body = stringResource(R.string.remote_empty_hint),
-        actionLabel = if (onRefresh != null) stringResource(R.string.cd_refresh) else null,
-        onAction = onRefresh,
     )
 }
 
