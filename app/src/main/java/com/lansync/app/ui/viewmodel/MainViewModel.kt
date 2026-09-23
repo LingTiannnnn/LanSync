@@ -72,6 +72,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun autoStart() {
+        // 先骨架填充（ARCH §3.3）：有缓存则启动即展示，再后台校验刷新；损坏/缺失返回 0 后走首扫
+        repository.loadLocalAppCache()
         if (!repository.hasLocalAppCache()) {
             _uiState.value = _uiState.value.copy(needsInitialScan = true)
             viewModelScope.launch {

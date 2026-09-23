@@ -102,6 +102,9 @@ class LanSyncRepository(
     // ---- 本机应用（LocalAppRepository）----
     fun hasLocalAppCache(): Boolean = localAppRepository.hasCache()
 
+    /** 启动骨架：用缓存填充 localApps，不触发扫描。返回加载条数（0 = 无缓存或损坏）。 */
+    fun loadLocalAppCache(): Int = localAppRepository.loadCacheSkeleton()
+
     /** 扫描刷新 + 图标预加载/清理（data 层，消除 L2）+ 通知已连接设备刷新。 */
     suspend fun scanLocalApps() {
         val result = localAppRepository.scanAndRefresh()
