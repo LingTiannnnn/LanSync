@@ -1,5 +1,8 @@
 package com.lansync.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,6 +25,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lansync.app.data.transfer.DownloadInstallController
 import com.lansync.app.ui.components.*
@@ -31,14 +35,31 @@ import com.lansync.app.ui.viewmodel.UiState
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    // FGS 在 MainViewModel.init 即自启，没有「用户点启动同步」的时机可挂，故请求只能落在 Activity 创建点。
+    // 拒绝时不重试、不阻断：服务照常运行，仅常驻通知不可见。
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestNotificationPermission()
         setContent {
             LanSyncTheme {
                 LanSyncApp()
             }
         }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }
 
