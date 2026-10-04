@@ -121,19 +121,6 @@ object LanSyncContainers {
 
 val LocalContainers = staticCompositionLocalOf { LanSyncContainers.Light }
 
-/** 动效 token（静态默认，避免每次组合新建实例）。 */
-@Immutable
-data class LanSyncMotion(
-    val shortMillis: Int = 150,
-    val mediumMillis: Int = 250,
-    val longMillis: Int = 350,
-    val pressScale: Float = 0.96f,
-)
-
-private val DefaultMotion = LanSyncMotion()
-
-val LocalMotion = staticCompositionLocalOf { DefaultMotion }
-
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
@@ -141,7 +128,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /**
- * 设计系统访问器：间距 / 容器色 / 动效。
+ * 设计系统访问器：间距 / 容器色。
  * 颜色与字体仍经 [MaterialTheme.colorScheme] / [MaterialTheme.typography]。
  */
 object LanSyncTheme {
@@ -150,9 +137,6 @@ object LanSyncTheme {
 
     val containers: LanSyncContainerColors
         @Composable @ReadOnlyComposable get() = LocalContainers.current
-
-    val motion: LanSyncMotion
-        @Composable @ReadOnlyComposable get() = LocalMotion.current
 }
 
 @Composable
