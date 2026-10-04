@@ -61,6 +61,7 @@ android {
     }
 
     composeOptions {
+        // Compose Compiler 1.5.5 ↔ Kotlin 1.9.20
         kotlinCompilerExtensionVersion = "1.5.5"
     }
 

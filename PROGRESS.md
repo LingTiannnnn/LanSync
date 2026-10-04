@@ -9,9 +9,11 @@
 
 ## 1. 当前状态快照
 
-- **当前阶段**：**Phase 5 — UI 一次成型（设计系统 + 5 Tab + 全量覆盖层）** ✅ 完成；下一步 **Phase 6**（安全加固/协议版本化）或 **Phase 7**（工具链升级），待用户定
-- **阶段状态**：✅ Phase 0/1/2/3/4/5 完成（Phase 4/5 运行时与 UI 视觉待真机验证）
-- **测试基线**：**139/139 全绿**（Phase 5 末，与 Phase 4 同——UI 一次成型未新增 JVM 单测，Compose 非单测目标；`testDebugUnitTest` + `assembleDebug` 均通过，见 §4）。
+- **当前阶段**：Phase 5 之后已在 `qoder/UI-Recreate` 分支**再交付两次增量**（① UI Recreate T0–T6；② 本机应用缓存骨架接线，见 §10）；下一步 **真机互操作验收**（`docs/TEST-PLAN.md` §6，Phase 6 前置）或 **Phase 6**（安全加固/协议版本化），待用户定
+- **阶段状态**：✅ Phase 0/1/2/3/4/5 完成 + 两次分支增量交付（Phase 4/5 运行时、UI 视觉**全部待真机验证**）
+- **分支状态**：⚠️ **全部重构成果只在 `qoder/UI-Recreate`**（领先 `main` 12 个提交，已推送）；`main`/`origin/main` 仍停在重构前基线快照 `d1a71fc`。**切错分支等于回到上帝类时代**。`main` 去向（合并 or 只作历史基线）待用户裁决。
+- **测试基线**：**139/139 全绿**，**2026-10-04 于当前 HEAD `66a6291` 复跑实测**（14 个测试文件，0 失败/0 错误/0 跳过；此前仅为文档记录）。UI 一次成型与两次分支增量均未增删 JVM 单测（Compose 非单测目标），基线数自 Phase 4 起不变，见 §4。
+- **UI 配色**：**Teal 青绿**（`ui/theme/Color.kt`，自 UI Recreate `1b05ebb` 起）。⚠️ 本文件 §5/§9 的 Phase 5 记录写的是**靛蓝**——那是当时实现，**已过期**，现行以 §10.1 与代码为准。启动器图标底色也已同步改为 Teal `#00696B`（`res/values/colors.xml`）。
 - **旧生产代码**：🗑️ **已删除**（AppRepository/KtorServer/AppListClient/ConnectionManager/旧 JmDNSDiscovery/旧 scanner/packer/update + 2 旧测试）。legacy-known-issue L1–L5 随之全部消除。
 - **接线状态**：✅ **已接线**——`MainViewModel` → `LanSyncGraph.get()` → `LanSyncRepository` 门面 → 全部新构件；App 运行时走**全新栈**。`ForegroundSyncService` 承载 start/stop 生命周期。**运行时行为待真机验证**（FGS/mDNS/连接/下载，无设备无法自动化）。
 
@@ -27,6 +29,8 @@
 | **Phase 3** | 扫描/打包/更新推荐（AppScanner + AppPacker + UpdateManager + LocalAppRepository + local_apps_cache.json） | 阶段 1/4 组件 | ✅ 完成 | 严格对齐 SPEC §5.3/§8/§3.2 + D2；`sync.UpdateManagerTest`(9)+`transfer.AppPackerTest`(6)+`localapps.LocalAppRepositoryTest`(5)+`ModelsTest`(+4)；141/141 全绿；不接 UI、未改旧码 |
 | **Phase 4** | 前台服务 + 门面接线（UpdateCoordinator + DownloadInstallController + IconCache + LanSyncRepository 门面 + ForegroundSyncService + 切换 MainViewModel + 删旧码；手写 DI 组合根 LanSyncGraph） | 阶段 3+4+5 | ✅ 完成 | 门面 **158 行**（≤300 硬约束）；139/139 全绿 + assembleDebug；L1–L5 全消除；运行时待真机 |
 | **Phase 5** | UI 一次成型（单一 Material3 设计系统 Color/Spacing/Theme/Typography + 底部 5 Tab + 全量覆盖层 + UiState 单一出口 + 字符串/颜色/间距零硬编码） | 阶段 5（UI） | ✅ 完成 | `assembleDebug` 通过；`testDebugUnitTest` 139/139 全绿（基线不变）；硬编码审计 0 违规；信息架构对齐 REPORT §2.12 |
+| **UI Recreate**<br>（Phase 5 后分支交付，**非执行阶段**） | Teal M3 设计系统换色 + edge-to-edge + 5 屏与覆盖层重写（T0–T6） | — | ✅ 完成（**代码级**） | `1b05ebb` + `80921ad`；`assembleDebug` 通过、139/139 基线不变；独立评审 2 critical + 若干 major **均已修**；**真机视觉验收未做**（§10.4） |
+| **缓存骨架接线**<br>（Phase 5 后分支交付，**非执行阶段**） | 修「冷启动像被清空、从 0 全量重扫」——启动即展示本机应用列表 | — | ✅ 完成 | `9ed1fce` + `5c7b2ee`；`LanSyncRepository.loadLocalAppCache()` ← `MainViewModel.autoStart` 无条件先调；139/139 全绿（§10.2） |
 | **Phase 6** | 安全加固与协议版本化（token / 剥离 sourcePaths / SHA-256） | 阶段 6 | ⏳ 待启动 | 互操作矩阵 |
 | **Phase 7** | 收尾（工具链升级 / UI 拆分 / 文档对齐） | 阶段 2+7 | ⏳ 待启动 | — |
 
@@ -73,15 +77,26 @@
 - **Phase 2 末基线**：`testDebugUnitTest` → **117 用例，0 失败 / 0 错误 / 0 跳过**（= Phase 1 的 95 + `DefaultConnectionCoordinatorTest` 21 + `InMemoryPairingStoreTest` 增 1）。`assembleDebug` ✅ 通过。
 - **Phase 3 末基线**：`testDebugUnitTest` → **141 用例，0 失败 / 0 错误 / 0 跳过**（= 117 + `sync.UpdateManagerTest` 9 + `transfer.AppPackerTest` 6 + `localapps.LocalAppRepositoryTest` 5 + `ModelsTest` 增 4）。`assembleDebug` ✅ 通过。
 - **Phase 4 末基线**：`testDebugUnitTest` → **139 用例，0 失败 / 0 错误 / 0 跳过**（= 141 − 删旧 `ConnectionManagerTest` 10 − 删旧 `update.UpdateManagerTest` 3 + `UpdateCoordinatorTest` 4 + `DownloadInstallControllerTest` 7）。`assembleDebug` ✅ 通过（含 FGS Manifest/权限/资源合并）。**App 现运行全新栈**。
+- **Phase 5 末 / UI Recreate / 缓存骨架接线**：基线**不变，仍 139**（Compose UI 非 JVM 单测目标；两次分支交付未增删用例）。
+- **当前 HEAD 复核（2026-10-04，`66a6291`）**：`testDebugUnitTest` → **139 用例，0 失败 / 0 错误 / 0 跳过**（实测汇总 `app/build/test-results/testDebugUnitTest/*.xml`，14 个文件），`BUILD SUCCESSFUL`。**这是首次在当前 HEAD 复跑验证**，此前「139/139」仅为文档记录、仓库内无运行证据。
 
-### 运行方式（本机实测，务必照此）
-```powershell
-# .\gradlew.bat 会因 GRADLE_USER_HOME=E:\... 下 wrapper dist 不完整而联网下载超时；
-# 改用已完整的 wrapper-dist 二进制 + 已 populate 的默认缓存离线跑：
-$env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
-& "C:\Users\LingTian\.gradle\wrapper\dists\gradle-8.13-bin\5xuhj0ry160q40clulazy9h7d\gradle-8.13\bin\gradle.bat" testDebugUnitTest --offline
+### 运行方式（本机实测 2026-10-04，务必照此）
+```bash
+cd "E:/S.H.I.T/LanSync"
+GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat testDebugUnitTest --offline --no-configuration-cache --console=plain
+GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --offline --no-configuration-cache --console=plain
 ```
-> 详见 `docs/TEST-PLAN.md §7`。PowerShell 会把 JVM stderr 警告当 error 致 ExitCode 1，以 `BUILD SUCCESSFUL` 为准。
+
+三条前提，缺一即失败：
+
+1. **`GRADLE_USER_HOME` 必须覆盖为 `C:\Users\LingTian\.gradle`**。机器级默认值 `E:\S.H.I.T\Gradle\GradleRepository` **缺全部测试依赖**（`junit:4.13.2`、`io.mockk:mockk:1.13.8`、`kotlinx-coroutines-test:1.7.3`、`ktor-server-test-host:2.3.5`），`--offline` 下 `compileDebugUnitTestKotlin` 必然失败。主源码编译不受影响，所以症状是「只有测试跑不起来」。
+2. **`local.properties` 必须存在**，内容至少 `sdk.dir=E\:\\S.H.I.T\\Android SDK`。它被 `.gitignore` 忽略、且 `66a6291` 已把它从版本控制移除 → **新克隆/新机器上需手工重建**，否则报 `SDK location not found`（本机 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 均为空，无法兜底）。
+3. **`./gradlew.bat` 可直接用**。⚠️ 旧注记「`GRADLE_USER_HOME=E:\` 下 wrapper dist 不完整、会联网下载 `gradle-8.13-bin.zip` 超时」**已证伪**：两处 dist 均完整解开，`./gradlew.bat --version --offline` 正常输出 `Gradle 8.13 / Launcher JVM 17.0.20.1`，无联网。**不再需要绕道发行版自带的 `...\dists\gradle-8.13-bin\<hash>\gradle-8.13\bin\gradle.bat`**；仅当 C:\ 缓存也不可用时才回落到那条旧命令。
+
+> **判定以输出里的 `BUILD SUCCESSFUL` 为准**：PowerShell 会把 JVM stderr 警告当 error 致 `ExitCode=1`；且**不要把输出管道给 `tail`**（管道会把 exit code 变成 `tail` 的 0，把 BUILD FAILED 掩盖成「成功」）。
+> **环境**：JDK 17.0.20.1（`C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot`）、Gradle 8.13、Android SDK `E:\S.H.I.T\Android SDK`（`buildToolsVersion = "35.0.0"` 已固定，避免联网下载）。工具链版本**三者绑死**：Kotlin 1.9.20 ↔ Compose 编译器 1.5.5 ↔ Compose BOM 2023.10.01（material3 1.1.x），要升必须整体升（Phase 7）。
+> **机器级 init 脚本** `E:\S.H.I.T\Gradle\init.d\init.gradle` 只注入 `aliyun/public + mavenLocal + mavenCentral`（**无 `google()`**）；`settings.gradle.kts:17` 的 `PREFER_SETTINGS` 是为此而改，**不要改回去**。
+> 详见 `docs/TEST-PLAN.md §7`。
 
 ---
 
@@ -95,7 +110,11 @@ $env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
 - **2026-09-08 · Phase 2 完成**：新建 `DeviceDiscovery`/`JmDNSDeviceDiscovery`（SPEC §6，注入 scope）、`ConnectionEvent`/`ConnectionCoordinator`/`DefaultConnectionCoordinator`（Actor 单点收敛，SPEC §7.4–7.7）、`PairingHistoryStore`（TT3 §7.7 干净语义）、`ConnectionTransport`（传输抽象，手写 Fake 测试，不改 Phase 1 `LanSyncClient`）。迁移 `ConnectionManagerTest`：协议 9 例落 `InMemoryPairingStoreTest`、`incomingRequests` 流落 `DefaultConnectionCoordinatorTest`。测试 **117/117 全绿** + `assembleDebug` 通过。**未接线、未改旧生产代码**（旧 `JmDNSDiscovery`/`ConnectionManager`/`AppRepository` 冻结并存，Phase 4 删除）。设计决策见 §6。
 - **2026-09-09 · Phase 3 完成**：新建 `localapps/{InstalledAppScanner,AppScanner,LocalAppRepository}`、`transfer/AppPacker`、`sync/UpdateManager`（均与冻结旧件同名的**新包**并存：localapps/transfer/sync vs 旧 scanner/packer/update）。关键改进：UpdateManager 改为**纯比较**（不再自行 fetch，因 connectedDevices.appList 已由 ConnectionCoordinator 维护）；AppPacker 输出目录构造注入 + **移除死代码 MD5 digest**（D1）；LocalAppRepository 采「缓存骨架 + 后台刷新」且**不接 UI**（图标预加载改为暴露 `ScanResult.added/removedPackages` 交接线层，避开 L2 分层倒置）；AppScanner 落实 D2。迁移 `UpdateManagerTest`（3→sync 新类 9 例，补 findUpdates/calculateSyncDiffs 旧零覆盖）、`ModelsTest` +4 encodeDefaults 字节快照。测试 **141/141 全绿** + `assembleDebug` 通过。**未接线、未改旧生产代码**。设计决策见 §7。
 - **2026-09-09 · Phase 4 完成（接线 + 删旧）**：新建 `sync/UpdateCoordinator`（combine+节流，可控时钟）、`transfer/DownloadInstallController`（下载/安装/进度，DownloadProgress/InstallStatus 迁入）、`cache/IconCache`（data 层三级缓存，修 L2）、`repository/LanSyncRepository` 门面（**158 行 ≤300**，纯委托）、`repository/LanSyncGraph` 组合根（手写 DI，late-bind 破 server↔coordinator↔pairing 环）、`service/ForegroundSyncService`（specialUse FGS + 通知 + Manifest 权限）、适配器 `LanSyncClientTransport`/`NotifyingPairingStore`/`SharedPrefsPairingHistoryStore`。**切换** MainViewModel→LanSyncGraph、start/stop→FGS、类型迁移、AppIcon 薄壳化、删 forceStartSync+按钮（L1）。**删旧码** 8 主 + 2 测试。**L1–L5 全消除**。测试 **139/139 全绿** + assembleDebug 通过。**运行时（FGS/mDNS/连接/下载）待真机验证**。设计见 §8。
-- **2026-09-09 · Phase 5 完成（UI 一次成型）**：建立单一 Material3 设计系统——`ui/theme/Color.kt`（靛蓝品牌色板，唯一色值来源）、`Spacing.kt`（`LanSyncSpacing` 4dp 基栅格令牌 + `LocalSpacing` CompositionLocal + `LanSyncTheme.spacing` 访问器）、`Theme.kt`（完整 light/dark ColorScheme，**`dynamicColor` 默认关闭**以保跨设备一致设计系统）、`Typography.kt`（完整 M3 类型比例）；`strings.xml` 扩至全量 UI 文案。重写全部 10 个 UI 文件 + `MainActivity` + `MainViewModel` + `ForegroundSyncService`：**0 内联中文字面量 / 0 `Color` 字面量 / 0 裸 `.dp`**（grep 审计）；`UiState` 不可变 data class 单一出口。测试 **139/139 全绿**（基线不变）+ `assembleDebug` 通过。设计见 §9。
+- **2026-09-09 · Phase 5 完成（UI 一次成型）**：建立单一 Material3 设计系统——`ui/theme/Color.kt`（靛蓝品牌色板，唯一色值来源；⚠️ **后于 2026-09-12 被 UI Recreate 换成 Teal，见 §10.1**）、`Spacing.kt`（`LanSyncSpacing` 4dp 基栅格令牌 + `LocalSpacing` CompositionLocal + `LanSyncTheme.spacing` 访问器）、`Theme.kt`（完整 light/dark ColorScheme，**`dynamicColor` 默认关闭**以保跨设备一致设计系统）、`Typography.kt`（完整 M3 类型比例）；`strings.xml` 扩至全量 UI 文案。重写全部 10 个 UI 文件 + `MainActivity` + `MainViewModel` + `ForegroundSyncService`：**0 内联中文字面量 / 0 `Color` 字面量 / 0 裸 `.dp`**（grep 审计）；`UiState` 不可变 data class 单一出口。测试 **139/139 全绿**（基线不变）+ `assembleDebug` 通过。设计见 §9。
+- **2026-09-11 · UI Recreate 交付（T0–T6，`1b05ebb` + `80921ad`）**：**配色从靛蓝整体换成 Teal 青绿**（交接包 `E:\S.H.I.T\UI Design\`）；`MainActivity` 改 `enableEdgeToEdge()` 并删除不透明系统栏色赋值；TopBar 语境标题 + 同步页 Contextual TopBar；新增 `CommonComponents.kt`/`IdentityStrip.kt`/`Shape.kt`；配对 UI 由 `Dialog` 改 `ModalBottomSheet`。因 material3 1.1.x 无 `surfaceContainer*`，自建 `LanSyncContainerColors` + `LocalContainers` 四档兼容层。独立评审查出 **2 个 critical（设备页双 `statusBars` 留白、`rememberSaveable(DeviceInfo)` 不可 Bundle 化致崩溃）+ 若干 major，均已修**；评审结论 "Ready for device-side T1/T6 visual acceptance"。基线不变 139/139 + `assembleDebug` 通过。**真机视觉验收未做**。设计见 §10.1。
+- **2026-09-23 · 本机应用缓存骨架接线（`9ed1fce` + `5c7b2ee`）**：修「冷启动看起来应用列表被清空、从 0 全量重扫」。根因**不是持久化丢失**，而是 `LocalAppRepository.loadCacheSkeleton()` 早已实现且有单测、**但生产接线从未调用**（Phase 4 切换门面时漏接）。改法：门面加转发 `loadLocalAppCache()`，`MainViewModel.autoStart` 在 `hasLocalAppCache()` 分支**之前无条件**先调（顺带避免 TOCTOU）。基线不变 139/139。设计见 §10.2。
+- **2026-09-25 · 构建卫生（`66a6291`）**：`.gitignore` 增补工具链/SDK 缓存目录（`.sdk-dl/`、`.qoder/`、`.trae/` 等），并**把 `local.properties` 从版本控制移除**（用的是 `git rm` 而非 `--cached`，文件同时从工作树删除）→ 新克隆需手工重建，见 §4 前提 2。
+- **2026-10-04 · 基线复跑 + 文档一致性修正**：① 在当前 HEAD 首次实跑 `testDebugUnitTest` → **139/139 全绿**（此前仅为文档记录）；② 证伪「必须绕过 `gradlew.bat`」的旧注记，改为「wrapper 可直接用，但 `GRADLE_USER_HOME` 必须指向 C:\」（§4 / `docs/TEST-PLAN.md` §7 同步修正）；③ 补记 Phase 5 之后的两次分支交付（新增 §10），并修正 §5/§9 里已过期的「靛蓝色板」表述。
 
 ---
 
@@ -193,10 +212,12 @@ $env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
 
 ## 9. Phase 5 设计与落地（UI 一次成型）
 
+> ⚠️ **本节记录的是 Phase 5 交付当时（`681001f`）的设计。配色、系统栏写法、组件族已被 §10.1 的 UI Recreate 覆盖**——尤其**色板已由靛蓝改为 Teal**。设计系统的分层与硬约束（唯一色值来源 / `UiState` 单一出口 / 零硬编码 / `dynamicColor` 默认关闭）仍然成立。
+
 **目标**：全部 UI 一次成型——单一 Material3 设计系统、底部 5 Tab（设备/本地/远程/同步/文件）+ 全量覆盖层，信息架构对齐 REPORT §2.12。**硬性要求**：① `UiState` 不可变 data class 单一出口（禁止把仓库多路 StateFlow 散装暴露给 Composable）；② 所有字符串/颜色/间距走统一 theme，禁止硬编码。
 
 **设计系统（`ui/theme/`，唯一来源）**：
-- `Color.kt`：靛蓝品牌色板（Primary=靛蓝 #3F51B5 对齐启动器、Secondary=青绿、Tertiary=琥珀、Error=M3 红 + 中性色），`internal` 常量，仅供 `Theme.kt` 组装 ColorScheme。
+- `Color.kt`：~~靛蓝品牌色板（Primary=靛蓝 #3F51B5 对齐启动器）~~ ⚠️ **已过期，现行是 Teal 青绿色板**（Primary40 `#00696B`、亮色背景 `#F6FAF9`、暗色 `#0E1416`、Tertiary 保留琥珀语义、启动器底色同步为 `#00696B`）——见 §10.1 与代码。`internal` 常量，仅供 `Theme.kt` 组装 ColorScheme 的定位不变。
 - `Theme.kt`：完整 light/dark `ColorScheme`（M3 1.1.x 角色集，无 surfaceContainer*）；**`dynamicColor` 默认 `false`**（关键决策：保跨设备一致的「单一设计系统」，非 Material You 随壁纸变色；如需一行可开）；`object LanSyncTheme` 访问器（对齐 M3 `MaterialTheme` 惯例）经 `LocalSpacing` 暴露 `spacing`。
 - `Spacing.kt`：`LanSyncSpacing` 令牌（4dp 基栅格 space2..space64 + icon*/appIcon*/radius*/stroke*/控件尺寸），`staticCompositionLocalOf` 注入。
 - `Typography.kt`：补全 M3 类型比例（headlineSmall/title*/body*/label*），组件禁止内联 fontSize/letterSpacing。
@@ -212,3 +233,46 @@ $env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
 **关键决策**：① `dynamicColor` 默认关闭——「单一设计系统」优先于 Material You 个性化（可一行开启）；② 间距用 CompositionLocal 令牌（`LanSyncTheme.spacing`）而非散落 dimens.xml；③ 连接状态色全走 colorScheme 角色（CONNECTED=secondary、CONNECTING/RECONNECTING=tertiary、ERROR/TIMEOUT=error、DISCOVERED=outline、DISCONNECTED=onSurfaceVariant），删除所有裸色；④ Compose UI 非 JVM 单测目标，门禁为 `assembleDebug` 编译 + grep 硬编码审计 + 139 基线不变（视觉/交互真机验收）。
 
 **遗留（非阻塞）**：① REPORT §2.12 提及的「强制启动同步」按钮已随 Phase 4 删除（= L1 legacy-known-issue，已裁决）；② 3 处 pre-existing 未用参数警告（`FileTabContent.saveTargetFileName`/`StatusCard.isScanningApps`/`SyncScreen.onRefreshDevice`）沿用旧签名未清；③ UI 视觉/暗色/大字号/横屏适配 + POST_NOTIFICATIONS 运行时弹窗须真机验证。
+
+---
+
+## 10. Phase 5 之后的两次分支交付（`qoder/UI-Recreate`）
+
+> **本节补记长期滞后的内容**：Phase 5（`681001f`）之后分支上又交付了两次增量，此前**完全没写进本文件**——以致照本文件干活会把配色决策理解反（§9 写靛蓝、代码是 Teal）、把已交付的增量当成还没做。
+> 提交序列：`81af6cf`（分支文件提交）→ `1b05ebb`（UI Recreate T0–T6）→ `80921ad`（UI 打磨与崩溃加固）→ `6d09076`（版本配对注记）→ `9ed1fce` + `5c7b2ee`（缓存骨架接线 + 特性文档）→ `66a6291`（构建卫生，**HEAD**）。
+> 特性文档：`docs/compose/spec/ui-recreate.md`、`docs/compose/spec/local-apps-cache-skeleton.md`（均 `status: delivered`）；评审留档 `docs/compose/spec/ui-recreate-review-notes.md`、`ui-recreate-final-review.md`、`FEEDBACK.md`。
+
+### 10.1 交付① UI Recreate（T0–T6）
+
+**设计源真相在仓库外**：`E:\S.H.I.T\UI Design\`（UI 设计交接包）。改 UI 前必读。
+
+- **T0 配色换成 Teal**：`Color.kt` 整体替换为交接包色板——Primary 信任青绿（`TealPrimary10..95`，Primary40 `#00696B`）、Secondary 中性青灰、Tertiary 琥珀（保留「可更新」语义）、Error M3 标准红、Neutral 青绿微染；亮色背景 `Neutral99=#F6FAF9`、暗色 `SurfaceDark=#0E1416`（非纯黑）；新增 light/dark surface 容器各四档。启动器底色 `res/values/colors.xml` 同步改为 `#00696B`（**已不是靛蓝**）。⚠️ **本节是现行配色的唯一有效记录，§9 的「靛蓝」已过期**。
+- **T0 Theme**：新 light/dark `ColorScheme`；`dynamicColor` **仍默认关闭**（Phase 5 决策不变）；因 `material3 1.1.x` **没有 `surfaceContainer*` 角色**，自建 `LanSyncContainerColors` + `LocalContainers` 四档兼容层（升级 BOM 后可考虑收敛）；注入 `LanSyncShapes`；`Spacing.kt` 扩圆角与列表/触控尺寸；新增 `Shape.kt`（`LanSyncShapes` + `LanSyncMetrics`）。
+- **T1 Edge-to-edge**：`MainActivity.onCreate` 调 `enableEdgeToEdge()`；**删除** `window.statusBarColor`/`navigationBarColor` 不透明赋值，只按 luminance 设系统栏图标亮暗；`NavigationBar` 用 `LanSyncTheme.containers.default` + `WindowInsets.navigationBars`（消小白条）。未动 ViewModel/网络/业务逻辑。
+- **T2 导航与 TopBar**：TopBar 改语境标题（设备/本地应用/远程应用/同步/文件），去掉页内大号「LanSync」；同步页 `selectedUpdates` 非空时切 Contextual TopBar（关闭 / 已选 n / 清空，容器 `containers.high`）+ `BatchBar`；导航指示胶囊色 `primaryContainer`；`selectedTab` 用 `rememberSaveable`。
+- **T3 共享组件**：新增 `ui/components/CommonComponents.kt`（`StatusChip` / `LanSyncFilterChip` / `EmptyState` / `MeshHint` / `SummaryCard` / `BatchBar` / `SectionHeader` / `SearchBar` / `UpdateAccentBar`，含双主题 Preview）；列表行 `minHeight 72` + `containers.low/highest`；更新项左侧 tertiary 竖条。
+- **T4 五屏组装**：新增 `ui/components/IdentityStrip.kt`（primaryContainer 贴 statusBars + HeroStats + Switch）；设备页 `MeshHint` + 已连接/发现中分区 + 停止态 CTA；同步页可更新/版本差异双模式（`FilterChip`，兼容 M3 1.1）；文件页 `SummaryCard` + 空态 CTA。
+- **T5 Overlays**：**配对 UI 从 `Dialog` 改成 `ModalBottomSheet`**（顶圆角 28、返回键可关、倒计时自动拒绝）；下载 Dialog + 进度保留；安装反馈改 Snackbar（自动消失/滑动关闭）；首扫遮罩 scrim + 居中卡片；新增 `operationMessage` 底部短反馈。
+- **独立评审**（本项目约定：大改动走独立子代理评审）：查出 **2 个 critical**——设备页双 `statusBars` 留白、`rememberSaveable(DeviceInfo)` 因 `DeviceInfo` 不可 Bundle 化而崩溃——**均已修复**；major（安装 Snackbar 关闭后不再显示、滤镜 Chip 视觉高 36dp 已补 `minimumInteractiveComponentSize()` 保触控 ≥48）也已修。评审最终结论：**"Ready for device-side T1/T6 visual acceptance."**
+
+### 10.2 交付② 本机应用缓存骨架接线
+
+- **修的 bug**：每次冷启动看起来「应用列表被清空、从 0 全量重扫」。
+- **根因不是持久化丢失**：`LocalAppRepository.loadCacheSkeleton()`（Phase 3 就实现、`LocalAppRepositoryTest` 含骨架与损坏自愈用例）**从未被生产接线调用**——Phase 4 切换门面时漏接。
+- **改法**：`LanSyncRepository` 加转发 `fun loadLocalAppCache(): Int = localAppRepository.loadCacheSkeleton()`（门面 158 → **164 行**，仍 ≤300 硬约束）；`MainViewModel.autoStart` 在 `hasLocalAppCache()` 分支判断**之前无条件**先调它（同时避免 TOCTOU）→ 有缓存则启动即有列表，后台再静默全量校验刷新；无缓存/损坏（读失败自愈删除）才走 `needsInitialScan` 全屏首扫。
+- **边界**：`LocalAppRepository` / 扫描器 / UI **均未改**；不为两行接线新建 Android 测试栈（接线由既有单测 + 独立评审覆盖）。
+- **已接受的成本**：无缓存时 `loadCacheSkeleton` 仍会读一次 JSON；有效但为 `[]` 的空列表缓存仍会跳过首扫遮罩（`hasCache` 既有语义，未在本次扩大范围）。
+
+### 10.3 工程硬约束复核（两次交付后仍成立）
+
+`UiState` 单一出口 ✅；UI 零硬编码（中文走 `strings.xml`、色值走 `Color.kt`、间距走 `LanSyncTheme.spacing.*`）✅；门面 ≤300 行（当前 **164**）✅；`data/**` 不 import `ui.*` ✅ 但**仍靠人工 grep 审计，无自动门禁**（ARCH §8.3/§12.3 未落地）。
+
+### 10.4 未完成 / 待真机（别把「已交付」当「已验收」）
+
+- **UI Recreate 的真机视觉验收全未做**：三键/手势导航白条目视、Dynamic Type 最大字号、暗色对比度实测、reduce-motion、横屏、业务回归（连接/拉取/安装/保存）。T6 任务项全勾，但那是**代码级**通过。
+- **已知残留**：`MeshHint` 尾部 `StatusChip` 恒显「在线」（`onlineCount=0` 时文案不对，`CommonComponents.kt`）；`LanSyncMetrics`（`Shape.kt`）与 `LanSyncSpacing`（`Spacing.kt`）尺寸表**部分重复**，有漂移风险，建议合并成一个访问器。
+- **死代码**：`ui/theme/Theme.kt` 的 `LanSyncMotion` / `DefaultMotion` / `LocalMotion` / `LanSyncTheme.motion` **整组无引用**（`LocalMotion` 既没被 provide 也没被读取）。
+- **`POST_NOTIFICATIONS` 运行时请求仍未写**（API 33+ 通知可见性存疑）；FGS `specialUse` 需 Play 上架说明。
+- **测试缺口未补**：DL-6/7/8/9/10（`docs/TEST-PLAN.md` §4）仍空；`AppScanner`/`JmDNSDeviceDiscovery`/`IconCache`/`ForegroundSyncService`/`LanSyncRepository`/`LanSyncGraph`/全部 Compose UI 无单测（Android 耦合或纯委托，靠编译 + 真机验收）。
+- **小的称谓不一致（未修）**：`docs/compose/spec/ui-recreate.md` frontmatter 写 `branch: MIMO/UI-Recreate`，实际分支是 `qoder/UI-Recreate`；`local-apps-cache-skeleton.md` 的 `commits: 3c7dade..cf55139` 与本分支实际哈希（`9ed1fce`/`5c7b2ee`）也对不上。
+- **Phase 6 / Phase 7 未启动**；`main` 分支去向未裁决（见 §1）。

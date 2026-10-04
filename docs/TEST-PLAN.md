@@ -223,12 +223,14 @@
 
 > Windows/PowerShell 注意：命令分隔用 `;` 而非 `&&`；SDK 组件现状与镜像配置见项目记忆（阿里云 google 镜像，AGP 解析依赖）。
 >
-> **本机实测运行方式（2026-09-08，已跑通 95/95）**：`.\gradlew.bat` 因 `GRADLE_USER_HOME=E:\S.H.I.T\Gradle\GradleRepository` 下 wrapper dist 不完整，会联网下载 `gradle-8.13-bin.zip`（services.gradle.org 超时）。改用**已完整的 wrapper-dist 二进制 + 已 populate 的默认缓存**离线跑通：
-> ```powershell
-> $env:GRADLE_USER_HOME="C:\Users\LingTian\.gradle"
-> & "C:\Users\LingTian\.gradle\wrapper\dists\gradle-8.13-bin\5xuhj0ry160q40clulazy9h7d\gradle-8.13\bin\gradle.bat" testDebugUnitTest --offline
+> **本机实测运行方式（2026-10-04 复核，已跑通 139/139）**：直接用 wrapper 即可，但 **`GRADLE_USER_HOME` 必须覆盖为 `C:\Users\LingTian\.gradle`**——机器级默认值 `E:\S.H.I.T\Gradle\GradleRepository` 缺全部测试依赖（`junit:4.13.2`、`io.mockk:mockk:1.13.8`、`kotlinx-coroutines-test:1.7.3`、`ktor-server-test-host:2.3.5`），`--offline` 下 `compileDebugUnitTestKotlin` 必然失败（主源码编译不受影响，症状是「只有测试跑不起来」）：
+> ```bash
+> cd "E:/S.H.I.T/LanSync"
+> GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat testDebugUnitTest --offline --no-configuration-cache --console=plain
 > ```
-> 机器级 init 脚本 `E:\S.H.I.T\Gradle\init.d\init.gradle` 仅注入 `aliyun/public + mavenLocal + mavenCentral`（**无 `google()`**），旧 `PREFER_PROJECT` 下覆盖 settings 镜像致 androidx 404；已将 `settings.gradle.kts` 改 `PREFER_SETTINGS` 修复（本轮验证仍全绿）。
+> ⚠️ **旧注记「`.\gradlew.bat` 因 E:\ 下 wrapper dist 不完整会联网下载 `gradle-8.13-bin.zip` 超时、须改用发行版自带 `...\dists\gradle-8.13-bin\<hash>\gradle-8.13\bin\gradle.bat`」的前提已证伪**：两处 dist 均完整解开，`./gradlew.bat --version --offline` 正常输出 `Gradle 8.13 / Launcher JVM 17.0.20.1`，无联网。仅当 C:\ 缓存也不可用时才回落到那条旧命令。
+> 另两条前提：**`local.properties` 必须存在**（`sdk.dir=E\:\\S.H.I.T\\Android SDK`；该文件被 `.gitignore` 忽略且已于 `66a6291` 移出版本控制，新克隆需手工重建，本机 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 均空无法兜底）；**判定以输出中的 `BUILD SUCCESSFUL` 为准**（PowerShell 把 JVM stderr 警告当 error 致 `ExitCode=1`；且不要把输出管道给 `tail`，管道会用 `tail` 的 0 掩盖 BUILD FAILED）。
+> 机器级 init 脚本 `E:\S.H.I.T\Gradle\init.d\init.gradle` 仅注入 `aliyun/public + mavenLocal + mavenCentral`（**无 `google()`**），旧 `PREFER_PROJECT` 下覆盖 settings 镜像致 androidx 404；已将 `settings.gradle.kts` 改 `PREFER_SETTINGS` 修复（本轮验证仍全绿）。详见 `PROGRESS.md §4`。
 
 ---
 
