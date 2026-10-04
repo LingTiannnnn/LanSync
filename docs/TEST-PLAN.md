@@ -105,9 +105,11 @@
 
 ## 4. 下载 + MD5 校验链路测试（L3，锁定 SPEC §5.6 / §8）—— **✅ Phase 1 部分落地**
 
-> **已落地**：`app/src/test/.../transfer/LanSyncClientTest.kt`（**12 用例**，MockK 造真实 `okhttp3.Response`）覆盖 DL-1/DL-2/**DL-3 目标态**/DL-5/DL-11 + `parseConnectStatus`(§2.6) + `fetchAppList`；`DownloadedFileNameTest.kt`（**10 用例**）覆盖 DL-12 命名/解析/正向匹配。
-> **⚠️ DL-3 现状 vs 目标**：新 `LanSyncClient` **已实现目标态**（缺 X-MD5→删文件+`Error("Missing X-MD5 header")`，无 expectedMd5 兜底）；但**旧 `AppListClient` 仍保留兜底轨**（未接线，SPEC §11.3）。DL-4（split 用 expectedMd5 必失败）在旧客户端才复现，新客户端已无此路径。
-> **尚未覆盖（待补）**：DL-6（空 body）、DL-7（落盘 length==0）、DL-8/DL-9（单/split 端到端 X-MD5 对比）、DL-10（进度回调单调性）。
+> **已落地**：`app/src/test/.../transfer/LanSyncClientTest.kt`（**18 用例**，MockK 造真实 `okhttp3.Response`）覆盖 DL-1/DL-2/**DL-3 目标态**/DL-5/**DL-7/DL-8/DL-9/DL-10**/DL-11 + `parseConnectStatus`(§2.6) + `fetchAppList`；`DownloadedFileNameTest.kt`（**10 用例**）覆盖 DL-12 命名/解析/正向匹配。
+> **⚠️ DL-3 现状 vs 目标**：新 `LanSyncClient` **已实现目标态**（缺 X-MD5→删文件+`Error("Missing X-MD5 header")`，无 expectedMd5 兜底）；但**旧 `AppListClient` 仍保留兜底轨**（未接线，SPEC §11.3）。DL-4（split 用 expectedMd5 必失败）在旧客户端才复现，新客户端已无此路径——**其结论已由 DL-9 端到端复现**（同一 split 产物按列表 md5 校验必失败）。
+> **✅ 2026-10-05 补齐 DL-7/8/9/10**：DL-7（0 长度落盘 + 残留清理）、DL-8（单包端到端：产物哈希 == 列表 md5 == 落盘哈希）、DL-9（split 端到端：`AppPacker` 产物 → `X-MD5` 校验通过，按列表 md5 校验必失败，证明 D1 必要性）、DL-10（进度单调 0→100 / 长度未知不回调 / 服务端少报长度时 `coerceIn` 夹住）。
+> **⚠️ DL-6 经查证不可覆盖**：OkHttp 4.12 的 `Response.body` **实际永不为 null**——强行 `body(null)` 构造的响应会在 `Response.close()` 内 NPE，被 `performDownload` 外层 catch 归一为 `Error("Download failed")`，无法命中 `Error("Empty response body")`；而编译器视角 `body` 仍是可空类型（`response.body?.byteStream()` 不产生「多余安全调用」警告），故该分支作为**网络边界防御**保留、不删。服务端「200 但无内容」的真实形态是 **0 长度 body**，已由 DL-7 覆盖。
+> **DL-7 行为改进（按 §10 约定显式标注）**：空落盘分支原先**不删文件**，与 DL-2/DL-3 两个失败分支不一致，遗留的 0 字节 `.apk` 会被 `getDownloadedFiles()` 当成正常条目列进文件页；已改为同样 `delete()`，并加断言锁定。
 
 用 MockK 造 `Response`（含/不含 `X-MD5` 头）+ 临时文件，覆盖 `performDownload` 全分支：
 
@@ -118,8 +120,8 @@
 | DL-3 | 200 + **无** `X-MD5` + `expectedMd5` 匹配 | 现状：`Success`（兜底轨）；**目标（D1）**：无头即 `Error`，删除兜底分支后此例断言修订 |
 | DL-4 | 200 + 无 `X-MD5` + `expectedMd5` 不匹配 | 现状：`Error`（这正是 split 场景「偶然校验失败」鬼故事根源，SPEC §8.1） |
 | DL-5 | 非 2xx | `Error("HTTP error: {code}: {body.take(200)}")` |
-| DL-6 | 空 body | `Error("Empty response body")` |
-| DL-7 | 落盘后 length==0 | `Error("Downloaded file is empty")` |
+| DL-6 | 空 body | ⚠️ **不可覆盖**：OkHttp 4.12 下 `Response.body` 永不为 null（详见上方注）。`Error("Empty response body")` 分支作为网络边界防御保留 |
+| DL-7 | 落盘后 length==0 | `Error("Downloaded file is empty")` + **0 字节残留被清理**（2026-10-05 行为改进） |
 | DL-8 | 单 APK 端到端 | `X-MD5 == AppInfo.md5`（字节副本，SPEC §8.1）→ 校验通过 |
 | DL-9 | Split APK 端到端 | `X-MD5 != AppInfo.md5`（zip≠拼接，SPEC §8.1）→ **以 X-MD5 校验通过**；用 expectedMd5 必失败（证明 D1 必要性） |
 | DL-10 | 进度回调 | `contentLength>0` 时 percent 单调 0→100 coerceIn；`contentLength<=0` 时不回调 |
@@ -217,7 +219,7 @@
 |---|---|---|
 | 基线绿 | `./gradlew test`（PowerShell 用 `.\gradlew.bat test`） | 任一 L1/L2/L3 用例失败 |
 | 构建绿 | `.\gradlew.bat assembleDebug` | 编译失败 |
-| 分层检查 | Konsist/自定义 lint | `data/**` 出现 `import com.lansync.app.ui.*` |
+| 分层检查 | `architecture/LayeringTest`（随 `testDebugUnitTest` 跑，**2026-10-05 落地**） | `data/**` 出现 `import com.lansync.app.ui.*`；或门面 >300 行 |
 | Release/R8 | `.\gradlew.bat assembleRelease` + 真机冒烟 | 安装器链路失败（Phase 2） |
 | 互操作 | §6 矩阵人工签核 | 任一红线组合失败 |
 
@@ -262,7 +264,7 @@
 | §2.3 补 findUpdates 缺口 | sync/UpdateManagerTest(9) | ✅ Phase 3 已补（findUpdates + calculateSyncDiffs + dedup 平级） |
 | §2.3 补 ModelsTest encodeDefaults 单测快照 | ModelsTest(13) | ✅ Phase 3 已落地（+4 字节快照；路由层亦保留断言） |
 | §3 路由特征化测试 | LanSyncRoutingTest(33) | ✅ 已落地 |
-| §4 下载+MD5 链路 | LanSyncClientTest(12) + DownloadedFileNameTest(10) | ✅ 部分（DL-6/7/8/9/10 待补） |
+| §4 下载+MD5 链路 | LanSyncClientTest(18) + DownloadedFileNameTest(10) | ✅ 已落地（DL-7/8/9/10 于 2026-10-05 补齐；**DL-6 经查证不可覆盖**，见 §4 注） |
 | §5 配对状态机（接收方） | InMemoryPairingStoreTest(9) | ✅ 已落地（含迁移 clearAll） |
 | §5 连接状态机 CS-1…CS-17（ConnectionCoordinator） | DefaultConnectionCoordinatorTest(21) | ✅ Phase 2 已落地 |
 | Phase 4 UpdateCoordinator | UpdateCoordinatorTest(4) | ✅ 已落地（combine/节流/立即重算） |
@@ -270,11 +272,13 @@
 | 旧 ConnectionManagerTest / update.UpdateManagerTest | — | 🗑️ Phase 4 随旧码删除（行为已由 InMemoryPairingStoreTest / sync.UpdateManagerTest / DefaultConnectionCoordinatorTest 覆盖） |
 | §6 真机互操作矩阵 | — | ⏳ 接线已完成，待真机执行（T1 旧 APK 已确认存在） |
 | Phase 5 UI 一次成型（设计系统 + 5 Tab + 全量覆盖层） | 无新增 JVM 单测（Compose UI 非单测目标） | ✅ `assembleDebug` 通过 + 硬编码审计（`ui/` 非 theme 文件 + `MainActivity`：0 内联中文字面量 / 0 `Color` 字面量 / 0 裸 `.dp`）；139 基线不变 |
+| ARCH §8.3 分层静态门禁 | architecture/LayeringTest(2) | ✅ 2026-10-05 落地：断言 `data/**` 不 import `com.lansync.app.ui.*` + 门面 ≤300 行。**零新依赖**（Konsist 不在本机离线缓存内，引入需联网解析），直接跑在 `testDebugUnitTest` 门禁里，比外挂 lint 更难绕过 |
 
+> **合计（2026-10-05）**：**15 文件 147 例**，0 失败/0 错误/0 跳过（= Phase 4 末的 139 + `LanSyncClientTest` 增 6 + `LayeringTest` 2），`assembleDebug` 通过。
 > **合计（Phase 4 末）**：**14 文件 139 例**（= Phase 3 的 141 − 删旧 `ConnectionManagerTest` 10 − 删旧 `update.UpdateManagerTest` 3 + `UpdateCoordinatorTest` 4 + `DownloadInstallControllerTest` 7），0 失败/0 错误/0 跳过（均 JVM 单元/集成，无 instrumented）。**Phase 5 末**：UI 一次成型未新增 JVM 单测（Compose UI 非单测目标），基线仍 **139/139**，`assembleDebug` 通过。权威阶段状态见仓库根 `PROGRESS.md`。
 > **✅ 绿色基线已跑通（2026-09-08）**：`testDebugUnitTest`（Gradle 8.13，离线，`GRADLE_USER_HOME=C:\Users\LingTian\.gradle`）实跑 **95/95 全绿，0 失败 0 错误 0 跳过**（`LanSyncRoutingTest` 33 / `LanSyncClientTest` 12 / `DownloadedFileNameTest` 10 / `ConnectionManagerTest` 10 / `ModelsTest` 9 / `InMemoryPairingStoreTest` 8 / `HashUtilsTest` 6 / `UpdateManagerTest` 3 / `AppConfigTest` 2 / `HashUtilsConsistencyTest` 2）；应用构建卫生修复（移除死依赖/jetifier、`PREFER_SETTINGS`）后**复跑仍 95/95 全绿**。运行方式见 §7 本机实测注。
 
-> **停止点**：Phase 5（UI 一次成型：单一 Material3 设计系统 + 5 Tab + 全量覆盖层 + UiState 单一出口 + 字符串/颜色/间距零硬编码）已完成，`assembleDebug` 通过、`testDebugUnitTest` **139/139 全绿**（基线不变）。UI 视觉/交互与运行时行为（FGS/mDNS/连接/下载/安装）**待真机验证**。权威阶段状态/裁决/决策日志见仓库根 **`PROGRESS.md`**。下一步 Phase 6（安全加固/协议版本化）或 Phase 7（工具链升级）待用户确认。
+> **停止点（2026-10-05）**：Phase 5 与其后两次分支交付（UI Recreate、缓存骨架接线）均已完成，权威记录见 `PROGRESS.md` §10。补短板批次已落地：分层静态门禁（`LayeringTest`）+ DL-7/8/9/10 补齐 + `POST_NOTIFICATIONS` 运行时请求 + `LanSyncMotion` 死码清理，`testDebugUnitTest` **147/147 全绿** + `assembleDebug` 通过。UI 视觉/交互与运行时行为（FGS/mDNS/连接/下载/安装）**仍待真机验证**（§6 矩阵从未执行，用户已暂缓）。下一步 Phase 6（安全加固/协议版本化）或 Phase 7（工具链升级）待用户确认。
 
 ---
 

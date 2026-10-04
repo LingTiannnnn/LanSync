@@ -9,10 +9,10 @@
 
 ## 1. 当前状态快照
 
-- **当前阶段**：Phase 5 之后已在 `qoder/UI-Recreate` 分支**再交付两次增量**（① UI Recreate T0–T6；② 本机应用缓存骨架接线，见 §10）；下一步 **真机互操作验收**（`docs/TEST-PLAN.md` §6，Phase 6 前置）或 **Phase 6**（安全加固/协议版本化），待用户定
-- **阶段状态**：✅ Phase 0/1/2/3/4/5 完成 + 两次分支增量交付（Phase 4/5 运行时、UI 视觉**全部待真机验证**）
-- **分支状态**（2026-10-04 裁决并已执行）：✅ **`main` 是唯一开发线**——`qoder/UI-Recreate` 已以**纯 fast-forward** 合入 `main`（`main` == 分支 == `68bfa63`；`main` 原本就是 merge-base，故 0 冲突、无 merge commit、未重写历史）。`qoder/UI-Recreate` **保留作历史线、不再在其上开发**，新工作从 `main` 开分支。⚠️ **尚未推送**（GitHub 经代理 `127.0.0.1` 不可达）：`origin/main` 仍停在重构前快照 `d1a71fc`、`origin/qoder/UI-Recreate` 在 `66a6291`；网络恢复后需 `git push origin main`（**推送须用户另行批准**）。两个本地分支**均未设 upstream**。
-- **测试基线**：**139/139 全绿**，**2026-10-04 于当前 HEAD `66a6291` 复跑实测**（14 个测试文件，0 失败/0 错误/0 跳过；此前仅为文档记录）。UI 一次成型与两次分支增量均未增删 JVM 单测（Compose 非单测目标），基线数自 Phase 4 起不变，见 §4。
+- **当前阶段**：Phase 5 之后已交付两次增量（① UI Recreate T0–T6；② 本机应用缓存骨架接线，见 §10）+ **一次补短板批次**（分层静态门禁 / DL-7…DL-10 / `POST_NOTIFICATIONS` / 死码清理，见 §11）；下一步 **真机互操作验收**（`docs/TEST-PLAN.md` §6，Phase 6 前置，用户已暂缓）或 **Phase 6**（安全加固/协议版本化），待用户定
+- **阶段状态**：✅ Phase 0/1/2/3/4/5 完成 + 两次分支增量交付 + 补短板批次（Phase 4/5 运行时、UI 视觉**全部待真机验证**）
+- **分支状态**（2026-10-04 裁决）：✅ **`main` 是唯一开发线**——`qoder/UI-Recreate` 已以**纯 fast-forward** 合入 `main`（0 冲突、无 merge commit、未重写历史），该分支**保留作历史线、不再在其上开发**；新工作从 `main` 开分支（当前工作分支 `qoder/Quality-Gate`）。⚠️ **`origin` 尚未推送**（GitHub 经代理 `127.0.0.1` 不可达）：`origin/main` 仍停在重构前快照 `d1a71fc`、`origin/qoder/UI-Recreate` 在 `66a6291`；网络恢复后需 `git push origin main`（**推送须用户另行批准**）。本地分支**均未设 upstream**。
+- **测试基线**：**147/147 全绿**（2026-10-05，15 个文件，0 失败/0 错误/0 跳过；`assembleDebug` 通过）。= 此前 139 + `LanSyncClientTest` 增 6（DL-7/8/9/10）+ `LayeringTest` 2，见 §4。
 - **UI 配色**：**Teal 青绿**（`ui/theme/Color.kt`，自 UI Recreate `1b05ebb` 起）。⚠️ 本文件 §5/§9 的 Phase 5 记录写的是**靛蓝**——那是当时实现，**已过期**，现行以 §10.1 与代码为准。启动器图标底色也已同步改为 Teal `#00696B`（`res/values/colors.xml`）。
 - **旧生产代码**：🗑️ **已删除**（AppRepository/KtorServer/AppListClient/ConnectionManager/旧 JmDNSDiscovery/旧 scanner/packer/update + 2 旧测试）。legacy-known-issue L1–L5 随之全部消除。
 - **接线状态**：✅ **已接线**——`MainViewModel` → `LanSyncGraph.get()` → `LanSyncRepository` 门面 → 全部新构件；App 运行时走**全新栈**。`ForegroundSyncService` 承载 start/stop 生命周期。**运行时行为待真机验证**（FGS/mDNS/连接/下载，无设备无法自动化）。
@@ -79,6 +79,7 @@
 - **Phase 4 末基线**：`testDebugUnitTest` → **139 用例，0 失败 / 0 错误 / 0 跳过**（= 141 − 删旧 `ConnectionManagerTest` 10 − 删旧 `update.UpdateManagerTest` 3 + `UpdateCoordinatorTest` 4 + `DownloadInstallControllerTest` 7）。`assembleDebug` ✅ 通过（含 FGS Manifest/权限/资源合并）。**App 现运行全新栈**。
 - **Phase 5 末 / UI Recreate / 缓存骨架接线**：基线**不变，仍 139**（Compose UI 非 JVM 单测目标；两次分支交付未增删用例）。
 - **当前 HEAD 复核（2026-10-04，`66a6291`）**：`testDebugUnitTest` → **139 用例，0 失败 / 0 错误 / 0 跳过**（实测汇总 `app/build/test-results/testDebugUnitTest/*.xml`，14 个文件），`BUILD SUCCESSFUL`。**这是首次在当前 HEAD 复跑验证**，此前「139/139」仅为文档记录、仓库内无运行证据。
+- **补短板批次（2026-10-05）**：`testDebugUnitTest` → **147 用例，0 失败 / 0 错误 / 0 跳过**（**15 个文件**）= 139 + `LanSyncClientTest` 12→**18**（DL-7/8/9/10）+ 新增 `architecture/LayeringTest` **2**。`assembleDebug` ✅ 通过（`app-debug.apk` 62MB 产出）。⚠️ **DL-6 经查证不可覆盖**（OkHttp 4.12 的 `Response.body` 实际永不为 null），详见 §11.4 与 `docs/TEST-PLAN.md §4`。
 
 ### 运行方式（本机实测 2026-10-04，务必照此）
 ```bash
@@ -90,7 +91,7 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 三条前提，缺一即失败：
 
 1. **`GRADLE_USER_HOME` 必须覆盖为 `C:\Users\LingTian\.gradle`**。机器级默认值 `E:\S.H.I.T\Gradle\GradleRepository` **缺全部测试依赖**（`junit:4.13.2`、`io.mockk:mockk:1.13.8`、`kotlinx-coroutines-test:1.7.3`、`ktor-server-test-host:2.3.5`），`--offline` 下 `compileDebugUnitTestKotlin` 必然失败。主源码编译不受影响，所以症状是「只有测试跑不起来」。
-2. **`local.properties` 必须存在**，内容至少 `sdk.dir=E\:\\S.H.I.T\\Android SDK`。它被 `.gitignore` 忽略、且 `66a6291` 已把它从版本控制移除 → **新克隆/新机器上需手工重建**，否则报 `SDK location not found`（本机 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 均为空，无法兜底）。
+2. **`local.properties` 必须存在**，内容至少 `sdk.dir=E\:\\S.H.I.T\\Android SDK`。它被 `.gitignore` 忽略、且 `66a6291` 已把它从版本控制移除 → **新克隆/新机器上需手工重建**，否则报 `SDK location not found`（本机 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 均为空，无法兜底）。⚠️ **切分支也会把它删掉**（2026-10-05 实测踩到）：`main`(`d1a71fc`) 上该文件仍被**跟踪**，`git checkout main` 会用跟踪版**静默覆盖**磁盘上那份被忽略的文件（git 对 ignored 文件不告警），随后 FF 到含 `66a6291` 的提交时重放 `git rm` → 文件消失，而 `git status` 干净。恢复：`git show 66a6291^:local.properties > local.properties`。**切分支后先 `ls local.properties`。**
 3. **`./gradlew.bat` 可直接用**。⚠️ 旧注记「`GRADLE_USER_HOME=E:\` 下 wrapper dist 不完整、会联网下载 `gradle-8.13-bin.zip` 超时」**已证伪**：两处 dist 均完整解开，`./gradlew.bat --version --offline` 正常输出 `Gradle 8.13 / Launcher JVM 17.0.20.1`，无联网。**不再需要绕道发行版自带的 `...\dists\gradle-8.13-bin\<hash>\gradle-8.13\bin\gradle.bat`**；仅当 C:\ 缓存也不可用时才回落到那条旧命令。
 
 > **判定以输出里的 `BUILD SUCCESSFUL` 为准**：PowerShell 会把 JVM stderr 警告当 error 致 `ExitCode=1`；且**不要把输出管道给 `tail`**（管道会把 exit code 变成 `tail` 的 0，把 BUILD FAILED 掩盖成「成功」）。
@@ -117,6 +118,7 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 - **2026-10-04 · 基线复跑 + 文档一致性修正**：① 在当前 HEAD 首次实跑 `testDebugUnitTest` → **139/139 全绿**（此前仅为文档记录）；② 证伪「必须绕过 `gradlew.bat`」的旧注记，改为「wrapper 可直接用，但 `GRADLE_USER_HOME` 必须指向 C:\」（§4 / `docs/TEST-PLAN.md` §7 同步修正）；③ 补记 Phase 5 之后的两次分支交付（新增 §10），并修正 §5/§9 里已过期的「靛蓝色板」表述。
 - **2026-10-04 · `main` 去向裁决（用户拍板）**：选择「本地 FF 合并 + 之后在 `main` 上开发」，否决「`main` 只作历史基线」。执行 `git checkout main && git merge --ff-only qoder/UI-Recreate` → `main` 快进 13 个提交至 `68bfa63`（`main` 原本就是 merge-base，故为纯 FF：无冲突、无 merge commit、不重写历史）。**理由**：`origin/HEAD → main`，GitHub 默认分支若停在 `d1a71fc`，任何人 clone 默认拿到重构前的上帝类代码；同时消除「下个 agent 切错分支」的风险。**边界**：`--ff-only` 保证只在能快进时才动；`qoder/UI-Recreate` 分支保留不删；**未推送**（当时 GitHub 经代理不可达），`origin/main` 保持 `d1a71fc` 不变。回退方式：`git reset --hard d1a71fc`（破坏性命令，需用户明示才跑）。
 - **2026-10-04 · 真机验收暂缓**：用户明确**跳过 `AGENT-HANDOVER.md §8` 第 2 步**（真机互操作验收）直接处理 `main` 去向。⚠️ 注意该步在计划中被定位为 **Phase 6 的前置**（协议版本协商与鉴权会碰互操作，无真机兜底不宜动），所以启动 Phase 6 前需重新评估这一缺口，见 §10.4。
+- **2026-10-05 · 补短板批次（`qoder/Quality-Gate`）**：按 `AGENT-HANDOVER.md §8` 第 4 步做完四项——① 分层静态门禁 `architecture/LayeringTest`（2 例，**零新依赖**；Konsist 不在本机离线缓存内故不用）；② `POST_NOTIFICATIONS` 运行时请求；③ 删 `LanSyncMotion` 整组死码；④ 补 DL-7/8/9/10（`LanSyncClientTest` 12→18）。**查证 DL-6 在 OkHttp 4.12 下不可覆盖**（`Response.body` 实际非空）→ 保留防御分支、不写断言。**一处行为改进（显式标注）**：空落盘分支补 `destination.delete()`，消除 0 字节残留被列进文件页。测试 **147/147 全绿** + `assembleDebug` 通过。过程中踩到 **`local.properties` 被 FF 合并删除**（已补记进 §4 前提 2）。详见 §11。
 
 ---
 
@@ -267,16 +269,60 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 
 ### 10.3 工程硬约束复核（两次交付后仍成立）
 
-`UiState` 单一出口 ✅；UI 零硬编码（中文走 `strings.xml`、色值走 `Color.kt`、间距走 `LanSyncTheme.spacing.*`）✅；门面 ≤300 行（当前 **164**）✅；`data/**` 不 import `ui.*` ✅ 但**仍靠人工 grep 审计，无自动门禁**（ARCH §8.3/§12.3 未落地）。
+`UiState` 单一出口 ✅；UI 零硬编码（中文走 `strings.xml`、色值走 `Color.kt`、间距走 `LanSyncTheme.spacing.*`）✅ 但**仍靠人工 grep 审计**；门面 ≤300 行（当前 **164**）✅；`data/**` 不 import `ui.*` ✅。
+**2026-10-05 起后两条已有自动门禁**：`architecture/LayeringTest` 断言「`data/**` 不 import `ui.*`」+「门面 ≤300 行」，随 `testDebugUnitTest` 跑，ARCH §8.3/§12.3 由「❌ 没做」转为「✅ 已落地（非 CI 形态）」。UI 零硬编码**未自动化**——`@Preview` 函数里合法使用裸 `.dp`，机械断言会大量误报，需先约定豁免规则。
 
 ### 10.4 未完成 / 待真机（别把「已交付」当「已验收」）
 
 - **UI Recreate 的真机视觉验收全未做**：三键/手势导航白条目视、Dynamic Type 最大字号、暗色对比度实测、reduce-motion、横屏、业务回归（连接/拉取/安装/保存）。T6 任务项全勾，但那是**代码级**通过。
 - **已知残留**：`MeshHint` 尾部 `StatusChip` 恒显「在线」（`onlineCount=0` 时文案不对，`CommonComponents.kt`）；`LanSyncMetrics`（`Shape.kt`）与 `LanSyncSpacing`（`Spacing.kt`）尺寸表**部分重复**，有漂移风险，建议合并成一个访问器。
-- **死代码**：`ui/theme/Theme.kt` 的 `LanSyncMotion` / `DefaultMotion` / `LocalMotion` / `LanSyncTheme.motion` **整组无引用**（`LocalMotion` 既没被 provide 也没被读取）。
-- **`POST_NOTIFICATIONS` 运行时请求仍未写**（API 33+ 通知可见性存疑）；FGS `specialUse` 需 Play 上架说明。
-- **测试缺口未补**：DL-6/7/8/9/10（`docs/TEST-PLAN.md` §4）仍空；`AppScanner`/`JmDNSDeviceDiscovery`/`IconCache`/`ForegroundSyncService`/`LanSyncRepository`/`LanSyncGraph`/全部 Compose UI 无单测（Android 耦合或纯委托，靠编译 + 真机验收）。
+- ~~**死代码**：`ui/theme/Theme.kt` 的 `LanSyncMotion` / `DefaultMotion` / `LocalMotion` / `LanSyncTheme.motion` 整组无引用~~ → ✅ **已于 2026-10-05 删除**（见 §11.3）。其余单点死符号（§10.4 原清单见 `AGENT-HANDOVER.md §6.5`，未入库）**未清**。
+- ~~**`POST_NOTIFICATIONS` 运行时请求仍未写**~~ → ✅ **已于 2026-10-05 补上**（见 §11.2）；FGS `specialUse` 的 Play 上架说明**仍需补**。
+- **测试缺口**：~~DL-6/7/8/9/10~~ → DL-7/8/9/10 **已于 2026-10-05 补齐**，**DL-6 经查证不可覆盖**（§11.4）。仍无单测的：`AppScanner`/`JmDNSDeviceDiscovery`/`IconCache`/`ForegroundSyncService`/`LanSyncRepository`/`LanSyncGraph`/全部 Compose UI（Android 耦合或纯委托，靠编译 + 真机验收）。
 - **小的称谓不一致（未修）**：`docs/compose/spec/ui-recreate.md` frontmatter 写 `branch: MIMO/UI-Recreate`，实际分支是 `qoder/UI-Recreate`；`local-apps-cache-skeleton.md` 的 `commits: 3c7dade..cf55139` 与本分支实际哈希（`9ed1fce`/`5c7b2ee`）也对不上。
 - **真机互操作验收（`docs/TEST-PLAN.md` §6）从未执行，且用户已于 2026-10-04 明确暂缓**。⚠️ 该验收在计划中是 **Phase 6 的前置**——协议版本协商与鉴权会碰互操作红线，没有真机兜底不宜动。启动 Phase 6 前须重新评估这一缺口。
 - **`origin` 未同步**：`main` 已本地快进到 `68bfa63`，但 `origin/main` 仍在 `d1a71fc`（GitHub 经代理不可达）。网络恢复后需推送，**推送须用户明示批准**。
 - **Phase 6 / Phase 7 未启动**。`main` 去向**已裁决**（唯一开发线，见 §1 与 §5）。
+
+---
+
+## 11. 补短板批次（2026-10-05，分支 `qoder/Quality-Gate`）
+
+> 对应 `AGENT-HANDOVER.md §8` 第 4 步。四项全部落地，`testDebugUnitTest` **147/147 全绿** + `assembleDebug` 通过（15 文件）。
+> **未做**同批次的第 5 项（`build.ps1`/`AGENTS.md` 固化构建命令）：命令与三条前提已完整写进 §4，再脚本化收益不大；且 `AGENTS.md` 会被自动注入，写错代价高于收益。
+
+### 11.1 分层静态门禁（ARCH §8.3 / §12.3）
+
+新增 `app/src/test/java/com/lansync/app/architecture/LayeringTest.kt`（**2 例**）：
+
+- `data layer must not import ui layer`：遍历 `src/main/java/com/lansync/app/data/**/*.kt`，逐行断言不以 `import com.lansync.app.ui.` 开头；违规时输出 `文件:行号: 原文` 清单。**显式兜底「扫到 0 个文件即失败」**——否则路径写错时门禁会静默空过，比没有门禁更危险。
+- `repository facade stays within 300 lines`：断言 `LanSyncRepository.kt` ≤300 行（当前 164）。
+
+**为什么不用 Konsist**：该库**不在本机两个 Gradle 缓存内**（`C:\Users\LingTian\.gradle` 与 `E:\S.H.I.T\Gradle\GradleRepository` 都查过），引入需联网解析依赖，而当前代理不可达。改用零新依赖的 JVM 单测，**直接跑在 `testDebugUnitTest` 门禁里**——跑测试就必然跑到它，比外挂 lint 更难被绕过。
+**已知代价**：不是 CI 形态（项目本就无 CI/CD）；靠源码文本匹配而非 AST，理论上可被「不写 import、直接用全限定名 `com.lansync.app.ui.X()`」绕过。现阶段够用，若要更严可后续换 AST。
+
+### 11.2 `POST_NOTIFICATIONS` 运行时请求
+
+`MainActivity` 增 `notificationPermissionLauncher`（`registerForActivityResult(RequestPermission())`，字段初始化即注册）+ `requestNotificationPermission()`：仅当 `Build.VERSION.SDK_INT >= TIRAMISU` 且尚未授权时请求（`targetSdk=34` / `minSdk=29`）。权限本身 Phase 4 已在 Manifest 声明，缺的只是运行时请求 → **此前 API 33+ 上 FGS 常驻通知可能整条不可见**。
+
+**为什么挂在 Activity 创建点**：FGS 是在 `MainViewModel.init → autoStart()` 里**自启**的，没有「用户点启动同步」的时机可挂；Android 惯例的「按功能触发时再请求」在本项目结构下不成立。
+**拒绝即容忍**：不重试、不阻断，服务照常运行、仅通知不可见（代码内有注释说明这一取舍）。⚠️ **真机行为未验证**（首次弹窗时机、拒绝后的通知可见性、与 FGS 启动的先后）。
+
+### 11.3 `LanSyncMotion` 死码清理
+
+删除 `ui/theme/Theme.kt` 的 `LanSyncMotion` data class、`DefaultMotion`、`LocalMotion`、`LanSyncTheme.motion` 访问器，并把 `LanSyncTheme` 的 KDoc 从「间距 / 容器色 / 动效」改为「间距 / 容器色」。删前逐个 grep 复核：全仓（含测试）**零引用**，且 `CompositionLocalProvider` 从未 provide 过 `LocalMotion`。`@Immutable` 与 `staticCompositionLocalOf` 两个 import 仍被 `LanSyncContainerColors` / `LocalContainers` 使用，**保留**。
+§10.4 提到的其余单点死符号（`StatusCard`、`AppIconDiskCache.batchPut` 等）**本批次未清**——它们分散且部分是刻意保留的兼容壳，需逐个判断，不宜与门禁批次混在一起。
+
+### 11.4 DL-7/8/9/10 补齐 + DL-6「不可覆盖」的查证
+
+`LanSyncClientTest` **12 → 18** 例：
+
+- **DL-7**：0 长度落盘 → `Error("Downloaded file is empty")`，并断言**无残留**（`getDownloadedFiles()` 为空）。用例故意带上「空内容的正确 X-MD5」——若空文件检查缺失，本例会误判为 Success，因此它真的锁住了这条分支。
+- **DL-8**：`AppPacker` 打单包 → 产物即源字节副本 → 以产物哈希作 `X-MD5` 下发 → 下载成功，且**产物哈希 == 列表 md5 == 落盘哈希**（SPEC §8.1：单包场景两条轨重合）。
+- **DL-9**：`AppPacker` 打 split → 断言 **zip 产物哈希 != 源拼接摘要**；以 `X-MD5`（产物哈希）校验**通过**；同一产物改用列表 md5（= 旧 `expectedMd5` 兜底轨）校验**必失败并删文件** → 端到端复现 DL-4 的「偶然校验失败」鬼故事，证明 D1 必要性。
+- **DL-10**：三例——① 长度已知（200KB / 64KB 缓冲）时 percent **单调不减**且末次为 100；② `contentLength()==-1` 且无 `X-File-Size` 头时**完全不回调**，但下载仍成功；③ 服务端少报长度（声明 100000、实发 200000）时裸算会得到 131/196/200，断言全部被 `coerceIn` 夹在 0..100。
+
+**⚠️ DL-6（空 body）经查证不可覆盖**：`javap` 确认 OkHttp 4.12 的 `Response.body()` 返回**非空** `ResponseBody`。强行 `Response.Builder().body(null)` 虽然编得过（Kotlin 侧签名仍收可空参，这也是 `response.body?.byteStream()` 不产生「多余安全调用」警告的原因），但运行时 `Response.close()` 会对 null body 抛 NPE，被 `performDownload` 外层 catch 归一成 `Error("Download failed")`，**永远命不中 `Error("Empty response body")`**。
+处置：**保留该分支**（网络边界防御，且编译器视角类型确实可空），**不为它写断言**——否则等于把 NPE 兜底产物钉成契约。服务端「200 但无内容」的真实形态是 **0 长度 body**，已由 DL-7 覆盖。结论同步写进 `docs/TEST-PLAN.md §4`（DL-6 行 + 注记）。
+
+**行为改进（按 §10 约定显式标注）**：`performDownload` 的空落盘分支原先**不删文件**，与「缺 X-MD5」「MD5 不匹配」两个失败分支不一致；遗留的 0 字节 `.apk` 会被 `getDownloadedFiles()` 当成正常条目列进文件页，用户看到一个装不了的垃圾项。已改为同样 `destination.delete()`，并由 DL-7 断言锁定。
