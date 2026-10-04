@@ -335,6 +335,9 @@ class LanSyncClient(
                 }
 
                 if (!destination.exists() || destination.length() == 0L) {
+                    // 行为改进（TEST-PLAN §4 DL-7）：与缺头/不匹配两分支一致，清掉 0 字节残留，
+                    // 否则它会被 getDownloadedFiles() 当成正常条目列进文件页。
+                    destination.delete()
                     FileLogger.e(TAG, "$tag: file empty or missing after write")
                     return@withContext DownloadResult.Error("Downloaded file is empty")
                 }
