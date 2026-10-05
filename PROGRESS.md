@@ -11,7 +11,7 @@
 
 - **当前阶段**：Phase 5 之后已交付两次增量（① UI Recreate T0–T6；② 本机应用缓存骨架接线，见 §10）+ **一次补短板批次**（分层静态门禁 / DL-7…DL-10 / `POST_NOTIFICATIONS` / 死码清理，见 §11）；下一步 **真机互操作验收**（`docs/TEST-PLAN.md` §6，Phase 6 前置，用户已暂缓）或 **Phase 6**（安全加固/协议版本化），待用户定
 - **阶段状态**：✅ Phase 0/1/2/3/4/5 完成 + 两次分支增量交付 + 补短板批次（Phase 4/5 运行时、UI 视觉**全部待真机验证**）
-- **分支状态**（2026-10-04 裁决，2026-10-05/06 两次执行）：✅ **`main` 是唯一开发线**，当前 HEAD `4228845`。两条工作分支均已以**纯 fast-forward** 合回并**保留作历史线、不再在其上开发**：`qoder/UI-Recreate`（UI Recreate + 缓存骨架 + 文档一致性）、`qoder/Quality-Gate`（§11 补短板批次）。新工作一律从 `main` 开分支。⚠️ **`origin` 尚未推送**（GitHub 经代理 `127.0.0.1` 不可达）：`origin/main` 仍停在重构前快照 `d1a71fc`、`origin/qoder/UI-Recreate` 在 `66a6291`、`qoder/Quality-Gate` **从未推送**；网络恢复后需 `git push origin main`（**推送须用户另行批准**）。本地分支**均未设 upstream**。
+- **分支状态**（2026-10-04 裁决；2026-10-06 已同步远端）：✅ **`main` 是唯一开发线**，HEAD `7b7e57b`，**已推送且与 `origin/main` 完全一致**（`d1a71fc..7b7e57b` 快进 20 个提交，无 force、无历史重写），upstream 已设。GitHub 默认分支 `origin/HEAD → main` 因此**已从重构前快照变为重构后代码**——clone 默认拿到的即是新栈。两条工作分支均已以纯 FF 合回 `main`、**保留作历史线、不再在其上开发**：`qoder/UI-Recreate`（UI Recreate + 缓存骨架 + 文档一致性）、`qoder/Quality-Gate`（§11 补短板批次）；新工作一律从 `main` 开分支。⚠️ **这两条历史分支未与远端同步**：`origin/qoder/UI-Recreate` 停在 `66a6291`（落后本地 1 个提交，且本地未设 upstream），`origin/qoder/Quality-Gate` **不存在**。其内容已全部包含在 `main` 里，是否推送或删除远端分支待用户定。
 - **测试基线**：**147/147 全绿**（2026-10-05，15 个文件，0 失败/0 错误/0 跳过；`assembleDebug` 通过）。= 此前 139 + `LanSyncClientTest` 增 6（DL-7/8/9/10）+ `LayeringTest` 2，见 §4。
 - **UI 配色**：**Teal 青绿**（`ui/theme/Color.kt`，自 UI Recreate `1b05ebb` 起）。⚠️ 本文件 §5/§9 的 Phase 5 记录写的是**靛蓝**——那是当时实现，**已过期**，现行以 §10.1 与代码为准。启动器图标底色也已同步改为 Teal `#00696B`（`res/values/colors.xml`）。
 - **旧生产代码**：🗑️ **已删除**（AppRepository/KtorServer/AppListClient/ConnectionManager/旧 JmDNSDiscovery/旧 scanner/packer/update + 2 旧测试）。legacy-known-issue L1–L5 随之全部消除。
@@ -120,6 +120,8 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 - **2026-10-04 · `main` 去向裁决（用户拍板）**：选择「本地 FF 合并 + 之后在 `main` 上开发」，否决「`main` 只作历史基线」。执行 `git checkout main && git merge --ff-only qoder/UI-Recreate` → `main` 快进 13 个提交至 `68bfa63`（`main` 原本就是 merge-base，故为纯 FF：无冲突、无 merge commit、不重写历史）。**理由**：`origin/HEAD → main`，GitHub 默认分支若停在 `d1a71fc`，任何人 clone 默认拿到重构前的上帝类代码；同时消除「下个 agent 切错分支」的风险。**边界**：`--ff-only` 保证只在能快进时才动；`qoder/UI-Recreate` 分支保留不删；**未推送**（当时 GitHub 经代理不可达），`origin/main` 保持 `d1a71fc` 不变。回退方式：`git reset --hard d1a71fc`（破坏性命令，需用户明示才跑）。
 - **2026-10-04 · 真机验收暂缓**：用户明确**跳过交接文档 §8 第 2 步**（真机互操作验收）直接处理 `main` 去向。⚠️ 注意该步在计划中被定位为 **Phase 6 的前置**（协议版本协商与鉴权会碰互操作，无真机兜底不宜动），所以启动 Phase 6 前需重新评估这一缺口，见 §10.4。
 - **2026-10-05 · 补短板批次（`qoder/Quality-Gate`）**：按交接文档 §8 第 4 步做完四项——① 分层静态门禁 `architecture/LayeringTest`（2 例，**零新依赖**；Konsist 不在本机离线缓存内故不用）；② `POST_NOTIFICATIONS` 运行时请求；③ 删 `LanSyncMotion` 整组死码；④ 补 DL-7/8/9/10（`LanSyncClientTest` 12→18）。**查证 DL-6 在 OkHttp 4.12 下不可覆盖**（`Response.body` 实际非空）→ 保留防御分支、不写断言。**一处行为改进（显式标注）**：空落盘分支补 `destination.delete()`，消除 0 字节残留被列进文件页。测试 **147/147 全绿** + `assembleDebug` 通过。过程中踩到 **`local.properties` 被 FF 合并删除**（已补记进 §4 前提 2）。详见 §11。
+- **2026-10-06 · 文档集精简（用户有意删除）**：删除 `AGENT-HANDOVER.md`（**从未入库，git 不可恢复**）与 `docs/compose/spec/` 下三份 UI Recreate 评审留档（`FEEDBACK.md` / `ui-recreate-final-review.md` / `ui-recreate-review-notes.md`，删除已提交）。为避免信息随文件消失：把逐个 grep 验证过的**死符号清单内联进 §10.4**、在 §1 登记「文档集变更」条、并修掉全仓 **9 处悬空引用**（`PROGRESS.md` 5、`ui-recreate.md` 3、`.qoder/agents/lansync-explore.md` 1）。评审的结论性事实（2 个 critical 及修复）此前已固化在 §10.1，未丢失。
+- **2026-10-06 · `qoder/Quality-Gate` FF 合回 `main` + 首次推送远端**：`main` 由 `478d4e4` 快进到 `7b7e57b`；随后 `git push -u origin main` 把 `origin/main` 从 `d1a71fc` 快进 **20 个提交**至 `7b7e57b`，**全程无 force**（推前已用 `git merge-base --is-ancestor` 核实为纯快进）。此前唯一阻塞是 GitHub 经代理 `127.0.0.1:7890` 不可达，代理恢复后即推成。**效果**：GitHub 默认分支 `origin/HEAD → main` 从重构前快照变为重构后代码，clone 默认拿到新栈。两条历史分支未推（内容已全在 `main`）。
 
 ---
 
@@ -286,7 +288,7 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 - **测试缺口**：~~DL-6/7/8/9/10~~ → DL-7/8/9/10 **已于 2026-10-05 补齐**，**DL-6 经查证不可覆盖**（§11.4）。仍无单测的：`AppScanner`/`JmDNSDeviceDiscovery`/`IconCache`/`ForegroundSyncService`/`LanSyncRepository`/`LanSyncGraph`/全部 Compose UI（Android 耦合或纯委托，靠编译 + 真机验收）。
 - **小的称谓不一致（未修）**：`docs/compose/spec/ui-recreate.md` frontmatter 写 `branch: MIMO/UI-Recreate`，实际分支是 `qoder/UI-Recreate`；`local-apps-cache-skeleton.md` 的 `commits: 3c7dade..cf55139` 与本分支实际哈希（`9ed1fce`/`5c7b2ee`）也对不上。
 - **真机互操作验收（`docs/TEST-PLAN.md` §6）从未执行，且用户已于 2026-10-04 明确暂缓**。⚠️ 该验收在计划中是 **Phase 6 的前置**——协议版本协商与鉴权会碰互操作红线，没有真机兜底不宜动。启动 Phase 6 前须重新评估这一缺口。
-- **`origin` 未同步**：`main` 已本地快进到 `68bfa63`，但 `origin/main` 仍在 `d1a71fc`（GitHub 经代理不可达）。网络恢复后需推送，**推送须用户明示批准**。
+- ~~**`origin` 未同步**~~ → ✅ **已于 2026-10-06 推送**：`origin/main` 由 `d1a71fc` 快进到 `7b7e57b`（20 个提交，无 force），`main` 已设 upstream。仍未同步的只有两条历史分支（`origin/qoder/UI-Recreate` 落后 1 个提交、`origin/qoder/Quality-Gate` 不存在），内容已全在 `main`，见 §1。
 - **Phase 6 / Phase 7 未启动**。`main` 去向**已裁决**（唯一开发线，见 §1 与 §5）。
 
 ---
