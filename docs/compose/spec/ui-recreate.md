@@ -23,9 +23,9 @@ commits:
 
 - `./gradlew.bat :app:compileDebugKotlin --console=plain --no-configuration-cache` → **BUILD SUCCESSFUL**（约 8m；仅既有 warning）。
 - 静态核对：组件层无品牌色字面量；无 `statusBarColor` 赋值；token 与 `UI Design/tokens/*` 一致。
-- Review（独立子代理）：Spec / Correctness / Consistency 无 critical；建议 ship T0+T1。详见 `docs/compose/spec/ui-recreate-review-notes.md`。
-- **Final review**（独立子代理）：Spec / Correctness / Consistency — 2 critical（Device 页双 statusBars、`rememberSaveable(DeviceInfo)`）、若干 major；已全部代码修复。详见 `ui-recreate-final-review.md`。
-- `FEEDBACK.md` 已写入（交付清单 + 设计决策 vs 偏差）。
+- Review（独立子代理）：Spec / Correctness / Consistency 无 critical；建议 ship T0+T1。（留档 `ui-recreate-review-notes.md` 已于 2026-10-06 由用户删除，结论以本行为准）
+- **Final review**（独立子代理）：Spec / Correctness / Consistency — 2 critical（Device 页双 statusBars、`rememberSaveable(DeviceInfo)`）、若干 major；已全部代码修复。结论 "Ready for device-side T1/T6 visual acceptance"。（留档 `ui-recreate-final-review.md` 已于 2026-10-06 由用户删除，结论以本行为准；另见 `PROGRESS.md §10.1`）
+- `FEEDBACK.md` 曾写入（交付清单 + 设计决策 vs 偏差），已于 2026-10-06 由用户删除。
 - 真机三键/手势白条、Dynamic Type、业务回归 **待设备侧**。
 
 **Journey log**

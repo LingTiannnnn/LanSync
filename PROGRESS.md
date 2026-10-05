@@ -11,11 +11,12 @@
 
 - **当前阶段**：Phase 5 之后已交付两次增量（① UI Recreate T0–T6；② 本机应用缓存骨架接线，见 §10）+ **一次补短板批次**（分层静态门禁 / DL-7…DL-10 / `POST_NOTIFICATIONS` / 死码清理，见 §11）；下一步 **真机互操作验收**（`docs/TEST-PLAN.md` §6，Phase 6 前置，用户已暂缓）或 **Phase 6**（安全加固/协议版本化），待用户定
 - **阶段状态**：✅ Phase 0/1/2/3/4/5 完成 + 两次分支增量交付 + 补短板批次（Phase 4/5 运行时、UI 视觉**全部待真机验证**）
-- **分支状态**（2026-10-04 裁决）：✅ **`main` 是唯一开发线**——`qoder/UI-Recreate` 已以**纯 fast-forward** 合入 `main`（0 冲突、无 merge commit、未重写历史），该分支**保留作历史线、不再在其上开发**；新工作从 `main` 开分支（当前工作分支 `qoder/Quality-Gate`）。⚠️ **`origin` 尚未推送**（GitHub 经代理 `127.0.0.1` 不可达）：`origin/main` 仍停在重构前快照 `d1a71fc`、`origin/qoder/UI-Recreate` 在 `66a6291`；网络恢复后需 `git push origin main`（**推送须用户另行批准**）。本地分支**均未设 upstream**。
+- **分支状态**（2026-10-04 裁决，2026-10-05/06 两次执行）：✅ **`main` 是唯一开发线**，当前 HEAD `4228845`。两条工作分支均已以**纯 fast-forward** 合回并**保留作历史线、不再在其上开发**：`qoder/UI-Recreate`（UI Recreate + 缓存骨架 + 文档一致性）、`qoder/Quality-Gate`（§11 补短板批次）。新工作一律从 `main` 开分支。⚠️ **`origin` 尚未推送**（GitHub 经代理 `127.0.0.1` 不可达）：`origin/main` 仍停在重构前快照 `d1a71fc`、`origin/qoder/UI-Recreate` 在 `66a6291`、`qoder/Quality-Gate` **从未推送**；网络恢复后需 `git push origin main`（**推送须用户另行批准**）。本地分支**均未设 upstream**。
 - **测试基线**：**147/147 全绿**（2026-10-05，15 个文件，0 失败/0 错误/0 跳过；`assembleDebug` 通过）。= 此前 139 + `LanSyncClientTest` 增 6（DL-7/8/9/10）+ `LayeringTest` 2，见 §4。
 - **UI 配色**：**Teal 青绿**（`ui/theme/Color.kt`，自 UI Recreate `1b05ebb` 起）。⚠️ 本文件 §5/§9 的 Phase 5 记录写的是**靛蓝**——那是当时实现，**已过期**，现行以 §10.1 与代码为准。启动器图标底色也已同步改为 Teal `#00696B`（`res/values/colors.xml`）。
 - **旧生产代码**：🗑️ **已删除**（AppRepository/KtorServer/AppListClient/ConnectionManager/旧 JmDNSDiscovery/旧 scanner/packer/update + 2 旧测试）。legacy-known-issue L1–L5 随之全部消除。
 - **接线状态**：✅ **已接线**——`MainViewModel` → `LanSyncGraph.get()` → `LanSyncRepository` 门面 → 全部新构件；App 运行时走**全新栈**。`ForegroundSyncService` 承载 start/stop 生命周期。**运行时行为待真机验证**（FGS/mDNS/连接/下载，无设备无法自动化）。
+- **文档集变更（2026-10-06，用户有意删除）**：`AGENT-HANDOVER.md`（52KB 交接快照，**从未入库**，故 git 不可恢复）与 `docs/compose/spec/` 下三份 UI Recreate 评审留档（`FEEDBACK.md`、`ui-recreate-final-review.md`、`ui-recreate-review-notes.md`，已入库、删除已提交）均已移除。**本文件中「交接文档 §N」一律指前者，其内容已不可查**；评审的结论性事实（2 个 critical 及修复）已固化在 §10.1、死符号清单已内联进 §10.4，不随文件删除而丢失。现存文档集：`docs/SPEC.md`、`docs/ARCHITECTURE.md`、`docs/TEST-PLAN.md`、`docs/compose/spec/{ui-recreate,local-apps-cache-skeleton}.md`、`REPORT.md`。
 
 ---
 
@@ -117,8 +118,8 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 - **2026-09-25 · 构建卫生（`66a6291`）**：`.gitignore` 增补工具链/SDK 缓存目录（`.sdk-dl/`、`.qoder/`、`.trae/` 等），并**把 `local.properties` 从版本控制移除**（用的是 `git rm` 而非 `--cached`，文件同时从工作树删除）→ 新克隆需手工重建，见 §4 前提 2。
 - **2026-10-04 · 基线复跑 + 文档一致性修正**：① 在当前 HEAD 首次实跑 `testDebugUnitTest` → **139/139 全绿**（此前仅为文档记录）；② 证伪「必须绕过 `gradlew.bat`」的旧注记，改为「wrapper 可直接用，但 `GRADLE_USER_HOME` 必须指向 C:\」（§4 / `docs/TEST-PLAN.md` §7 同步修正）；③ 补记 Phase 5 之后的两次分支交付（新增 §10），并修正 §5/§9 里已过期的「靛蓝色板」表述。
 - **2026-10-04 · `main` 去向裁决（用户拍板）**：选择「本地 FF 合并 + 之后在 `main` 上开发」，否决「`main` 只作历史基线」。执行 `git checkout main && git merge --ff-only qoder/UI-Recreate` → `main` 快进 13 个提交至 `68bfa63`（`main` 原本就是 merge-base，故为纯 FF：无冲突、无 merge commit、不重写历史）。**理由**：`origin/HEAD → main`，GitHub 默认分支若停在 `d1a71fc`，任何人 clone 默认拿到重构前的上帝类代码；同时消除「下个 agent 切错分支」的风险。**边界**：`--ff-only` 保证只在能快进时才动；`qoder/UI-Recreate` 分支保留不删；**未推送**（当时 GitHub 经代理不可达），`origin/main` 保持 `d1a71fc` 不变。回退方式：`git reset --hard d1a71fc`（破坏性命令，需用户明示才跑）。
-- **2026-10-04 · 真机验收暂缓**：用户明确**跳过 `AGENT-HANDOVER.md §8` 第 2 步**（真机互操作验收）直接处理 `main` 去向。⚠️ 注意该步在计划中被定位为 **Phase 6 的前置**（协议版本协商与鉴权会碰互操作，无真机兜底不宜动），所以启动 Phase 6 前需重新评估这一缺口，见 §10.4。
-- **2026-10-05 · 补短板批次（`qoder/Quality-Gate`）**：按 `AGENT-HANDOVER.md §8` 第 4 步做完四项——① 分层静态门禁 `architecture/LayeringTest`（2 例，**零新依赖**；Konsist 不在本机离线缓存内故不用）；② `POST_NOTIFICATIONS` 运行时请求；③ 删 `LanSyncMotion` 整组死码；④ 补 DL-7/8/9/10（`LanSyncClientTest` 12→18）。**查证 DL-6 在 OkHttp 4.12 下不可覆盖**（`Response.body` 实际非空）→ 保留防御分支、不写断言。**一处行为改进（显式标注）**：空落盘分支补 `destination.delete()`，消除 0 字节残留被列进文件页。测试 **147/147 全绿** + `assembleDebug` 通过。过程中踩到 **`local.properties` 被 FF 合并删除**（已补记进 §4 前提 2）。详见 §11。
+- **2026-10-04 · 真机验收暂缓**：用户明确**跳过交接文档 §8 第 2 步**（真机互操作验收）直接处理 `main` 去向。⚠️ 注意该步在计划中被定位为 **Phase 6 的前置**（协议版本协商与鉴权会碰互操作，无真机兜底不宜动），所以启动 Phase 6 前需重新评估这一缺口，见 §10.4。
+- **2026-10-05 · 补短板批次（`qoder/Quality-Gate`）**：按交接文档 §8 第 4 步做完四项——① 分层静态门禁 `architecture/LayeringTest`（2 例，**零新依赖**；Konsist 不在本机离线缓存内故不用）；② `POST_NOTIFICATIONS` 运行时请求；③ 删 `LanSyncMotion` 整组死码；④ 补 DL-7/8/9/10（`LanSyncClientTest` 12→18）。**查证 DL-6 在 OkHttp 4.12 下不可覆盖**（`Response.body` 实际非空）→ 保留防御分支、不写断言。**一处行为改进（显式标注）**：空落盘分支补 `destination.delete()`，消除 0 字节残留被列进文件页。测试 **147/147 全绿** + `assembleDebug` 通过。过程中踩到 **`local.properties` 被 FF 合并删除**（已补记进 §4 前提 2）。详见 §11。
 
 ---
 
@@ -244,7 +245,7 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 
 > **本节补记长期滞后的内容**：Phase 5（`681001f`）之后分支上又交付了两次增量，此前**完全没写进本文件**——以致照本文件干活会把配色决策理解反（§9 写靛蓝、代码是 Teal）、把已交付的增量当成还没做。
 > 提交序列：`81af6cf`（分支文件提交）→ `1b05ebb`（UI Recreate T0–T6）→ `80921ad`（UI 打磨与崩溃加固）→ `6d09076`（版本配对注记）→ `9ed1fce` + `5c7b2ee`（缓存骨架接线 + 特性文档）→ `66a6291`（构建卫生，**HEAD**）。
-> 特性文档：`docs/compose/spec/ui-recreate.md`、`docs/compose/spec/local-apps-cache-skeleton.md`（均 `status: delivered`）；评审留档 `docs/compose/spec/ui-recreate-review-notes.md`、`ui-recreate-final-review.md`、`FEEDBACK.md`。
+> 特性文档：`docs/compose/spec/ui-recreate.md`、`docs/compose/spec/local-apps-cache-skeleton.md`（均 `status: delivered`）。三份评审留档（`ui-recreate-review-notes.md` / `ui-recreate-final-review.md` / `FEEDBACK.md`）**已于 2026-10-06 由用户删除**，其结论性事实已固化在 §10.1。
 
 ### 10.1 交付① UI Recreate（T0–T6）
 
@@ -276,7 +277,11 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 
 - **UI Recreate 的真机视觉验收全未做**：三键/手势导航白条目视、Dynamic Type 最大字号、暗色对比度实测、reduce-motion、横屏、业务回归（连接/拉取/安装/保存）。T6 任务项全勾，但那是**代码级**通过。
 - **已知残留**：`MeshHint` 尾部 `StatusChip` 恒显「在线」（`onlineCount=0` 时文案不对，`CommonComponents.kt`）；`LanSyncMetrics`（`Shape.kt`）与 `LanSyncSpacing`（`Spacing.kt`）尺寸表**部分重复**，有漂移风险，建议合并成一个访问器。
-- ~~**死代码**：`ui/theme/Theme.kt` 的 `LanSyncMotion` / `DefaultMotion` / `LocalMotion` / `LanSyncTheme.motion` 整组无引用~~ → ✅ **已于 2026-10-05 删除**（见 §11.3）。其余单点死符号（§10.4 原清单见 `AGENT-HANDOVER.md §6.5`，未入库）**未清**。
+- ~~**死代码**：`ui/theme/Theme.kt` 的 `LanSyncMotion` / `DefaultMotion` / `LocalMotion` / `LanSyncTheme.motion` 整组无引用~~ → ✅ **已于 2026-10-05 删除**（见 §11.3）。
+- **其余死符号未清**（2026-09-25 逐个 grep 验证「只有定义、全仓无引用」；原记录在已删除的交接文档 §6.5，现内联于此以免失传，**清理前需重新 grep 复核**）：
+  - *单点死符号*：`DeviceListScreen.StatusCard`、`IncomingConnectionDialog.IncomingConnectionDialog`（兼容壳，`MainActivity` 只调 `IncomingConnectionSheet`）、`AppIconDiskCache.{batchPut,clear,size,totalBytes}`、`IconCache.removeStale`、`LanSyncClient.{sendConnectResponse,clearDownloads}`、`LanSyncRepository.downloadApp`（UI 走 `downloadAndInstallApp`）、`FileLogger.{getLogFilePath,clearLog,shutdown}`、`LanSyncErrorCode.SERVER_NOT_READY`、`InMemoryPairingStore.{removeRequest,clearAll}`、`UiState.isLoading`、`Models.DeviceInfoResponse.version`（= 已裁决的死字段 **T2**，禁止复用）
+  - *仅测试引用*：`InMemoryPairingHistoryStore`、`UpdateCoordinator.recalculateNow`、`LanSyncClient.downloadLatestApksFile`
+  - *未使用的 token*：`Spacing.kt` 的 `space20/28/40/56/64`、`minTouch`、`listItemTall`、`searchH`、`appIcon`；`Shape.kt` 的 `LanSyncMetrics.{listItemTall,navIndicatorWidth,navIndicatorHeight,filterChipHeight,appIcon,progressBar,statusBarCompat,gestureBarH}`
 - ~~**`POST_NOTIFICATIONS` 运行时请求仍未写**~~ → ✅ **已于 2026-10-05 补上**（见 §11.2）；FGS `specialUse` 的 Play 上架说明**仍需补**。
 - **测试缺口**：~~DL-6/7/8/9/10~~ → DL-7/8/9/10 **已于 2026-10-05 补齐**，**DL-6 经查证不可覆盖**（§11.4）。仍无单测的：`AppScanner`/`JmDNSDeviceDiscovery`/`IconCache`/`ForegroundSyncService`/`LanSyncRepository`/`LanSyncGraph`/全部 Compose UI（Android 耦合或纯委托，靠编译 + 真机验收）。
 - **小的称谓不一致（未修）**：`docs/compose/spec/ui-recreate.md` frontmatter 写 `branch: MIMO/UI-Recreate`，实际分支是 `qoder/UI-Recreate`；`local-apps-cache-skeleton.md` 的 `commits: 3c7dade..cf55139` 与本分支实际哈希（`9ed1fce`/`5c7b2ee`）也对不上。
@@ -288,7 +293,7 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 
 ## 11. 补短板批次（2026-10-05，分支 `qoder/Quality-Gate`）
 
-> 对应 `AGENT-HANDOVER.md §8` 第 4 步。四项全部落地，`testDebugUnitTest` **147/147 全绿** + `assembleDebug` 通过（15 文件）。
+> 对应交接文档 §8 第 4 步（该文档已由用户删除，见 §1）。四项全部落地，`testDebugUnitTest` **147/147 全绿** + `assembleDebug` 通过（15 文件）。
 > **未做**同批次的第 5 项（`build.ps1`/`AGENTS.md` 固化构建命令）：命令与三条前提已完整写进 §4，再脚本化收益不大；且 `AGENTS.md` 会被自动注入，写错代价高于收益。
 
 ### 11.1 分层静态门禁（ARCH §8.3 / §12.3）
