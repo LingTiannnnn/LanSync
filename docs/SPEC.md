@@ -1,31 +1,29 @@
 # LanSync 线上协议规范（Wire Protocol SPEC）
 
-> **文档状态**：**v1.0 · 已冻结（FROZEN）** — Phase 0 交付物 · 字段级冻结（Field-Level Freeze）
-> **冻结日期**：2026-09-08 · 冻结依据：当前源码树 + 全量 git 历史查证（见 §10 决议）
-> **适用范围**：LanSync 设备间局域网通信的全部线上契约（JSON payload / HTTP API / mDNS 发现 / 文件传输 / 连接状态机）。
-> **重构原则**：**契约不变，实现重写**。本文件描述的每一个字节级行为都是新实现必须复现的验收标准；任何偏离都必须在《互操作测试矩阵》中显式记录。
-> **证据基线**：本规范全部字段与行为均直接取自当前源码（非 REPORT.md 转述）；历史相关结论经 `git log -p`/pickaxe 全量查证。
-> **2026-09-08 全量复核**：本轮已逐条重读 `Models.kt`/`AppConfig.kt`/`KtorServer.kt`/`AppListClient.kt`/`ConnectionManager.kt`/`JmDNSDiscovery.kt`/`AppRepository.kt`/`AppPacker.kt`/`HashUtils.kt`/`AppScanner.kt`/`NetworkUtils.kt`/`ApkInstaller.kt`/`UpdateManager.kt` 核验 §1–§8，**全部协议字段与行为与源码一致，无 `[TODO:需从旧代码确认]` 遗留**（旧协议细节均可从工作树源码直接确认，无需用户另行提供源文件）。仅 §10 的 T1/TT1、TT3 依赖**用户事实/设计决策**（非源码可验证），已在 §10 显式标注。Phase 1 重写代码的契约保真核验见 **§11**。
+> **本文件角色**：协议主题文档——跨设备**字节级契约**的字段级全文（JSON payload / HTTP API / mDNS 发现 / 文件传输 / 连接状态机）。生产代码与测试注释按本文件章节号引用，**不要重排 §N**。
+> **状态**：**v1.0 · 已冻结（FROZEN）**。冻结依据为源码树实证 + 全量 git 历史查证（决议记录见 §10）。
+> **原则**：**契约不变，实现重写**。此处每个字节级行为都是新实现必须复现的验收标准；偏离必须在 §9 互操作红线与真机矩阵（`docs/TEST-PLAN.md` §6）下显式记录。
+> 现行实现形态见 `docs/ARCHITECTURE.md` §13，裁决登记册见 `docs/DECISIONS.md`。
 
 ---
 
-## 0. 证据来源（已核对的旧源文件）
+## 0. 契约领域与权威源文件
 
-| 契约领域 | 权威源文件 |
+| 契约领域 | 现行权威源文件（`app/src/main/java/com/lansync/app/`） |
 |---|---|
-| 数据模型 / DTO | `app/src/main/java/com/lansync/app/data/model/Models.kt` |
-| HTTP 服务端路由 / 响应头 / 错误码 | `app/src/main/java/com/lansync/app/data/server/KtorServer.kt` |
-| HTTP 客户端 / 下载 / 校验 / 文件命名 | `app/src/main/java/com/lansync/app/data/client/AppListClient.kt` |
-| 配对请求状态机 / 超时常量 | `app/src/main/java/com/lansync/app/data/connection/ConnectionManager.kt` |
-| mDNS 服务注册 / TXT / 保活 | `app/src/main/java/com/lansync/app/data/discovery/JmDNSDiscovery.kt` |
-| 连接编排 / 心跳 / 端口迁移 / ConnectionState 迁移 | `app/src/main/java/com/lansync/app/data/repository/AppRepository.kt` |
-| 打包产物命名 / zip 结构 | `app/src/main/java/com/lansync/app/data/packer/AppPacker.kt` |
-| 哈希算法 | `app/src/main/java/com/lansync/app/data/HashUtils.kt` |
-| 本机应用扫描 / AppInfo.md5 来源 | `app/src/main/java/com/lansync/app/data/scanner/AppScanner.kt` |
-| 版本比较 / 去重 | `app/src/main/java/com/lansync/app/data/update/UpdateManager.kt` |
-| 超时/间隔参数 | `app/src/main/java/com/lansync/app/data/AppConfig.kt` |
-| IP 选取语义 | `app/src/main/java/com/lansync/app/data/NetworkUtils.kt` |
-| 安装 MIME / FileProvider | `app/src/main/java/com/lansync/app/data/installer/ApkInstaller.kt` |
+| 数据模型 / DTO | `data/model/Models.kt` |
+| HTTP 路由 / 响应头 / 错误码 | `data/server/LanSyncRouting.kt`（契约接口 `data/server/ServerContracts.kt`） |
+| HTTP 客户端 / 下载 / 校验 / 文件命名 | `data/transfer/LanSyncClient.kt`、`data/transfer/DownloadedFileName.kt` |
+| 配对请求状态机 / 超时常量 | `data/server/InMemoryPairingStore.kt`、`data/AppConfig.kt` |
+| mDNS 服务注册 / TXT / 保活 | `data/discovery/JmDNSDeviceDiscovery.kt` |
+| 连接编排 / 心跳 / 端口迁移 | `data/connection/DefaultConnectionCoordinator.kt` |
+| 打包产物命名 / zip 结构 | `data/transfer/AppPacker.kt` |
+| 哈希算法 | `data/HashUtils.kt` |
+| 本机应用扫描 / `AppInfo.md5` 来源 | `data/localapps/AppScanner.kt` |
+| 版本比较 / 去重 | `data/sync/UpdateManager.kt` |
+| 超时/间隔参数 | `data/AppConfig.kt` |
+| IP 选取语义 | `data/NetworkUtils.kt` |
+| 安装 MIME / FileProvider | `data/installer/ApkInstaller.kt` |
 
 ---
 
@@ -254,10 +252,10 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 - `200`：解析成功（refresh 仅在 `displayKey` 非空时触发 handler）→ `{}`。
 - `400 BadRequest`：解析异常 → `"Invalid request"`。
 
-### 3.2 错误响应体统一现状（**待重构，非冻结目标**）
-当前所有错误走 `respondText(纯文本)`，且 **#4/#6/#7/#8 至少 5 处直接拼接 `${e.message}`**（`KtorServer.kt` L113/L172/L206/L248 等）。
-- **冻结现状**：客户端**不解析**错误体（下载失败仅取 `body.take(200)` 塞进 `DownloadResult.Error` 文案；连接类只看 `isSuccessful`）。故错误体文本可自由变更而不破坏互操作。
-- **重写目标（ARCHITECTURE.md §7）**：统一 `LanSyncErrorDto(code, message)` + 错误码枚举，`e.message` 仅进 `FileLogger`。此为**内部改进**，因客户端不解析错误体，**不构成线上契约破坏**。
+### 3.2 错误响应体（**非冻结项**）
+- **冻结现状**：客户端**不解析**错误体（下载失败仅取 `body.take(200)` 塞进 `DownloadResult.Error` 文案；连接类只看 `isSuccessful`）。故错误体文本与结构可自由变更而不破坏互操作，**状态码不可变**。
+- **现行形态**：统一 `LanSyncErrorDto(code, message)` + `LanSyncErrorCode` 枚举（`data/model/LanSyncError.kt`），`Content-Type: application/json`；`e.message` 与堆栈只进 `FileLogger`，绝不回显给客户端。
+- **`503 Server not ready` 不由本实现发出**：`PairingStore` 构造注入恒非空。`SERVER_NOT_READY` 枚举值保留仅为识别旧端；对旧服务端的 503 按失败容忍。
 
 ---
 
@@ -273,7 +271,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 - `isSingleApk = file.name.endsWith(".apk") && !file.name.endsWith(".apks")`（因 `.apks` 也以 `.apk` 结尾，须显式排除）。
 - 安装侧 MIME（`ApkInstaller.getMimeType`，与传输侧独立但需一致认知）：`.apks`→`application/zip`；`.apk`→`application/vnd.android.package-archive`；其它→`application/octet-stream`。
 
-> **T5 决议（已读旧代码 Ktor 客户端/服务端配置，已冻结）**：客户端 `AppListClient.performDownload` **完全不校验响应 Content-Type**（只读 `X-MD5`/`Content-Disposition`/`X-File-Size`/body）。故「旧版实际兼容的写法」= 服务端 `sendZipFile` 现状：`.apk`→`application/octet-stream`、`.apks`→`application/zip`。**新版头部写法照此复现即可**，接收端不依赖 Content-Type，无互操作风险。
+> **T5 决议（已冻结）**：客户端**完全不校验响应 Content-Type**（只读 `X-MD5` / `Content-Disposition` / `X-File-Size` / body）。故服务端写法固定为：`.apk` → `application/octet-stream`、`.apks` → `application/zip`。接收端不依赖 Content-Type，照此复现即无互操作风险。
 
 ---
 
@@ -479,7 +477,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 
 ### 7.7 反向连接接受策略（`handleIncomingRequest`）—— **TT3 决议：干净语义（已冻结为 v1.0 目标）**
 
-> **背景**：旧实现 `autoAcceptKnown=true` 存在两个缺陷：① 对已知设备点「拒绝」反而**自动接受**；② 对陌生设备点「拒绝」走 `removeRequest` **不置 REJECTED**，发起方**收不到即时拒绝、只能等 30s 超时**。用户确认此为「有意设计但实现未完成」，要求按下述**干净语义**重写并修复漏洞。
+> **背景**：`autoAcceptKnown=true` 的老写法有两个缺陷——① 对已知设备点「拒绝」反而**自动接受**；② 对陌生设备点「拒绝」走 `removeRequest` **不置 REJECTED**，发起方收不到即时拒绝、只能等 30s 超时。裁决（TT3）为「有意设计但实现未完成」，本节按**干净语义**冻结契约。
 
 **冻结的目标语义**：
 1. **自动接受仅面向「历史配对成功过」的设备**：以**持久化配对历史**（新增本地存储，记录成功配对过的 `instanceId` 集合）为唯一判据；**非**旧的「当前 discovered/connected 列表内即视为已知」。
@@ -526,9 +524,9 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 - **兼容约束**：本次冻结**保持 `X-MD5` 响应头名与 MD5 算法不变**（改 SHA-256 / 改名 `X-Transfer-Hash` 属 Phase 6，须经协议版本协商，见 §9）。
 - **重写验收**：① 单包与 split 下载均以 `X-MD5` 校验通过；② 缺失 `X-MD5` 时应报错而非静默用 expectedMd5（此为**行为改进**，因旧客户端优先信 X-MD5、服务端恒发 X-MD5，故不破坏互操作）；③ 幽灵指纹缺陷修正（null 传播）属 Phase 1，须同步修正被固化的测试预期。
 
-### 8.4 AppScanner 对 null 指纹的行为规范（**决策 D2 / 裁决②**，2026-09-08）
+### 8.4 AppScanner 对 null 指纹的行为规范（**决策 D2**）
 
-> **决策 D2（用户裁决②：接受现状）**：`HashUtils.md5(paths)` 改为 null 传播后（§8.2/§8.3，Phase 1 已落地），`AppScanner` 对 null 指纹的处理**保持现状**——即 `md5 = HashUtils.md5(sourcePaths) ?: ""` 且 `isExtractable` **仍为 `true`**，**不**降级为 `isExtractable=false`。
+> **D2（接受现状）**：`HashUtils.md5(paths)` 为 null 传播（§8.2/§8.3），`AppScanner` 对 null 指纹的处理**保持现状**——即 `md5 = HashUtils.md5(sourcePaths) ?: ""` 且 `isExtractable` **仍为 `true`**，**不**降级为 `isExtractable=false`。
 
 - **合法态定义**：`AppInfo(md5 = "", isExtractable = true)` 为**合法**状态，表示「该包可提取传输，但内容指纹因扫描期竞态未能计算」。此态**不阻断**下载/打包（传输完整性一律以 `X-MD5` 产物哈希为准，§8.3 D1，与列表 `md5` 无关）。
 - **触发条件（罕见）**：`AppScanner` 在加入 `sourcePaths` 前已对每个路径做 `canRead()` 预筛（`AppScanner.kt` L56/L63），故 `HashUtils.md5` 仅在「预筛通过但读取时文件变不可读」的竞态下返回 null；正常应用几乎不触发。
@@ -558,13 +556,15 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 
 ## 10. TODO 决议记录（全部已冻结）
 
-> 原 6 项 `[TODO:需从旧代码确认]` + 测试计划 TT1/TT3 已由用户逐条答复，并经源码/git 查证落实。以下为**决议存档**，对应细节已落回各章节。
+> **与 `docs/DECISIONS.md` 的分工**：本节是 T1–T6 / TT1–TT4 的**查证过程与冻结位置**（协议侧权威记录）；`docs/DECISIONS.md` 是面向操作的裁决登记册。协议查证结论以本节为准，其余决策以 `docs/DECISIONS.md` 为准。
 >
-> **可验证性分级（2026-09-08 复核）**：
-> - **源码/git 可验证（已独立复核通过）**：T2（`git log -S DeviceInfoResponse` + `git show ad89d61` 证实 `version` 恒为默认常量、ad89d61 处由手写 JSON 改 DTO）、T3（全仓仅 `getPropertyString`，无手写 TXT 解析）、T5（`AppListClient.performDownload` 不校验 Content-Type）、T6（`NetworkUtils` 两条 IP 取值路径）。
-> - **⚠️ 依赖用户事实/设计决策（源码无法证实，按用户指示显式标注）**：
->   - **T1/TT1**：「已分发旧版 APK 实物存在并将装入真机」属**用户事实**，代码无从验证。**[✅ 用户已确认 2026-09-08：旧版 APK 实物存在，将在后续功能测试阶段做实机互操作验证（§9 矩阵新×旧/旧×旧 可执行）]**。
->   - **TT3**：`handleIncomingRequest(autoAcceptKnown=true)` 的**两处缺陷经复核确为真实代码行为**（拒绝已知设备反被自动接受；拒绝陌生设备走 `removeRequest` 致发起方 30s 超时，见 §7.7 与 `AppRepository.kt` L486–L554）；而「此为*有意设计但实现未完成*」的定性与「改用持久化配对历史干净语义」的决策属用户判断。**[✅ 用户已确认 2026-09-08：TT3 状态仍为「有意设计但实现未完成」，干净语义为采纳目标；落地属 Phase 4 `ConnectionCoordinator`，本阶段（传输骨架）不实现]**。
+> 原 6 项 `[TODO]` + TT1/TT3 已逐条答复并经源码/git 查证落实，细节已落回各章节。
+>
+> **可验证性分级**：
+> - **源码 / git 可验证**：T2（`git log -S DeviceInfoResponse` 证实 `version` 恒为默认常量）、T3（全仓仅 `getPropertyString`，无手写 TXT 解析）、T5（客户端不校验 Content-Type）、T6（`NetworkUtils` 两条 IP 取值路径）。
+> - **依赖用户事实 / 设计决策（源码无法证实）**：
+>   - **T1/TT1**：「已分发旧版 APK 实物存在」属**用户事实**，代码无从验证；真机矩阵（`docs/TEST-PLAN.md` §6）据此可执行。
+>   - **TT3**：旧 `handleIncomingRequest(autoAcceptKnown=true)` 的两处缺陷（拒绝已知设备反被自动接受；拒绝陌生设备走 `removeRequest` 致发起方 30s 超时）经复核确为真实代码行为；「有意设计但实现未完成」的定性与「改用持久化配对历史干净语义」的决策属用户判断，已冻结为 §7.7。
 
 | # | 原待确认项 | 用户决议 | 查证/落地 | 冻结位置 |
 |---|---|---|---|---|
@@ -580,36 +580,4 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 
 ---
 
-## 11. Phase 1 实现保真核验（2026-09-08 复核）
-
-> 应用户要求，对「已完成的 Phase 1 重写代码」是否忠实复现本冻结契约做逐条核验。核验对象为工作树中**尚未提交**的新实现：`data/server/{ServerContracts,KtorLanSyncServer,LanSyncRouting,InMemoryPairingStore}.kt`、`data/transfer/{LanSyncClient,DownloadedFileName}.kt`、`data/model/LanSyncError.kt`、`data/HashUtils.kt`（改动）。
-
-### 11.1 契约复现结论：**忠实**（含 2 处已声明的有意分歧）
-
-| 契约条目 | 新实现位置 | 结论 |
-|---|---|---|
-| §1.2 JSON 配置（prettyPrint/isLenient/ignoreUnknownKeys，encodeDefaults=false） | `LanSyncRouting.LanSyncJson` | ✅ 一致 |
-| §3 十路由方法/路径/成功体形状/错误码矩阵 | `lanSyncModule` | ✅ 一致 |
-| §3.1 #7 vs #8 错误码优先级差异 | `lanSyncModule` 两 download 块 | ✅ 各自保持（#7 先 403 后 404；#8 先 404 后 403） |
-| §4 Content-Type（.apk octet-stream / .apks zip） | `sendPackedFile` `isSingleApk` | ✅ 一致 |
-| §5.1 X-MD5/X-File-Size/Content-Disposition | `sendPackedFile` | ✅ 一致，X-MD5=产物实时哈希（D1） |
-| §5.3/§5.4 命名与包名解析 | `DownloadedFileName` | ✅ 一致（单一实现，收敛 P7） |
-| §5.5/§5.6 客户端下载配置与校验流程 | `LanSyncClient` | ✅ 一致，且实现 D1（见 §11.2/§11.3） |
-| §7.3 接收方配对状态机 + 15s 超时 | `InMemoryPairingStore` | ✅ 一致（`getStatus` 映射逐字复现，含 TIMEOUT→`accepted=false,message="Timeout",responderName=null`） |
-| §8.3 决策 D1（X-MD5 唯一权威、废弃 expectedMd5） | `LanSyncClient.performDownload` | ✅ 已实现：缺 X-MD5→删文件+`Error("Missing X-MD5 header")`，移除 `expectedMd5` 兜底分支 |
-| §8.2 幽灵指纹 null 传播 | `HashUtils.md5(paths)` | ✅ 已实现（空列表/任一不可读→null，消灭 `d41d8…`） |
-
-### 11.2 有意分歧（均在 SPEC/ARCHITECTURE 授权范围内，不破坏 §9 互操作红线）
-
-1. **错误响应体 `text/plain` → `application/json`（`LanSyncErrorDto`）**：状态码逐一保持；客户端从不解析错误体（§3.2），故不破坏互操作。`LanSyncRoutingTest` 断言错误体不再含 `e.message`。
-2. **503「Server not ready」分支被移除**：旧 `KtorServer` 因 `connectionManager` 惰性创建存在 503 竞态；新实现经构造注入 `PairingStore` 恒非空，该分支不复存在（§3.1 #4 的 503 仅为旧服务端产物；新客户端对旧服务端 503 仍按失败容忍）。
-
-### 11.3 尚未落地（Phase 1 未完成项，非契约破坏）
-
-- **新实现未接线**：`AppRepository` 仍使用旧 `KtorServer`/`AppListClient`/`ConnectionManager`；新 `KtorLanSyncServer`/`LanSyncClient`/`InMemoryPairingStore`/`lanSyncModule` 为**并行构件**，尚未替换线上路径。故当前 App 实际仍走**旧双轨 MD5**（`downloadApp` 传 `expectedMd5`，见 `AppRepository.kt` L1044）；D1 语义仅存在于未接线的新客户端。
-- **§7.7（TT3）干净语义未实现**：旧 `handleIncomingRequest` 两处缺陷仍在（线上行为）；目标「持久化配对历史 + 陌生设备弹窗 + 即时 rejected」属 Phase 4 `ConnectionCoordinator`，尚未落地。
-- 落地现状详表见 **ARCHITECTURE.md §13**、测试现状见 **TEST-PLAN.md §10**。
-
----
-
-*（SPEC.md 结束。ARCHITECTURE.md 见目标架构，TEST-PLAN.md 见测试计划。）*
+*（协议文档结束。架构与现行实现：`docs/ARCHITECTURE.md` §13；测试与验收：`docs/TEST-PLAN.md`；裁决：`docs/DECISIONS.md`。）*

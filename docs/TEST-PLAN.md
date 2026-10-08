@@ -1,285 +1,247 @@
 # LanSync 测试计划（TEST-PLAN）
 
-> **文档状态**：Phase 0 交付物 · 测试策略与验收清单（不含生产代码/测试代码，仅计划）
-> **定位**：为「契约不变，实现重写」提供**可执行的行为基线与验收门槛**。协议字节契约以 `docs/SPEC.md` 为准，架构目标以 `docs/ARCHITECTURE.md` 为准。
-> **既有测试依赖**（`app/build.gradle.kts` 已声明，可直接用）：`junit:4.13.2`、`io.mockk:1.13.8`、`kotlinx-coroutines-test:1.7.3`、`io.ktor:ktor-server-test-host:2.3.5`。
+> **本文件角色**：测试主题文档——L1–L4 策略、DL/CS 用例矩阵、真机 golden path 逐项清单（勾选用）、门禁语义与当前落地清单。
+> 代码与测试注释按章节号引用（`TEST-PLAN §2.3 / §4 / §5 / §6`），**不要重排 §N**。
+> 本机运行命令与前提**只在** `docs/BUILD.md`；项目状态与基线headline在 `docs/STATUS.md`；协议字节契约在 `docs/SPEC.md`。本文件不复制这些内容。
+> **既有测试依赖**（`app/build.gradle.kts` 已声明）：`junit:4.13.2`、`io.mockk:1.13.8`、`kotlinx-coroutines-test:1.7.3`、`io.ktor:ktor-server-test-host:2.3.5`。
 
 ---
 
 ## 1. 策略总览
 
-三层测试金字塔 + 一层真机验收：
-
 | 层 | 范围 | 工具 | 门禁 |
 |---|---|---|---|
 | L1 单元（行为基线） | 配对状态机、去重、序列化、哈希、配置 | JUnit4 + MockK + coroutines-test | 全绿，迁移不删断言 |
 | L2 路由集成（特征化） | 10 条 HTTP 路由的状态码/响应头/响应体形状 | ktor-server-test-host | 全绿，锁定 SPEC §3/§4/§5.1 |
-| L3 链路集成 | 下载+MD5 校验、连接状态机迁移 | MockK + coroutines-test（虚拟时间） | 全绿，锁定 SPEC §5/§7/§8 |
+| L3 链路集成 | 下载 + MD5 校验、连接状态机迁移 | MockK + coroutines-test（虚拟时间） | 全绿，锁定 SPEC §5/§7/§8 |
 | L4 真机互操作 | 新旧 APK 跨设备 golden path | adb + 双真机 | 人工签核，见 §6 |
 
-**原则**：
-1. **迁移优先于新增**——先把旧测试原样搬运为基线（§2），确保重写「零自由发挥」。
-2. **特征化测试锁定现状**——路由/下载测试先固化**当前**行为（含怪异点），重写后必须仍通过；行为改进项（如 MD5 null 传播）须在测试中**显式标注变更**并同步修订断言。
-3. **虚拟时间**——所有超时（15s/30s/20s/120s/60s）用 `StandardTestDispatcher` + `runTest` 的 `advanceTimeBy` 驱动，禁止真实 sleep。
+**三条原则**：
+1. **迁移优先于新增**——旧测试原样搬运为基线，重写"零自由发挥"。
+2. **特征化测试锁定现状**——先固化当前行为（含怪异点），行为改进必须在断言与本文档里**显式标注**并同步修订。
+3. **虚拟时间**——所有超时（15/30/20/120/60s）用 `runTest` + `StandardTestDispatcher` + `advanceTimeBy` 驱动，**禁止真实 sleep**。
 
 ---
 
-## 2. 迁移旧测试作为行为基线（L1）
+## 2. L1 单元基线
 
-### 2.1 现有测试清单盘点（`app/src/test`）
+### 2.1 归属映射
 
-> **⚠️ 计数已更新（2026-09-08 复核）**：原文「6 文件 29 用例」为 Phase 1 前快照。实测**旧测试 6 文件 32 用例**（`HashUtilsTest` 4→6、`ModelsTest` 实为 9 非 8）；Phase 1 另**新增 4 文件 63 用例**（`LanSyncRoutingTest` 33 / `LanSyncClientTest` 12 / `DownloadedFileNameTest` 10 / `InMemoryPairingStoreTest` 8）。合计 **10 文件 95 用例**。下表「迁移处置」中标 ✅ 者 Phase 1 已完成。
+| 被测行为 | 测试文件 |
+|---|---|
+| 接收方配对子状态机（PENDING/ACCEPTED/REJECTED/TIMEOUT） | `data/server/InMemoryPairingStoreTest` |
+| 版本比较 / 去重 / 差异分类 | `data/sync/UpdateManagerTest` |
+| DTO 序列化与省略行为 | `data/model/ModelsTest` |
+| MD5 null 传播与一致性 | `data/HashUtilsTest`、`data/packer/HashUtilsConsistencyTest` |
+| 超时/间隔默认参数 | `data/AppConfigTest` |
 
-| 文件 | 用例数 | 覆盖 | 迁移处置 |
-|---|---|---|---|
-| `connection/ConnectionManagerTest.kt` | 10 | 配对请求状态机 | **原样迁移**为基线 |
-| `update/UpdateManagerTest.kt` | 3 | `deduplicateUpdates` | **原样迁移** + 补 `findUpdates` 缺口 |
-| `model/ModelsTest.kt` | 9 | DTO 序列化 roundtrip（ConnectResponseBody×4 / RefreshAppListPayload×2 / ConnectStatusResponse / AppInfo / DeviceInfo） | ✅ 已在基线；**但 §2.3 计划的 `encodeDefaults=false` 单测快照未加入 ModelsTest**（该覆盖改由 `LanSyncRoutingTest` 在路由层断言：deviceinfo 不含 version、disconnect 为 `{}`） |
-| `HashUtilsTest.kt` | 6（原 4） | MD5 工具 | ✅ **§2.4 修订已完成**：缺陷预期例已改名 `md5 paths with unreadable files returns null` + `assertNull`，并新增「部分不可读→null」「空列表→null」两例 |
-| `packer/HashUtilsConsistencyTest.kt` | 2 | MD5 一致性 | **原样迁移** |
-| `AppConfigTest.kt` | 2 | 配置默认值 | **原样迁移**（锁定 SPEC §7.2 参数） |
+### 2.2 配对状态机必覆盖断言（锁定 SPEC §7.3）
 
-### 2.2 `ConnectionManagerTest`（10 例，配对状态机基线）
-逐例迁移，锁定 SPEC §7.3：
-1. `receiveRequest adds to pending and returns true`
-2. `duplicate request rejected`（相同 requestId → false → 对应路由 409）
-3. `respondToRequest accepted returns payload`（responderName="TestDevice"）
-4. `respondToRequest rejected returns payload`
-5. `respondToRequest non-existent returns null`（→ 路由 404）
-6. `getStatus returns pending for unanswered request`（PENDING → null → 路由回 `{"status":"pending"}`）
-7. `getStatus returns accepted after response`
-8. `removeRequest clears pending`
-9. `clearAll clears all pending requests`
-10. `incomingRequests flow emits pending-only requests`（只暴露 PENDING）
-- **新增缺口**：`handleTimeout` 15s 自动置 TIMEOUT（虚拟时间 `advanceTimeBy(15_000)`）；TIMEOUT 经 `getStatus` 映射为 `accepted=false, message="Timeout"`（SPEC §2.6）；`respondToRequest` 后 `timeoutJobs` 被取消（不再触发 timeout）。
+`receiveRequest` 入 PENDING 并返回 true；同 `requestId` 重复 → false（对应路由 409）；`respondToRequest(true/false)` 返回 payload；不存在的 id → null（路由 404）；`getStatus` 在未应答时为 PENDING（路由回 `{"status":"pending"}`）、应答后为 accepted/rejected、**15s 超时后映射为 `status="rejected"` + `message="Timeout"`**（SPEC §2.6）；`respondToRequest` 后 timeoutJob 必须被取消；`incomingRequests` 只暴露 PENDING 且按 timestamp 倒序。
 
-### 2.3 `UpdateManagerTest`（3 例）+ `ModelsTest`（8 例）
-- **UpdateManagerTest 迁移**：`deduplicateUpdates keeps highest versionCode` / `preserves unique packages` / `returns empty for empty input`。
-  - **补缺口**：`findUpdates` 当前**零覆盖**（旧测试仅 mock `fetchAppList` 返回 emptyList 测去重）。新增：跳过系统应用（remote/local 任一为系统应用不计）、仅 `remote.versionCode > local.versionCode` 才 `canUpdate`、平级取 `deviceName` 字母序更小者（SPEC §3.2 冻结规则）。
-- **ModelsTest 迁移**：`ConnectResponseBody`(±)、`RefreshAppListPayload`(±)、`ConnectStatusResponse` 解码、`AppInfo` roundtrip、`DeviceInfo` roundtrip。
-  - **补关键缺口（SPEC §1.2.1）**：新增 `encodeDefaults=false` **字节快照**断言——
-    - `DeviceInfoResponse(deviceName="X")` 序列化**不含** `"version"`。
-    - `GenericStatusResponse()` 序列化为 `{}`；`GenericStatusResponse(status="pong")` 为 `{"status":"pong"}`。
-    - `AppInfo(isSystemApp=false, isSplitApk=false)` 序列化**不含**这两字段；=true 时含。
-    - `ConnectStatusResponse(status="rejected", accepted=false)` **不含** `accepted`。
+### 2.3 UpdateManager / Models / HashUtils 必覆盖断言
 
-### 2.4 `HashUtilsTest` 缺陷预期修订（**行为改进 — ✅ Phase 1 已完成**）
-- 原第 4 例 `md5 paths with unreadable files handles gracefully` 断言「全不可读返回 32 字符」——曾**固化幽灵指纹缺陷** `d41d8cd98f00b204e9800998ecf8427e`（SPEC §8.2）。
-- **已落地**（`HashUtils.kt` 改动 + `HashUtilsTest.kt` 4→6）：`md5(paths)` 改为 null 传播（空列表/任一不可读→null）；断言改名 `... returns null` + `assertNull`，并补「部分不可读→null」「空列表→null」两例。**[行为变更已在代码注释标注，非回归]**
-- **✅ 裁决②（接受现状，2026-09-08）**：原计划「`AppScanner` 对 null 指纹降级 `isExtractable=false`」**不实施**。`AppScanner.kt` L73 保持 `md5 = HashUtils.md5(sourcePaths) ?: ""` 且 `isExtractable=true`（L83）——此为**合法态**，已写入 **SPEC §8.4（决策 D2）**。理由：`md5` 仅作版本指纹不参与传输校验（D1），且扫描前已 `canRead()` 预筛使 null 极罕见；降级反而误伤可传输应用。**重开条件**：真机测试若发现空 `md5` 的正常应用在去重/比较中被误判，再重开。
-- `HashUtilsConsistencyTest` 2 例（含 `md5 nonexistent pack returns null`，已与 null 语义一致）+ `AppConfigTest` 2 例**原样在基线**。
+- **`UpdateManagerTest`**：`findUpdates` 只收 remote > local、跳过任一侧为系统应用、跳过本地缺失包；`deduplicateUpdates` 同包名取最高 `versionCode`、**平级取 `deviceName` 字母序更小者**（SPEC §3.2）、空输入返回空；`calculateSyncDiffs` 四种差异类型分类且跳过系统应用。
+- **`ModelsTest` 的 `encodeDefaults=false` 字节快照**（SPEC §1.2.1，必测）：`DeviceInfoResponse(deviceName="X")` **不含** `version`；`GenericStatusResponse()` 序列化为 `{}`、`GenericStatusResponse(status="pong")` 为 `{"status":"pong"}`；`AppInfo(isSystemApp=false, isSplitApk=false)` **不含**这两字段（=true 时含）；`ConnectStatusResponse(status="rejected", accepted=false)` **不含** `accepted`。除单测外，路由测试同样保留这些断言。
+- **`HashUtilsTest` 的 null 语义**（SPEC §8.2）：空列表 → null；任一路径不可读 → null；全部不可读 → null。**绝不返回空文件的摘要**（`d41d8cd9…` 幽灵指纹是缺陷，不得作为断言目标）。
 
 ---
 
-## 3. 新增 ktor-server-test-host 路由测试（L2，特征化）—— **✅ Phase 1 已落地**
+## 3. L2 路由特征化测试
 
-> **前置接缝**（ARCHITECTURE §3.5）：路由已提取为可独立 `install` 的 `LanSyncRouting.lanSyncModule(delegate, pairingStore)`；测试见 `app/src/test/.../server/LanSyncRoutingTest.kt`（**33 用例**），用 `FakeDelegate`/`FakePairing` 注入，覆盖全 10 路由状态码矩阵、§4 Content-Type、§5.1 三响应头、§1.2.1 省略行为、§8.3 D1（`X-MD5 == HashUtils.md5(产物)` 而非列表 md5）、§7 不回显 `e.message`（断言不含 "boom"）。
-> **⚠️ 503 修正**：下表 `POST /api/connect/request` 的「manager null → 503」仅适用**旧 `KtorServer`** 特征化；**新 `lanSyncModule` 已移除 503**（`PairingStore` 构造注入恒非空，SPEC §11.2），故新路由测试**无 503 用例**。
+**前置接缝**（`docs/ARCHITECTURE.md` §3.5）：路由是可直接 `install` 的 `LanSyncRouting.lanSyncModule(delegate, pairingStore)`，测试用 `FakeDelegate`/`FakePairing` 注入，无需起真服务。
 
 ### 3.1 路由 × 状态码矩阵（锁定 SPEC §3）
-对每条路由断言 **method + path + 请求体 → 状态码 + Content-Type + 响应体形状**：
 
 | 路由 | 用例 |
 |---|---|
 | `GET /api/ping` | 200 + `{"status":"pong"}` + `application/json` |
 | `GET /api/applist` | provider 有值 → 200 + `[AppInfo…]`；provider null → 200 + `[]` |
 | `GET /api/deviceinfo` | 200 + `{"deviceName":"X"}`（**断言不含 version**） |
-| `POST /api/connect/request` | 新请求 → 200 `{"status":"pending","requestId":…}`；重复 → **409** `"Duplicate request"`；manager null → **503** `"Server not ready"`；坏 JSON → **400** |
-| `GET /api/connect/status/{id}` | PENDING/空 id/manager null/异常 → 200 `{"status":"pending"}`；ACCEPTED → 200 `status="accepted"`+responderName；REJECTED → 200 `status="rejected"`+message；TIMEOUT → 200 `status="rejected"`+`message="Timeout"` |
-| `POST /api/connect/response/{id}` | 正常 → 200 `ConnectResponsePayload`；manager null/空 id → **400**；不存在/已处理 → **404**；异常 → **500** |
-| `GET /api/download/{pkg}` | 最高版本 → 200 + 文件流 + 三响应头；全不可提取 → **403**；无匹配 → **404**；打包 null → **500** `"Failed to pack app"`；打包异常 → **500** |
-| `GET /api/download/{pkg}/{vc}` | 精确匹配 → 200；无匹配 → **404**；不可提取 → **403**；非法 vc（→0L）→ **404**；打包失败 → **500** |
+| `POST /api/connect/request` | 新请求 → 200 `{"status":"pending","requestId":…}`；重复 → **409** `"Duplicate request"`；坏 JSON → **400** |
+| `GET /api/connect/status/{id}` | 恒 200。PENDING / 空 id / 异常 → `{"status":"pending"}`（**失败安全**）；ACCEPTED → `status="accepted"`+responderName；REJECTED → `status="rejected"`+message；TIMEOUT → `status="rejected"`+`message="Timeout"` |
+| `POST /api/connect/response/{id}` | 正常 → 200 `ConnectResponsePayload`；空 id → **400**；不存在/已处理 → **404**；异常 → **500** |
+| `GET /api/download/{pkg}` | 最高版本 → 200 + 文件流 + 三响应头；**先判**全不可提取 → **403**；再无匹配 → **404**；打包 null → **500** `"Failed to pack app"`；打包异常 → **500** |
+| `GET /api/download/{pkg}/{vc}` | 精确匹配 → 200；**先判**无匹配 → **404**；再不可提取 → **403**；非法 vc（降级 0L）→ **404**；打包失败 → **500** |
 | `POST /api/disconnect` | 正常 → 200 `{}`；坏 JSON → **400**；identityKey 优先于 displayKey 匹配 |
 | `POST /api/refresh-applist` | 正常 → 200 `{}`；displayKey 空 → 不触发 handler 但仍 200；坏 JSON → **400** |
 
-### 3.2 下载响应头断言（锁定 SPEC §5.1 / §4）
-- `X-MD5` == `HashUtils.md5(产物文件)`（**非** `app.md5`）；`X-File-Size` == `file.length()`；`Content-Disposition` == `attachment; filename="{产物名}"`。
-- Content-Type：`.apk` → `application/octet-stream`；`.apks` → `application/zip`。
-- **两路由错误码优先级差异**分别断言（SPEC §3.1 #7 vs #8），为 Phase 1「合并 handler」提供回归护栏——合并后两路由状态码矩阵必须逐格不变。
+> **`503 Server not ready` 不属于新路由**：它来自旧服务端惰性创建的 null manager。新实现 `PairingStore` 构造注入恒非空，该态不存在，因此也没有对应用例（SPEC §3.2）。`LanSyncErrorCode.SERVER_NOT_READY` 仅用于识别旧端。
 
-### 3.3 错误体改进的兼容断言（锁定 ARCHITECTURE §7）
-- 重写为 `LanSyncErrorDto(code,message)` 后：断言**状态码不变**、响应体**不再含 `e.message` 细节**、`code` ∈ 枚举。
-- 兼容性：新增测试模拟「旧客户端只读 `isSuccessful` / `body.take(200)`」，证明错误体从 text/plain 改 json **不影响旧客户端判定**。
+### 3.2 下载响应头断言（锁定 SPEC §5.1 / §4）
+
+- `X-MD5` == `HashUtils.md5(产物文件)`（**非** `appInfo.md5`）；`X-File-Size` == `file.length()`；`Content-Disposition` == `attachment; filename="{产物名}"`。
+- Content-Type：`.apk` → `application/octet-stream`；`.apks` → `application/zip`。
+- **两条下载路由的错误码优先级相反**（#7 先 403 再 404；#8 先 404 再 403），分别断言。两条 handler **有意不合并**——只共用发送段 `sendPackedFile(...)`，判序各自保留；本表即回归护栏。
+
+### 3.3 错误体断言（锁定 `docs/ARCHITECTURE.md` §7）
+
+断言状态码不变、响应体不含 `e.message` 细节（用会抛异常的用例断言输出不含 `"boom"`）、`code` ∈ 枚举。另需覆盖"旧客户端只读 `isSuccessful` / `body.take(200)`"这一前提，证明错误体 text/plain → json 不影响旧端判定。
 
 ---
 
-## 4. 下载 + MD5 校验链路测试（L3，锁定 SPEC §5.6 / §8）—— **✅ Phase 1 部分落地**
+## 4. L3 下载 + MD5 校验链路（锁定 SPEC §5.6 / §8）
 
-> **已落地**：`app/src/test/.../transfer/LanSyncClientTest.kt`（**18 用例**，MockK 造真实 `okhttp3.Response`）覆盖 DL-1/DL-2/**DL-3 目标态**/DL-5/**DL-7/DL-8/DL-9/DL-10**/DL-11 + `parseConnectStatus`(§2.6) + `fetchAppList`；`DownloadedFileNameTest.kt`（**10 用例**）覆盖 DL-12 命名/解析/正向匹配。
-> **⚠️ DL-3 现状 vs 目标**：新 `LanSyncClient` **已实现目标态**（缺 X-MD5→删文件+`Error("Missing X-MD5 header")`，无 expectedMd5 兜底）；但**旧 `AppListClient` 仍保留兜底轨**（未接线，SPEC §11.3）。DL-4（split 用 expectedMd5 必失败）在旧客户端才复现，新客户端已无此路径——**其结论已由 DL-9 端到端复现**（同一 split 产物按列表 md5 校验必失败）。
-> **✅ 2026-10-05 补齐 DL-7/8/9/10**：DL-7（0 长度落盘 + 残留清理）、DL-8（单包端到端：产物哈希 == 列表 md5 == 落盘哈希）、DL-9（split 端到端：`AppPacker` 产物 → `X-MD5` 校验通过，按列表 md5 校验必失败，证明 D1 必要性）、DL-10（进度单调 0→100 / 长度未知不回调 / 服务端少报长度时 `coerceIn` 夹住）。
-> **⚠️ DL-6 经查证不可覆盖**：OkHttp 4.12 的 `Response.body` **实际永不为 null**——强行 `body(null)` 构造的响应会在 `Response.close()` 内 NPE，被 `performDownload` 外层 catch 归一为 `Error("Download failed")`，无法命中 `Error("Empty response body")`；而编译器视角 `body` 仍是可空类型（`response.body?.byteStream()` 不产生「多余安全调用」警告），故该分支作为**网络边界防御**保留、不删。服务端「200 但无内容」的真实形态是 **0 长度 body**，已由 DL-7 覆盖。
-> **DL-7 行为改进（按 §10 约定显式标注）**：空落盘分支原先**不删文件**，与 DL-2/DL-3 两个失败分支不一致，遗留的 0 字节 `.apk` 会被 `getDownloadedFiles()` 当成正常条目列进文件页；已改为同样 `delete()`，并加断言锁定。
-
-用 MockK 造 `Response`（含/不含 `X-MD5` 头）+ 临时文件，覆盖 `performDownload` 全分支：
+用 MockK 造真实 `okhttp3.Response`（含/不含 `X-MD5`）+ `TemporaryFolder`，覆盖 `performDownload` 全分支：
 
 | 用例 | 场景 | 期望 |
 |---|---|---|
 | DL-1 | 200 + `X-MD5` 匹配产物 | `Success(file)`，文件保留 |
 | DL-2 | 200 + `X-MD5` **不匹配** | `Error("MD5 verification failed")` + **文件被删除** |
-| DL-3 | 200 + **无** `X-MD5` + `expectedMd5` 匹配 | 现状：`Success`（兜底轨）；**目标（D1）**：无头即 `Error`，删除兜底分支后此例断言修订 |
-| DL-4 | 200 + 无 `X-MD5` + `expectedMd5` 不匹配 | 现状：`Error`（这正是 split 场景「偶然校验失败」鬼故事根源，SPEC §8.1） |
+| DL-3 | 200 + **无** `X-MD5` | 删文件 + `Error("Missing X-MD5 header")`（D1 目标态，**无 `expectedMd5` 兜底**） |
 | DL-5 | 非 2xx | `Error("HTTP error: {code}: {body.take(200)}")` |
-| DL-6 | 空 body | ⚠️ **不可覆盖**：OkHttp 4.12 下 `Response.body` 永不为 null（详见上方注）。`Error("Empty response body")` 分支作为网络边界防御保留 |
-| DL-7 | 落盘后 length==0 | `Error("Downloaded file is empty")` + **0 字节残留被清理**（2026-10-05 行为改进） |
-| DL-8 | 单 APK 端到端 | `X-MD5 == AppInfo.md5`（字节副本，SPEC §8.1）→ 校验通过 |
-| DL-9 | Split APK 端到端 | `X-MD5 != AppInfo.md5`（zip≠拼接，SPEC §8.1）→ **以 X-MD5 校验通过**；用 expectedMd5 必失败（证明 D1 必要性） |
-| DL-10 | 进度回调 | `contentLength>0` 时 percent 单调 0→100 coerceIn；`contentLength<=0` 时不回调 |
-| DL-11 | 文件命名 | 落盘名取 `Content-Disposition.filename`；缺失时 `downloadApksFile` → `{pkg_}_{vc}.apks`、`downloadLatestApksFile` → `{pkg_}.apks`（SPEC §5.3） |
-| DL-12 | 包名反推 | `extractPackageName` 常规/含数字段/无版本段边界（SPEC §5.4），收敛后**单一实现**测试（消除 P7 双份） |
+| DL-6 | body 为 null | ⚠️ **不可覆盖，别写断言**（见下方判例） |
+| DL-7 | 落盘后 `length == 0` | `Error("Downloaded file is empty")` + **断言无 0 字节残留**（`getDownloadedFiles()` 为空）。此分支必须删文件，与 DL-2/DL-3 一致，否则垃圾项会被列进文件页 |
+| DL-8 | 单 APK 端到端 | `AppPacker` 产物即字节副本 → `X-MD5 == AppInfo.md5 == 落盘哈希`（SPEC §8.1：单包场景两轨重合） |
+| DL-9 | Split 端到端 | zip 产物哈希 **≠** 源拼接摘要 → 以 `X-MD5` 校验**必通过**；改用列表 md5 **必失败并删文件**（D1 必要性的端到端证据） |
+| DL-10 | 进度回调 | ① `contentLength > 0` 时 percent 单调不减且末次为 100；② `contentLength == -1` 且无 `X-File-Size` 时**完全不回调**但下载成功；③ 服务端少报长度时裸算会得 131/196/200，断言全部被 `coerceIn` 夹在 0..100 |
+| DL-11 | 落盘命名 | 优先 `Content-Disposition.filename`；缺失时 `downloadApksFile` → `{pkg_}_{vc}.apks`、`downloadLatestApksFile` → `{pkg_}.apks`（**无 versionCode 段**） |
+| DL-12 | 包名反推 | `DownloadedFileName` 常规 / 含数字段 / 无版本段边界（SPEC §5.4），单一实现 |
 
-> **哈希一致性专项**：新增 `AppPacker.createApksFile` 产物 → `HashUtils.md5(产物)` 与 `sendZipFile` 发出的 `X-MD5` **必然相等**的断言（证明「以传输产物为准」自洽）；并断言 `createApksFile` 内部那个**死代码 digest** 不影响结果（ARCHITECTURE/SPEC §8.1）。
+> **DL-6 判例（为何不写断言）**：OkHttp 4.12 的 `Response.body` 实际永不为 null（`javap` 确认）。强行 `Response.Builder().body(null)` 编得过（Kotlin 侧签名仍收可空），但运行时 `Response.close()` 对 null body 抛 NPE，被 `performDownload` 外层 catch 归一成 `Error("Download failed")`，永远命不中 `Error("Empty response body")`。处置：该分支作为网络边界防御**保留、不删、不写断言**——写断言等于把 NPE 兜底产物钉成契约。服务端"200 但无内容"的真实形态是 0 长度 body，由 DL-7 覆盖。
+
+**哈希一致性专项**：`AppPacker.createApksFile` 产物 → `HashUtils.md5(产物)` 与路由 `sendPackedFile` 发出的 `X-MD5` 必然相等；D1 不等式（zip 产物哈希 ≠ 源拼接摘要）由 `AppPackerTest` 的 `split artifact hash differs from concatenated source hash (D1 rationale)` 钉住。
 
 ---
 
-## 5. 连接状态机测试（L3，锁定 SPEC §7）—— **✅ Phase 2 已落地**
+## 5. L3 连接状态机（锁定 SPEC §7.4–7.7）
 
-> **现状**：`DefaultConnectionCoordinator`（Phase 2）已实现，`DefaultConnectionCoordinatorTest.kt`（**21 用例**）用虚拟时间 + 直接投递事件覆盖下表 CS-1…CS-17（CS-6 折叠进 CS-16）。接收方配对协议状态机 `InMemoryPairingStoreTest.kt`（**9 用例**，含迁移的 clearAll）验证 15s 超时/getStatus 映射/respond 取消 timeout/removeRequest；`incomingRequests` 流（旧 `ConnectionManagerTest` #10）已迁至 coordinator 测试。旧 `ConnectionManagerTest` 10 例仍冻结在基线（旧码 Phase 4 删除）。
-
-针对 `ConnectionCoordinator`（重写后）用虚拟时间覆盖：
+**驱动方式**：状态迁移用**直接投递事件**（确定性，规避周期循环的时序脆弱）；只有"周期心跳按 20s 触发"用虚拟时间 `advanceTimeBy`。前提顺序必须照真实流程：**先 discovery 再 connect**（`updateState` 只对已在 enriched 的设备生效）。
 
 | 用例 | 场景 | 期望迁移 |
 |---|---|---|
 | CS-1 | mDNS 新设备 | → DISCOVERED |
 | CS-2 | `connectDevice` + poll Accepted | DISCOVERED→CONNECTING→CONNECTED；startHeartbeat；fetchAppListWithRetry(initiator) |
-| CS-3 | `sendConnectRequest`→null | →ERROR「无法发送连接请求，目标设备无响应」 |
-| CS-4 | poll Rejected | →ERROR「对方拒绝连接」 |
-| CS-5 | poll Timeout（未被反向连接） | →ERROR「连接超时（30秒内未收到响应）」；`advanceTimeBy(30_000)` 驱动 |
-| CS-6 | poll Timeout 但已反向连接 | 视为成功 true（SPEC §7.4） |
-| CS-7 | 心跳 ping 成功 | 清 failCount；CONNECTED；lastSeen 刷新；connectionError=null |
-| CS-8 | ping 失败 failCount=1 | →RECONNECTING「连接不稳定... (1/4)」 |
-| CS-9 | ping 失败 1<failCount<4 | →RECONNECTING「正在尝试重新连接...」+ tryFastReconnect |
-| CS-10 | failCount≥4 | →CONNECTION_TIMEOUT「连接超时，设备已离线」；removeFromConnected；停心跳/同步 |
-| CS-11 | tryFastReconnect fetchDeviceInfo≠null | →CONNECTED + fetchAndEnrich |
-| CS-12 | 本地 disconnect | →DISCONNECTED；**appList 保留**；sendDisconnectNotification |
-| CS-13 | 远端 disconnect（displayKey/identityKey 匹配） | →DISCONNECTED；appList 保留 |
-| CS-14 | 端口迁移（同 instanceId 换 ip:port） | 保留 connectionState+appList；CONNECTED/RECONNECTING 时停旧起新心跳（SPEC §7.5） |
-| CS-15 | 陈旧清理 | 非 CONNECTED/RECONNECTING/CONNECTION_TIMEOUT 且不在 raw → 移除；连接态**不被清理**（SPEC §7.6） |
-| CS-16 | 去重锁 | `connectDevice` 并发同 key → 仅一次生效（`connectingDevices.putIfAbsent`） |
-| CS-17 | `handleIncomingRequest` 干净语义（TT3/SPEC §7.7 已冻结） | 分四例断言：**CS-17a** 配对历史命中设备来请求（无交互）→ 自动接受 `accepted`；**CS-17b** 陌生设备来请求 → 保持 PENDING/弹窗，**不自动接受**（修复旧漏洞）；**CS-17c** 陌生设备显式拒绝 → **即时 `rejected`**（非 30s 超时）；**CS-17d** 显式接受 → `accepted` + 写入 `PairingHistoryStore` |
+| CS-3 | `sendConnectRequest` → null | → ERROR「无法发送连接请求，目标设备无响应」 |
+| CS-4 | poll Rejected | → ERROR「对方拒绝连接」 |
+| CS-5 | poll Timeout（未被反向连接） | → ERROR「连接超时（30秒内未收到响应）」 |
+| CS-6 | poll Timeout 但已反向连接 | 视为成功 true（折叠进 CS-16） |
+| CS-7 | 心跳 ping 成功 | 清 failCount；CONNECTED；lastSeen 刷新；connectionError = null |
+| CS-8 | ping 失败 failCount = 1 | → RECONNECTING「连接不稳定… (1/4)」 |
+| CS-9 | ping 失败 1 < failCount < 4 | → RECONNECTING「正在尝试重新连接…」+ tryFastReconnect |
+| CS-10 | failCount ≥ 4 | → CONNECTION_TIMEOUT「连接超时，设备已离线」；移出 connected；停心跳/同步 |
+| CS-11 | tryFastReconnect 且 `fetchDeviceInfo != null` | → CONNECTED + fetchAndEnrich |
+| CS-12 | 本地 disconnect | → DISCONNECTED；**appList 保留**；发 disconnect 通知 |
+| CS-13 | 远端 disconnect（displayKey/identityKey 匹配） | → DISCONNECTED；appList 保留 |
+| CS-14 | 端口迁移（同 `instanceId` 换 ip:port） | 保留 connectionState + appList；原 CONNECTED/RECONNECTING 时停旧起新心跳（SPEC §7.5） |
+| CS-15 | 陈旧清理 | 非 CONNECTED/RECONNECTING/CONNECTION_TIMEOUT 且不在 raw → 移除；**连接态不因 mDNS 消失被清理**（SPEC §7.6） |
+| CS-16 | 去重锁 + 已连接重复 connect | `putIfAbsent` 下并发同 key 仅一次生效；已 CONNECTED 直接返回 true 且不再发请求 |
+| CS-17a | 配对历史命中设备来请求（无交互） | 自动接受 → `accepted` |
+| CS-17b | 陌生设备来请求 | 保持 PENDING / 弹窗，**绝不自动放行** |
+| CS-17c | 陌生设备显式拒绝 | **即时 `rejected`**（不是让发起方干等 30s） |
+| CS-17d | 显式接受 | `accepted` + CONNECTED + 心跳 + 拉列表 + **写入 `PairingHistoryStore`** |
 
-> **并发收敛专项**（ARCHITECTURE §6）：新增压力测试——并发投递 `RawDevicesUpdated` + `HeartbeatTick` + `ConnectRequested` 事件，断言最终状态**确定且无交错损坏**（Actor/Mutex 生效）；旧实现的竞态窗口在此类测试下应暴露，重写后消除。
+> **并发收敛专项 —— ⏳ 未写**：并发投递 `RawDevicesUpdated` + `HeartbeatTick` + `ConnectRequested`、断言最终状态确定且无交错损坏的压力测试尚未落地。现有用例走单事件串行投递，确定性高但碰不到竞态窗口；Actor 单协程收敛目前靠**构造保证**而非测试证明（登记在 `docs/ROADMAP.md` §4）。
 
 ---
 
-## 6. 真机互操作验收（L4，golden path 清单）
+## 6. L4 真机互操作验收（golden path 清单）
 
-> **前提**：需至少两台 Android 真机（minSdk 29），同一局域网 WiFi。「新版本」= 重写后 APK；「旧版本」= 当前源码树构建的 APK（versionCode 1）。
+**前提**：两台 Android 真机（minSdk 29）同一局域网 WiFi。「新版本」= 当前工作树构建的 APK；「旧版本」= 已分发的旧 APK（需重新构建时，重构前代码在 git `d1a71fc`）。**本矩阵从未执行，是唯一阻塞 Phase 6 的验收缺口。**
 
-### 6.1 互操作测试矩阵（验收门槛，对应 ARCHITECTURE 重构红线）
+### 6.1 互操作矩阵
+
 | 组合 | 发现 | 配对 | 传输 | 安装 | 备注 |
 |---|---|---|---|---|---|
 | 新 × 新 | ☐ | ☐ | ☐ | ☐ | 主路径 |
-| 新（发起）× 旧（接收） | ☐ | ☐ | ☐ | ☐ | **兼容红线**：新实现必须能被旧端发现/配对/拉取 |
-| 旧（发起）× 新（接收） | ☐ | ☐ | ☐ | ☐ | **兼容红线**：新端必须复现旧协议字节（SPEC §9） |
-| 旧 × 旧 | ☐ | ☐ | ☐ | ☐ | 回归基线（证明未破坏现状） |
+| 新（发起）× 旧（接收） | ☐ | ☐ | ☐ | ☐ | 新实现必须能被旧端发现/配对/拉取 |
+| 旧（发起）× 新（接收） | ☐ | ☐ | ☐ | ☐ | 新端必须复现旧协议字节（SPEC §9） |
+| 旧 × 旧 | ☐ | ☐ | ☐ | ☐ | 回归基线 |
 
-> **已知新旧差异点（验收时确认不破坏 golden path）**：`/api/deviceinfo` 旧构建线上含 `"version":"1.0"`、新构建省略（SPEC §2.9）；客户端从不读取该字段，故容忍。其余路由/头/命名/状态机词表一致。
+已知新旧差异点仅 `/api/deviceinfo` 的 `version`（旧构建线上含 `"version":"1.0"`、新构建省略，SPEC §2.9）；客户端从不读取，故容忍。其余路由/头/命名/状态机词表一致。
 
-### 6.2 Golden Path 逐步清单（每个组合执行一遍）
+### 6.2 Golden Path 逐步清单（每组合执行一遍）
+
 **① 发现（mDNS）**
-- [ ] 双机装 APK → 均「启用同步」→ 设备 Tab 各自出现对方（deviceName = 对方 `Build.MODEL`）。
-- [ ] 抓包/日志确认服务类型 `_lansync._tcp.local.`、实例名 `LanSync_{host}_{instanceId}`、TXT 双键 `deviceName`/`instanceId`（SPEC §6.1/§6.2）。
-- [ ] 自过滤：本机不出现在自己列表（instanceId 相同被忽略）。
+- [ ] 双机装 APK → 均启用同步 → 设备 Tab 各自出现对方（deviceName = 对方 `Build.MODEL`）。
+- [ ] 抓包/日志确认 `_lansync._tcp.local.`、实例名 `LanSync_{host}_{instanceId}`、TXT 双键 `deviceName`/`instanceId`（SPEC §6.1/§6.2）。
+- [ ] 自过滤：本机不出现在自己的列表（instanceId 相同被忽略）。
 - [ ] 60s 保活：静置 >60s 设备仍在列（`REFRESH_INTERVAL_MS`）。
 
-**② 配对（请求-轮询）**
-- [ ] A 点连接 B → B 弹 `IncomingConnectionDialog`（15s 倒计时）。
-- [ ] B 接受 → A 轮询 status 收到 `accepted` → 双方进入 CONNECTED。
-- [ ] B 15s 不响应 → 请求自动 TIMEOUT → A 侧表现为 rejected/"Timeout" 或 30s 超时（SPEC §2.6/§7.2）。
-- [ ] 反向连接（TT3 干净语义，SPEC §7.7）：① 陌生设备首次连 → A **弹窗**确认（不自动放行）；② A 接受后该设备入配对历史；③ 该设备再次连 → **自动接受**；④ A 对陌生设备点拒绝 → 对端**即时**收到 rejected（非 30s 超时）。
-- [ ] 端口迁移：连接后关闭再重开 B 的服务（换端口）→ A 无缝保留 CONNECTED + appList（SPEC §7.5）。
+**② 配对**
+- [ ] A 点连接 B → B 弹 `IncomingConnectionSheet`（`ModalBottomSheet`，15s 倒计时自动拒绝，返回键可关）。
+- [ ] B 接受 → A 轮询收到 `accepted` → 双方 CONNECTED。
+- [ ] B 15s 不响应 → 自动 TIMEOUT → A 侧表现为 `rejected` / "Timeout"（SPEC §2.6/§7.2）。
+- [ ] 自动接受语义（SPEC §7.7）：陌生设备首次连 → 弹窗确认（不自动放行）；接受后入配对历史；该设备再次连 → 自动接受；对陌生设备点拒绝 → 对端**即时**收到 rejected。
+- [ ] 端口迁移：连接后重启 B 的服务（换端口）→ A 无缝保留 CONNECTED + appList（SPEC §7.5）。
 
-**③ 传输（下载 + 校验）**
-- [ ] 同步 Tab 出现「可更新」项（remote.versionCode > local）。
-- [ ] 单 APK 应用下载：进度 0→99→100，MD5 校验通过（`X-MD5`）。
-- [ ] **Split APK 应用下载**：`.apks` 落盘，`X-MD5`（zip 产物）校验通过（**关键**：证明 D1「以传输产物为准」，旧 expectedMd5 轨在此必失败——SPEC §8/DL-9）。
+**③ 传输**
+- [ ] 同步 Tab 出现可更新项（remote.versionCode > local）。
+- [ ] 单 APK 下载：进度 0→100，`X-MD5` 校验通过。
+- [ ] **Split APK 下载**：`.apks` 落盘并以 `X-MD5`（zip 产物哈希）校验通过——D1 的关键真机证据。
 - [ ] 系统/受保护应用 → 403，UI 提示不可提取。
-- [ ] 校验失败路径：人为篡改 → 文件被删除 + `Error("MD5 verification failed")`。
+- [ ] 人为篡改产物 → 文件被删除 + `MD5 verification failed`。
 
 **④ 安装**
-- [ ] 下载完成 → 一键安装 → FileProvider URI + ACTION_VIEW 拉起系统/第三方安装器。
-- [ ] `.apks` MIME = `application/zip`、`.apk` MIME = `application/vnd.android.package-archive`（SPEC §4）。
-- [ ] 文件 Tab：列举/多选/保存到 SAF/删除；包名反推显示正确（SPEC §5.4）。
+- [ ] 一键安装 → FileProvider URI + `ACTION_VIEW` 拉起系统/第三方安装器。
+- [ ] MIME：`.apks` = `application/zip`、`.apk` = `application/vnd.android.package-archive`（SPEC §4）。
+- [ ] 文件 Tab：列举 / 多选 / 保存到 SAF / 删除；包名反推显示正确（SPEC §5.4）。
 
-**⑤ 生命周期（若引入 FGS，ARCHITECTURE §8）**
+**⑤ 生命周期（`ForegroundSyncService`，`docs/ARCHITECTURE.md` §8）**
 - [ ] 退后台 5 分钟：服务端 + 发现 + 心跳存活（对方仍可见本机、ping 不断）。
-- [ ] 通知栏常驻显示端口/已连接数；「停止同步」按钮生效。
-- [ ] 进程被杀（`adb shell am kill`）→ 重进 App 自动恢复，instanceId 不变，对端身份无缝识别。
+- [ ] 通知栏常驻显示端口/已连接数；「停止同步」按钮生效；API 33+ 拒绝 `POST_NOTIFICATIONS` 后服务仍能跑。
+- [ ] `adb shell am kill` 后 `START_STICKY` 恢复，`instanceId` 不变，对端身份无缝识别。
+- [ ] 低端 OEM 省电场景：必要时加电池白名单（README 已标注）。
 
-### 6.3 手工回归清单产物
-- 每组合每步记录：`lansync_debug.log` 导出 + 关键截图 + 抓包（mDNS/HTTP）。
-- 失败项回填 SPEC §10 决议记录或 ARCHITECTURE 缺陷表。
+### 6.3 产物要求
+
+每组合每步记录 `lansync_debug.log` 导出 + 关键截图 + 抓包（mDNS/HTTP）。失败项回填 `docs/SPEC.md` 决议记录或 `docs/ARCHITECTURE.md`。
 
 ---
 
-## 7. CI 门禁与执行
+## 7. 门禁
 
-| 门禁 | 命令 | 阻断条件 |
+| 门禁 | 阻断条件 |
+|---|---|
+| `testDebugUnitTest` | 任一 L1/L2/L3 用例失败；或 `LayeringTest` 违规 |
+| `assembleDebug` | 编译 / 资源合并失败 |
+| `architecture/LayeringTest` | ① `data/**` 出现 `import com.lansync.app.ui.*`（输出 `文件:行号: 原文`）；② `LanSyncRepository.kt` > 300 行。**显式兜底"扫到 0 个文件即失败"**，否则路径写错时门禁静默空过 |
+| `assembleRelease` + 真机冒烟 | 安装器链路失败（Phase 7 范畴） |
+| §6 人工签核 | 任一红线组合失败 |
+
+命令与运行前提见 `docs/BUILD.md`（唯一来源，本文件不复制）。项目**没有 CI/CD**，上表就是本地约定门槛；分层门禁为何用零依赖单测而非 Konsist，见 `docs/DECISIONS.md`。已知代价：靠源码文本匹配而非 AST，可被"不写 import、直接用全限定名"绕过。
+
+---
+
+## 8. 测试相关决议
+
+完整登记册见 `docs/DECISIONS.md`；此处只保留影响测试可执行性的四条。
+
+| # | 事项 | 决议与测试侧后果 |
 |---|---|---|
-| 基线绿 | `./gradlew test`（PowerShell 用 `.\gradlew.bat test`） | 任一 L1/L2/L3 用例失败 |
-| 构建绿 | `.\gradlew.bat assembleDebug` | 编译失败 |
-| 分层检查 | `architecture/LayeringTest`（随 `testDebugUnitTest` 跑，**2026-10-05 落地**） | `data/**` 出现 `import com.lansync.app.ui.*`；或门面 >300 行 |
-| Release/R8 | `.\gradlew.bat assembleRelease` + 真机冒烟 | 安装器链路失败（Phase 2） |
-| 互操作 | §6 矩阵人工签核 | 任一红线组合失败 |
-
-> Windows/PowerShell 注意：命令分隔用 `;` 而非 `&&`；SDK 组件现状与镜像配置见项目记忆（阿里云 google 镜像，AGP 解析依赖）。
->
-> **本机实测运行方式（2026-10-04 复核，已跑通 139/139）**：直接用 wrapper 即可，但 **`GRADLE_USER_HOME` 必须覆盖为 `C:\Users\LingTian\.gradle`**——机器级默认值 `E:\S.H.I.T\Gradle\GradleRepository` 缺全部测试依赖（`junit:4.13.2`、`io.mockk:mockk:1.13.8`、`kotlinx-coroutines-test:1.7.3`、`ktor-server-test-host:2.3.5`），`--offline` 下 `compileDebugUnitTestKotlin` 必然失败（主源码编译不受影响，症状是「只有测试跑不起来」）：
-> ```bash
-> cd "E:/S.H.I.T/LanSync"
-> GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat testDebugUnitTest --offline --no-configuration-cache --console=plain
-> ```
-> ⚠️ **旧注记「`.\gradlew.bat` 因 E:\ 下 wrapper dist 不完整会联网下载 `gradle-8.13-bin.zip` 超时、须改用发行版自带 `...\dists\gradle-8.13-bin\<hash>\gradle-8.13\bin\gradle.bat`」的前提已证伪**：两处 dist 均完整解开，`./gradlew.bat --version --offline` 正常输出 `Gradle 8.13 / Launcher JVM 17.0.20.1`，无联网。仅当 C:\ 缓存也不可用时才回落到那条旧命令。
-> 另两条前提：**`local.properties` 必须存在**（`sdk.dir=E\:\\S.H.I.T\\Android SDK`；该文件被 `.gitignore` 忽略且已于 `66a6291` 移出版本控制，新克隆需手工重建，本机 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 均空无法兜底）；**判定以输出中的 `BUILD SUCCESSFUL` 为准**（PowerShell 把 JVM stderr 警告当 error 致 `ExitCode=1`；且不要把输出管道给 `tail`，管道会用 `tail` 的 0 掩盖 BUILD FAILED）。
-> 机器级 init 脚本 `E:\S.H.I.T\Gradle\init.d\init.gradle` 仅注入 `aliyun/public + mavenLocal + mavenCentral`（**无 `google()`**），旧 `PREFER_PROJECT` 下覆盖 settings 镜像致 androidx 404；已将 `settings.gradle.kts` 改 `PREFER_SETTINGS` 修复（本轮验证仍全绿）。详见 `PROGRESS.md §4`。
+| TT1 | 旧版 APK 实物存在（用户事实） | §6.1 四组合全部可执行；⚠️ 至今仍**从未真机执行** |
+| TT2 | 项目从来没有 CI | 绿色基线以本地 `testDebugUnitTest` 为准 |
+| TT3 | 自动接受策略 | 采纳干净语义（SPEC §7.7）→ CS-17a–d；配对历史为 `PairingHistoryStore` 本机私有、不上线 |
+| TT4 | 无历史手工测试脚本 | §6.2 golden path 清单是**唯一**手工验收脚本 |
 
 ---
 
-## 8. TODO 决议（测试相关）
+## 9. 职责边界
 
-> **✅ 可验证性标注（2026-09-08 复核 + 用户确认）**：TT1（旧 APK 实物存在）与 TT3（`autoAcceptKnown` 定性为「有意设计但实现未完成」）属**用户事实/设计决策**，源码无法证实；用户已于 2026-09-08 确认两项均成立（旧 APK 存在、后续实机验证；TT3 干净语义为采纳目标，落地属 Phase 4）。TT3 涉及的**两处缺陷本身经复核为真实代码行为**（`AppRepository.handleIncomingRequest` L486–L554，见 SPEC §7.7）；TT2/TT4「未明确」项以本机实跑与 §6.2 清单为准。
-
-| # | 原待确认项 | 用户决议 | 落地 |
-|---|---|---|---|
-| TT1 | 旧版 APK 实物是否存在 | **存在**，用户装入真机 | §6.1 矩阵四组合全部可执行（含新×旧/旧×旧） |
-| TT2 | 旧测试是否曾 CI 跑通 | 未明确 | 以本机 `.\gradlew.bat test` 实跑结果为绿色基线起点（Phase 0 护栏） |
-| TT3 | autoAcceptKnown 是 bug 还是设计 | **有意设计但实现未完成** → 改干净语义（仅历史配对成功设备自动接受、陌生设备弹窗、显式拒绝即时 rejected、修复陌生设备被自动放行漏洞） | SPEC §7.7 冻结；CS-17a–d 验证；ARCHITECTURE 新增 `PairingHistoryStore` |
-| TT4 | 是否有历史手工测试脚本 | 未明确 | 以 §6.2 golden path 清单为准，Phase 1 起积累 |
+本文件只管**测试设计与验收清单**（§1–§8）与**当前落地映射**（§10）。基线 headline 与阶段状态在 `docs/STATUS.md`，运行命令在 `docs/BUILD.md`，裁决在 `docs/DECISIONS.md`，缺口与待办在 `docs/ROADMAP.md`——同一条事实不在多处维护。
 
 ---
 
-## 9. 交付物清单与状态（2026-09-08 复核更新）
+## 10. 当前落地清单
 
-- [x] `docs/SPEC.md` —— 线上协议字段级冻结 **v1.0**（协议字段无遗留 TODO；T1/TT1、TT3 依赖用户事实/决策，已在 §10 显式标注待确认；新增 §11 Phase 1 保真核验）
-- [x] `docs/ARCHITECTURE.md` —— 目标架构（已修 §3.5 接口与实现对齐、§7.1 补 REQUEST_NOT_FOUND；新增 §13 Phase 1 落地现状）
-- [x] `docs/TEST-PLAN.md` —— 本文件（已更新计数、标记 Phase 1 完成项、纠正 AppScanner/503/DL-3；新增 §10 测试落地现状）
+15 个测试文件 / 147 例（用例数以仓库实测为准）。
 
-## 10. 测试落地现状（Phase 1 已完成部分）
-
-| 计划项 | 测试文件（用例数） | 状态 |
+| 测试文件 | 例数 | 锁定 |
 |---|---|---|
-| §2 迁移旧测试为基线 | ConnectionManagerTest(10)/UpdateManagerTest(3)/ModelsTest(9)/HashUtilsConsistencyTest(2)/AppConfigTest(2) | ✅ 在基线 |
-| §2.4 HashUtils null 传播修订 | HashUtilsTest(6，原 4) | ✅ 已修订 |
-| §2.3 补 findUpdates 缺口 | sync/UpdateManagerTest(9) | ✅ Phase 3 已补（findUpdates + calculateSyncDiffs + dedup 平级） |
-| §2.3 补 ModelsTest encodeDefaults 单测快照 | ModelsTest(13) | ✅ Phase 3 已落地（+4 字节快照；路由层亦保留断言） |
-| §3 路由特征化测试 | LanSyncRoutingTest(33) | ✅ 已落地 |
-| §4 下载+MD5 链路 | LanSyncClientTest(18) + DownloadedFileNameTest(10) | ✅ 已落地（DL-7/8/9/10 于 2026-10-05 补齐；**DL-6 经查证不可覆盖**，见 §4 注） |
-| §5 配对状态机（接收方） | InMemoryPairingStoreTest(9) | ✅ 已落地（含迁移 clearAll） |
-| §5 连接状态机 CS-1…CS-17（ConnectionCoordinator） | DefaultConnectionCoordinatorTest(21) | ✅ Phase 2 已落地 |
-| Phase 4 UpdateCoordinator | UpdateCoordinatorTest(4) | ✅ 已落地（combine/节流/立即重算） |
-| Phase 4 DownloadInstallController | DownloadInstallControllerTest(7) | ✅ 已落地（下载/安装进度状态） |
-| 旧 ConnectionManagerTest / update.UpdateManagerTest | — | 🗑️ Phase 4 随旧码删除（行为已由 InMemoryPairingStoreTest / sync.UpdateManagerTest / DefaultConnectionCoordinatorTest 覆盖） |
-| §6 真机互操作矩阵 | — | ⏳ 接线已完成，待真机执行（T1 旧 APK 已确认存在） |
-| Phase 5 UI 一次成型（设计系统 + 5 Tab + 全量覆盖层） | 无新增 JVM 单测（Compose UI 非单测目标） | ✅ `assembleDebug` 通过 + 硬编码审计（`ui/` 非 theme 文件 + `MainActivity`：0 内联中文字面量 / 0 `Color` 字面量 / 0 裸 `.dp`）；139 基线不变 |
-| ARCH §8.3 分层静态门禁 | architecture/LayeringTest(2) | ✅ 2026-10-05 落地：断言 `data/**` 不 import `com.lansync.app.ui.*` + 门面 ≤300 行。**零新依赖**（Konsist 不在本机离线缓存内，引入需联网解析），直接跑在 `testDebugUnitTest` 门禁里，比外挂 lint 更难绕过 |
+| `data/server/LanSyncRoutingTest` | 33 | §3.1 状态码矩阵、§3.2 三响应头与 Content-Type、§3.3 不回显 `e.message`、SPEC §1.2.1 省略、D1 |
+| `data/transfer/LanSyncClientTest` | 18 | DL-1/2/3/5/7/8/9/10/11 + `parseConnectStatus` + `fetchAppList` |
+| `data/connection/DefaultConnectionCoordinatorTest` | 21 | CS-1…CS-17（含 CS-17a–d）、`incomingRequests`、周期心跳 |
+| `data/model/ModelsTest` | 13 | DTO roundtrip + `encodeDefaults=false` 字节快照 |
+| `data/server/InMemoryPairingStoreTest` | 9 | §2.2 配对状态机、15s 超时、getStatus 映射、respond 取消 timeout、clearAll |
+| `data/sync/UpdateManagerTest` | 9 | §2.3 `findUpdates` / `deduplicateUpdates` / `calculateSyncDiffs` |
+| `data/transfer/DownloadedFileNameTest` | 10 | DL-12 命名 / 反推边界 / 正向匹配 |
+| `data/transfer/DownloadInstallControllerTest` | 7 | 下载与安装进度状态流 |
+| `data/transfer/AppPackerTest` | 6 | 单包字节一致与命名、split zip 结构、不可提取/空路径 → null、D1 不等式、`clearCache` |
+| `data/HashUtilsTest` | 6 | §2.4 null 传播三态 |
+| `data/localapps/LocalAppRepositoryTest` | 5 | hasCache、`scanAndRefresh` 写缓存+状态+added、`loadCacheSkeleton` 不触发扫描、跨次 added/removed、损坏缓存自愈 |
+| `data/sync/UpdateCoordinatorTest` | 4 | combine / 节流 / 立即重算（注入 `nowMillis`） |
+| `architecture/LayeringTest` | 2 | §7 分层门禁 |
+| `data/AppConfigTest` | 2 | SPEC §7.2 全部默认参数 |
+| `data/packer/HashUtilsConsistencyTest` | 2 | MD5 一致性（含 nonexistent → null） |
 
-> **合计（2026-10-05）**：**15 文件 147 例**，0 失败/0 错误/0 跳过（= Phase 4 末的 139 + `LanSyncClientTest` 增 6 + `LayeringTest` 2），`assembleDebug` 通过。
-> **合计（Phase 4 末）**：**14 文件 139 例**（= Phase 3 的 141 − 删旧 `ConnectionManagerTest` 10 − 删旧 `update.UpdateManagerTest` 3 + `UpdateCoordinatorTest` 4 + `DownloadInstallControllerTest` 7），0 失败/0 错误/0 跳过（均 JVM 单元/集成，无 instrumented）。**Phase 5 末**：UI 一次成型未新增 JVM 单测（Compose UI 非单测目标），基线仍 **139/139**，`assembleDebug` 通过。权威阶段状态见仓库根 `PROGRESS.md`。
-> **✅ 绿色基线已跑通（2026-09-08）**：`testDebugUnitTest`（Gradle 8.13，离线，`GRADLE_USER_HOME=C:\Users\LingTian\.gradle`）实跑 **95/95 全绿，0 失败 0 错误 0 跳过**（`LanSyncRoutingTest` 33 / `LanSyncClientTest` 12 / `DownloadedFileNameTest` 10 / `ConnectionManagerTest` 10 / `ModelsTest` 9 / `InMemoryPairingStoreTest` 8 / `HashUtilsTest` 6 / `UpdateManagerTest` 3 / `AppConfigTest` 2 / `HashUtilsConsistencyTest` 2）；应用构建卫生修复（移除死依赖/jetifier、`PREFER_SETTINGS`）后**复跑仍 95/95 全绿**。运行方式见 §7 本机实测注。
-
-> **停止点（2026-10-05）**：Phase 5 与其后两次分支交付（UI Recreate、缓存骨架接线）均已完成，权威记录见 `PROGRESS.md` §10。补短板批次已落地：分层静态门禁（`LayeringTest`）+ DL-7/8/9/10 补齐 + `POST_NOTIFICATIONS` 运行时请求 + `LanSyncMotion` 死码清理，`testDebugUnitTest` **147/147 全绿** + `assembleDebug` 通过。UI 视觉/交互与运行时行为（FGS/mDNS/连接/下载/安装）**仍待真机验证**（§6 矩阵从未执行，用户已暂缓）。下一步 Phase 6（安全加固/协议版本化）或 Phase 7（工具链升级）待用户确认。
-
----
-
-*（TEST-PLAN.md 结束。）*
+**无 JVM 单测（靠编译 + `assembleDebug` + 真机验收）**：`AppScanner`、`JmDNSDeviceDiscovery`、`IconCache`/`AppIconDiskCache`、`ForegroundSyncService`、`LanSyncRepository`、`LanSyncGraph`、`KtorLanSyncServer`、全部 Compose UI 与 `MainViewModel`。项目无 Robolectric / 无 UI 测试 / 无覆盖率工具；为 Android 耦合类新建测试栈属扩大范围，须先与用户确认。

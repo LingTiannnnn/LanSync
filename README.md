@@ -11,7 +11,7 @@
 - **Split APK 支持** - 完整支持 .apks 拆分包
 - **第三方安装器** - 无缝集成系统或第三方APK安装器
 - **无需特殊权限** - 无需Root、Shizuku或ADB权限
-- **Material You 设计** - 采用最新的 Material3 设计规范
+- **Material 3 设计** - 统一的青绿色（Teal）设计系统，跨设备观感一致
 
 ## 🛠️ 技术栈
 
