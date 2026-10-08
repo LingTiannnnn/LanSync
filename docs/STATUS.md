@@ -13,6 +13,7 @@
 | 增量① | UI Recreate（Teal 配色、edge-to-edge、组件族重写、配对改 `ModalBottomSheet`） | ✅ 代码级 | 独立评审 2 critical 已修；**真机视觉验收未做** |
 | 增量② | 本机应用缓存骨架接线 | ✅ | 139 例 |
 | 增量③ | 补短板批次（分层门禁 / DL-7…DL-10 / `POST_NOTIFICATIONS` 运行时请求 / 死码清理） | ✅ | **147 例** + assembleDebug |
+| 增量④ | 文档事实门禁（`architecture/DocFactsTest`：版本锁表 / 测试基线 / `.qoder/agents` 镜像 / 远端同步表述对照仓库实测） | ✅ | **154 例** |
 | Phase 6 | 安全加固与协议版本化 | ⏳ 待启动 | **前置：真机互操作验收** |
 | Phase 7 | 工具链升级 / UI 拆分 | ⏳ 待启动 | 独立分支，不叠加协议改动 |
 
@@ -20,13 +21,13 @@
 
 ## 2. 基线
 
-- **147/147 全绿**：15 个测试文件，0 失败 / 0 错误 / 0 跳过；`assembleDebug` 通过（`app-debug.apk` 约 62MB）。文件 × 例数 × 锁定契约的映射见 `docs/TEST-PLAN.md` §10。
+- **154/154 全绿**：16 个测试文件，0 失败 / 0 错误 / 0 跳过；`assembleDebug` 通过（`app-debug.apk` 约 62MB）。文件 × 例数 × 锁定契约的映射见 `docs/TEST-PLAN.md` §10。
 - **DL-6（空 body）经查证不可覆盖**，裁决为"保留防御分支、不写断言"（`docs/TEST-PLAN.md` §4）。
 
 ## 3. 分支与远端
 
 - **`main` 是唯一开发线**；新工作一律从 `main` 开分支，合回用 `--ff-only`。
-- `origin/main` 已与 `main` 同步，GitHub 默认分支即重构后代码，clone 默认拿到新栈。
+- `main` 领先 `origin/main` 1 个提交（未推送的是文档精简批次），远端顶层没有 `AGENTS.md`、仍是 `PROGRESS.md` / `REPORT.md`，clone 拿到的是精简前的文档集。推送与否待用户定；复核用 `git rev-list --left-right --count origin/main...main` 与 `git ls-tree --name-only origin/main`。
 - `qoder/UI-Recreate`、`qoder/Quality-Gate` 已纯快进合回 `main`，保留作历史线、不再在其上开发；二者未与远端同步，内容已全在 `main`，是否推/删待用户定。
 - 重构前代码（`AppRepository`/`KtorServer`/`AppListClient`/`ConnectionManager`/旧 `JmDNSDiscovery`/旧 `scanner`/`packer`/`update` 及其测试）只存在于 git 历史，基线快照 `d1a71fc`。
 

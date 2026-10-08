@@ -193,9 +193,10 @@
 
 | 门禁 | 阻断条件 |
 |---|---|
-| `testDebugUnitTest` | 任一 L1/L2/L3 用例失败；或 `LayeringTest` 违规 |
+| `testDebugUnitTest` | 任一 L1/L2/L3 用例失败；或 `LayeringTest` / `DocFactsTest` 违规 |
 | `assembleDebug` | 编译 / 资源合并失败 |
 | `architecture/LayeringTest` | ① `data/**` 出现 `import com.lansync.app.ui.*`（输出 `文件:行号: 原文`）；② `LanSyncRepository.kt` > 300 行。**显式兜底"扫到 0 个文件即失败"**，否则路径写错时门禁静默空过 |
+| `architecture/DocFactsTest` | 文档字面量与仓库实测不符：`docs/BUILD.md` §3 版本锁表与 SDK / `jvmTarget` 行、`docs/STATUS.md` §2 与 §10 的测试基线、§10 逐文件例数、`.qoder/agents` 镜像数字、远端同步表述与 `.git` 引用矛盾。**自带检测器自检例**，匹配式失效即失败，不会静默空过 |
 | `assembleRelease` + 真机冒烟 | 安装器链路失败（Phase 7 范畴） |
 | §6 人工签核 | 任一红线组合失败 |
 
@@ -224,7 +225,7 @@
 
 ## 10. 当前落地清单
 
-15 个测试文件 / 147 例（用例数以仓库实测为准）。
+16 个测试文件 / 154 例（用例数以仓库实测为准）。
 
 | 测试文件 | 例数 | 锁定 |
 |---|---|---|
@@ -236,6 +237,7 @@
 | `data/sync/UpdateManagerTest` | 9 | §2.3 `findUpdates` / `deduplicateUpdates` / `calculateSyncDiffs` |
 | `data/transfer/DownloadedFileNameTest` | 10 | DL-12 命名 / 反推边界 / 正向匹配 |
 | `data/transfer/DownloadInstallControllerTest` | 7 | 下载与安装进度状态流 |
+| `architecture/DocFactsTest` | 7 | CONVENTIONS §6 文档事实门禁：BUILD §3 版本锁表与 SDK/`jvmTarget` 行、STATUS §2 与 §10 测试基线、§10 逐文件例数、`.qoder/agents` 镜像数、远端同步表述对照 `.git` 引用，外加检测器自检 |
 | `data/transfer/AppPackerTest` | 6 | 单包字节一致与命名、split zip 结构、不可提取/空路径 → null、D1 不等式、`clearCache` |
 | `data/HashUtilsTest` | 6 | §2.4 null 传播三态 |
 | `data/localapps/LocalAppRepositoryTest` | 5 | hasCache、`scanAndRefresh` 写缓存+状态+added、`loadCacheSkeleton` 不触发扫描、跨次 added/removed、损坏缓存自愈 |

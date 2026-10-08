@@ -31,7 +31,7 @@ GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --of
 | 发现 | JmDNS 3.5.8 |
 | 序列化 | kotlinx-serialization-json 1.6.0 |
 | 异步 | kotlinx-coroutines 1.7.3 |
-| 其他 | documentfile 1.9.0（SAF）、core-ktx 1.12.0（FileProvider）、lifecycle 2.6.2、activity-compose 1.8.1 |
+| 其他 | documentfile 1.0.1（SAF）、core-ktx 1.12.0（FileProvider）、lifecycle 2.6.2、activity-compose 1.8.1 |
 | 构建 | Gradle **8.13** / AGP 8.13.2 / `buildToolsVersion = "35.0.0"`（固定，避免联网下载） |
 | 测试 | JUnit4 4.13.2 + MockK 1.13.8 + coroutines-test 1.7.3 + ktor-server-test-host 2.3.5 |
 | SDK | `minSdk 29` / `targetSdk 34` / `compileSdk 34` |
