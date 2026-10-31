@@ -50,6 +50,7 @@ data class LanSyncSpacing(
     val deviceIcon: Dp = 48.dp,
 
     // ---- 描边 / 进度 / 强调条 ----
+    val hairline: Dp = 1.dp,
     val strokeThin: Dp = 2.dp,
     val strokeThick: Dp = 3.dp,
     val progressBarHeight: Dp = 6.dp,

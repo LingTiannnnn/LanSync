@@ -1,5 +1,6 @@
 package com.lansync.app.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -84,8 +85,6 @@ fun LanSyncAppRow(
             .semantics { contentDescription = title }
     }
 
-    val actionable = onCheckedChange != null || onClick != null
-
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -93,10 +92,10 @@ fun LanSyncAppRow(
             containerColor = if (selected) LanSyncTheme.containers.highest else LanSyncTheme.containers.low,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
-        // 只有可操作的行才贴阴影，静态行（本地应用列表）保持平面，避免「看起来能点」的假 affordance
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (actionable) LanSyncTheme.elevation.card else LanSyncTheme.elevation.card * 0f,
-        ),
+        // 行卡不贴阴影：滚动期阴影 graphicsLayer 在触摸命中测试路径上有实测成本，
+        // 空间感由 1dp 描边承担，选中态靠 highest 底色区分
+        elevation = CardDefaults.cardElevation(defaultElevation = LanSyncTheme.elevation.flat),
+        border = BorderStroke(sp.hairline, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
             modifier = rowModifier.padding(end = sp.space12),

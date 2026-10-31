@@ -1,5 +1,6 @@
 package com.lansync.app.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -255,7 +256,8 @@ fun DiffItem(diff: SyncDiff) {
             containerColor = LanSyncTheme.containers.low,
             contentColor = scheme.onSurface,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = LanSyncTheme.elevation.card),
+        elevation = CardDefaults.cardElevation(defaultElevation = LanSyncTheme.elevation.flat),
+        border = BorderStroke(sp.hairline, scheme.outlineVariant),
     ) {
         Row(
             modifier = Modifier.padding(sp.space12),

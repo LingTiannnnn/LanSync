@@ -1,5 +1,6 @@
 package com.lansync.app.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -174,7 +175,8 @@ fun DeviceCard(
             containerColor = LanSyncTheme.containers.low,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = LanSyncTheme.elevation.card),
+        elevation = CardDefaults.cardElevation(defaultElevation = LanSyncTheme.elevation.flat),
+        border = BorderStroke(sp.hairline, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(modifier = Modifier.padding(sp.space16)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
