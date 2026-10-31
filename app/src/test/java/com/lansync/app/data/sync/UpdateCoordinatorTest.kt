@@ -26,14 +26,16 @@ class UpdateCoordinatorTest {
 
     @Test
     fun `emits availableUpdates and syncDiffs when data ready`() = runTest {
-        val localApps = MutableStateFlow(listOf(app("com.a", 1)))
-        val connected = MutableStateFlow(listOf(device("A", listOf(app("com.a", 5)))))
+        // com.a 远端更高 → 可更新；com.b 本地更高 → 版本差异（远程落后）
+        val localApps = MutableStateFlow(listOf(app("com.a", 1), app("com.b", 9)))
+        val connected = MutableStateFlow(listOf(device("A", listOf(app("com.a", 5), app("com.b", 4)))))
         val coord = UpdateCoordinator(UpdateManager(), localApps, connected, AppConfig.DEFAULT, backgroundScope) { 10_000L }
         coord.start()
         runCurrent()
         assertEquals(1, coord.availableUpdates.value.size)
         assertEquals("com.a", coord.availableUpdates.value[0].remoteApp.packageName)
-        assertTrue(coord.syncDiffs.value.isNotEmpty())
+        assertEquals(1, coord.syncDiffs.value.size)
+        assertEquals("com.b", coord.syncDiffs.value[0].appInfo.packageName)
         coord.stop()
     }
 

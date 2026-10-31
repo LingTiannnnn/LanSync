@@ -12,10 +12,10 @@ import com.lansync.app.data.model.UpdateInfo
  * （首拉 + 120s 周期同步 + 刷新通知，SPEC §7.2），故本类**不再自行 fetch**（旧实现内部 `async fetchAppList`），
  * 改为对**已填充 appList 的设备列表**做纯比较——无 `suspend`、无网络/Context 依赖、完全可 JVM 单测。
  *
- * 冻结规则（与旧实现逐条一致，SPEC/ARCH §3.2）：
+ * 规则（`findUpdates`/`deduplicateUpdates` 与旧实现逐条一致，SPEC/ARCH §3.2；差异语义经用户裁决收窄，见 ARCH §3.2）：
  * - `findUpdates`：跳过系统应用（remote/local 任一为系统应用不计）；仅 `remote.versionCode > local.versionCode` 才 `canUpdate`。
  * - `deduplicateUpdates`：按 `packageName` 去重取最高 `versionCode`；平级取 `providerDevice.deviceName` 字母序更小者。
- * - `calculateSyncDiffs`：四类型 NEWER_ON_REMOTE / ONLY_ON_REMOTE / SAME_VERSION / ONLY_ON_LOCAL，按 `appName` 降序。
+ * - `calculateSyncDiffs`：只收「远程落后」（双端都有且本地更高）；远程更高归可更新、同版本与单侧存在不构成差异，按 `appName` 降序。
  */
 class UpdateManager {
 
@@ -55,47 +55,23 @@ class UpdateManager {
         return best.values.toList()
     }
 
-    /** 产出四类版本差异（同步 Tab 用），按 appName 降序。 */
+    /**
+     * 产出「远程版本落后」列表（同步 Tab 版本差异档）：双端都安装、跳过系统应用、
+     * 且本地 `versionCode` 更高——远程更高的情形归 [findUpdates]（可更新），不在此重复。
+     * 按 appName 降序。
+     */
     fun calculateSyncDiffs(localApps: List<AppInfo>, devices: List<DeviceInfo>): List<SyncDiff> {
         val diffs = mutableListOf<SyncDiff>()
         val localMap = localApps.associateBy { it.packageName }
-        val remotePackages = mutableSetOf<String>()
 
         for (device in devices.filter { it.appList.isNotEmpty() }) {
             for (remoteApp in device.appList) {
                 if (remoteApp.isSystemApp) continue
-                remotePackages.add(remoteApp.packageName)
-
-                val localApp = localMap[remoteApp.packageName]
-                if (localApp == null) {
-                    diffs.add(
-                        SyncDiff(remoteApp, null, remoteApp.versionName, device, SyncDiff.DiffType.ONLY_ON_REMOTE)
-                    )
-                    continue
-                }
+                val localApp = localMap[remoteApp.packageName] ?: continue
                 if (localApp.isSystemApp) continue
-
-                val diffType = when {
-                    remoteApp.versionCode > localApp.versionCode -> SyncDiff.DiffType.NEWER_ON_REMOTE
-                    remoteApp.versionCode == localApp.versionCode -> SyncDiff.DiffType.SAME_VERSION
-                    else -> continue
+                if (localApp.versionCode > remoteApp.versionCode) {
+                    diffs.add(SyncDiff(remoteApp, localApp.versionName, remoteApp.versionName, device))
                 }
-                diffs.add(
-                    SyncDiff(remoteApp, localApp.versionName, remoteApp.versionName, device, diffType)
-                )
-            }
-        }
-
-        for (localApp in localApps) {
-            if (localApp.isSystemApp) continue
-            if (localApp.packageName !in remotePackages) {
-                diffs.add(
-                    SyncDiff(
-                        localApp, localApp.versionName, "",
-                        DeviceInfo(ipAddress = "", deviceName = "", port = 0),
-                        SyncDiff.DiffType.ONLY_ON_LOCAL
-                    )
-                )
             }
         }
 

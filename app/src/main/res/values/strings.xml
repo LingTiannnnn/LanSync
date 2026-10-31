@@ -4,13 +4,14 @@
   全部 UI 文案（屏幕 / 覆盖层 / 通知 / ViewModel 用户消息 / content description）唯一来源；
   组件与 VM 内禁止内联中文字面量，一律经 stringResource(R.string.x) 或 getString(R.string.x) 引用。
   含参数的文案用位置化占位符 %1$d / %1$s。
+  `cd_` 前缀 = 无障碍描述，只可用于 contentDescription；可见文案用 `action_` / 语义名前缀。
+  `reason_` 前缀 = typed failure（ConnectionFailure.Kind / InstallFailure）的用户可读映射（见 ui/string/FailureText.kt）。
 -->
 <resources>
     <string name="app_name">LanSync</string>
 
-    <!-- ===== 底部导航 5 Tab ===== -->
+    <!-- ===== 底部导航 4 Tab ===== -->
     <string name="tab_devices">设备</string>
-    <string name="tab_local">本地应用</string>
     <string name="tab_remote">远程应用</string>
     <string name="tab_sync">同步</string>
     <string name="tab_files">文件</string>
@@ -36,12 +37,16 @@
     <string name="action_reject">拒绝</string>
     <string name="action_select_all">全选</string>
     <string name="action_deselect_all">取消全选</string>
-    <string name="action_clear_selection">清除选择</string>
+    <string name="action_refresh">刷新</string>
     <string name="action_refresh_applist">刷新应用列表</string>
     <string name="cd_refresh">刷新</string>
     <string name="cd_refresh_files">刷新文件</string>
-    <string name="cd_close">关闭</string>
-    <string name="cd_clear">清除</string>
+    <string name="cd_select_app">选择 %1$s</string>
+
+    <!-- ===== 格式化 ===== -->
+    <string name="version_pair">%1$s → %2$s</string>
+    <string name="addr_ip_port">%1$s:%2$d</string>
+    <string name="section_count_description">%1$s：%2$d 项</string>
 
     <!-- ===== 设备 Tab ===== -->
     <string name="devices_section_title">发现的设备</string>
@@ -53,82 +58,77 @@
     <string name="hero_stat_updatable">可更新</string>
     <string name="hero_stat_connected">已连接</string>
     <string name="hero_stat_local_apps">本地应用</string>
-    <string name="identity_port_line">%1$s · :%2$d</string>
-    <string name="files_summary_primary">已下载 %1$d 个文件</string>
-    <string name="files_summary_secondary">占用 %1$s</string>
-    <string name="files_empty_cta">去看看可更新</string>
-    <string name="sync_mode_updatable">可更新 (%1$d)</string>
+    <string name="identity_port_line">%1$s · 端口 %2$d</string>
+    <string name="sync_mode_updatable">更新 (%1$d)</string>
     <string name="sync_mode_diffs">版本差异 (%1$d)</string>
-    <string name="sync_section_newer_on_remote">远程更高</string>
-    <string name="sync_section_only_remote">仅远程存在</string>
+    <string name="sync_section_remote_behind">远程版本落后</string>
     <string name="devices_searching">正在搜索设备…</string>
     <string name="devices_service_stopped">服务未启动</string>
     <string name="status_running">LanSync 运行中</string>
     <string name="status_stopped">LanSync 已停止</string>
-    <string name="status_port">端口: %1$d</string>
-    <string name="status_processing">处理中…</string>
-    <string name="device_state_discovered">已发现 - 点击连接</string>
+    <string name="device_state_discovered">已发现</string>
     <string name="device_state_connecting">正在连接…</string>
     <string name="device_state_connected">已连接 (%1$d 个应用)</string>
-    <string name="device_state_reconnecting">正在尝试重新连接…</string>
-    <string name="device_state_error">连接失败: %1$s</string>
+    <string name="device_state_reconnecting">正在重连…</string>
+    <string name="device_state_error">连接失败</string>
     <string name="device_state_timeout">连接超时</string>
     <string name="device_state_disconnected">已断开</string>
     <string name="device_online_badge">在线</string>
-    <string name="error_unknown">未知错误</string>
 
-    <!-- ===== 本地应用 Tab ===== -->
-    <string name="local_scanning_list">正在扫描本地应用列表…</string>
-    <string name="local_section_title">已安装应用</string>
-    <string name="search_local_placeholder">搜索本地应用…</string>
-    <string name="category_all">全部 (%1$d)</string>
+    <!-- ===== 失败原因：typed failure → 用户可读文案 ===== -->
+    <string name="reason_rejected">对方拒绝连接</string>
+    <string name="reason_no_response">目标设备无响应</string>
+    <string name="reason_device_offline">设备已离线</string>
+    <string name="reason_unexpected">连接异常，请稍后重试</string>
+    <string name="reason_link_unstable">连接不稳定（%1$d/%2$d 次重试）</string>
+    <string name="reason_reconnecting">正在尝试重新连接（%1$d/%2$d）</string>
+    <string name="reason_timeout_seconds">%1$d 秒内未收到响应</string>
+    <string name="reason_file_missing">安装包已不在本地</string>
+    <string name="reason_download_failed">下载未完成</string>
+    <string name="reason_installer_unavailable">本机没有可用的安装程序</string>
+    <string name="reason_installer_exception">拉起安装程序时出错</string>
+
+    <!-- ===== 应用分类（远程应用 Tab 分栏）===== -->
     <string name="category_user">用户应用 (%1$d)</string>
     <string name="category_system">系统应用 (%1$d)</string>
-    <string name="local_empty_search">未找到匹配「%1$s」的应用</string>
-    <string name="local_empty_user">暂无用户应用</string>
-    <string name="local_empty_system">暂无系统应用</string>
-    <string name="local_empty_all">暂无应用数据</string>
 
     <!-- ===== 远程应用 Tab ===== -->
-    <string name="remote_section_title">远程应用</string>
-    <string name="search_remote_placeholder">搜索远程应用…</string>
     <string name="remote_empty_title">尚未连接任何设备</string>
     <string name="remote_empty_hint">请在「设备」页面发现并连接设备后使用此功能</string>
     <string name="remote_no_device_title">暂无连接的远程设备</string>
     <string name="remote_empty_applist">应用列表为空</string>
-    <string name="remote_empty_search">未找到匹配「%1$s」的远程应用</string>
     <string name="remote_empty_user">暂无远程用户应用</string>
     <string name="remote_empty_system">暂无远程系统应用</string>
-    <string name="remote_empty_all">暂无远程应用数据</string>
     <string name="summary_connected_devices">已连接 %1$d 台设备</string>
     <string name="summary_remote_apps">共 %1$d 个远程应用</string>
-    <string name="status_refreshing_short">刷新中…</string>
     <string name="selection_count_apps">已选择 %1$d 个应用</string>
 
     <!-- ===== 同步 Tab ===== -->
     <string name="sync_device_title">%1$s 的同步对比</string>
-    <string name="sync_section_user">用户应用</string>
-    <string name="sync_section_updatable">可更新</string>
     <string name="sync_section_diffs">版本差异</string>
     <string name="sync_all_synced">应用版本已同步，无差异</string>
-    <string name="sync_empty_search">未找到匹配「%1$s」的用户应用</string>
     <string name="sync_empty_user">该设备暂无用户应用</string>
-    <string name="search_user_placeholder">搜索用户应用…</string>
-    <string name="diff_newer_on_remote">远程版本号更高</string>
-    <string name="diff_version_placeholder">-</string>
-    <string name="version_arrow">" → "</string>
+    <string name="sync_empty_behind">该设备没有落后于本机的应用</string>
+    <string name="sync_empty_title">还没有已连接的设备</string>
+    <string name="sync_empty_hint">在「设备」页面连接设备后，这里会列出可更新的应用</string>
 
     <!-- ===== 文件 Tab ===== -->
     <string name="files_empty_title">暂无已下载文件</string>
     <string name="files_empty_hint">在「远程应用」或「同步」页面下载应用后，文件将显示在这里</string>
+    <string name="files_summary_primary">已下载 %1$d 个文件</string>
+    <string name="files_summary_secondary">占用 %1$s</string>
+    <string name="files_empty_cta">去看看可更新</string>
     <string name="files_delete_confirm_title">确认删除</string>
     <string name="files_delete_confirm_message">确定要删除选中的 %1$d 个文件吗？此操作不可撤销。</string>
     <string name="selection_count_files">已选择 %1$d 个文件</string>
-    <string name="file_meta_separator">•</string>
     <string name="size_bytes">%1$d B</string>
     <string name="size_kb">%1$.1f KB</string>
     <string name="size_mb_decimal">%1$.1f MB</string>
-    <string name="size_mb">%1$d MB</string>
+
+    <!-- ===== 行说明与来源 ===== -->
+    <string name="sync_provider_only">来自 %1$s</string>
+    <string name="version_size_line">%1$s · %2$s</string>
+    <string name="file_meta_line">%1$s · %2$s</string>
 
     <!-- ===== 徽标 ===== -->
     <string name="badge_not_extractable">不可提取</string>
@@ -142,9 +142,10 @@
     <string name="download_state_failed">下载失败</string>
     <string name="download_progress_percent">%1$d%%</string>
 
-    <!-- ===== 安装状态 Snackbar ===== -->
+    <!-- ===== 安装与操作反馈 ===== -->
     <string name="install_installing">正在安装 %1$s…</string>
     <string name="install_success">%1$s 安装已发起</string>
+    <string name="install_failed">安装失败：%1$s</string>
 
     <!-- ===== 传入连接请求弹窗 ===== -->
     <string name="incoming_title">收到连接请求</string>
@@ -154,6 +155,8 @@
     <string name="initial_scan_title">正在扫描本地应用列表</string>
     <string name="initial_scan_body">首次使用需要扫描设备上安装的所有应用\n请稍候，此过程可能需要一些时间</string>
     <string name="initial_scan_footer">扫描完成后将自动启动同步服务</string>
+    <string name="initial_scan_skip">先跳过，稍后重试</string>
+    <string name="incoming_expiring">即将超时，请尽快允许或拒绝</string>
 
     <!-- ===== 保存状态对话框 / SAF ===== -->
     <string name="save_state_saving">保存中</string>
@@ -165,16 +168,15 @@
     <string name="save_err_dir_inaccessible">无法访问选择的目录</string>
     <string name="save_err_create_failed">无法在目标目录创建文件</string>
     <string name="save_err_write_failed">无法写入文件</string>
-    <string name="save_err_permission">权限不足：%1$s</string>
+    <string name="save_err_permission">权限不足，无法写入目标目录</string>
     <string name="save_err_no_space">存储空间不足，请清理后重试</string>
-    <string name="save_err_generic">保存失败：%1$s</string>
+    <string name="save_err_generic">保存失败，请重试</string>
 
     <!-- ===== ViewModel 用户消息 ===== -->
     <string name="op_starting_service">正在启动服务…</string>
     <string name="op_stopping_service">正在停止服务…</string>
     <string name="op_refreshing">正在刷新…</string>
     <string name="error_connect_failed">连接 %1$s 失败</string>
-    <string name="error_connect_exception">连接异常: %1$s</string>
     <string name="batch_error_line">%1$s: %2$s</string>
     <string name="batch_update_partial_failure">批量更新完成，其中 %1$d/%2$d 个失败：\n%3$s</string>
     <string name="pull_partial_failure">拉取完成，其中 %1$d/%2$d 个失败：\n%3$s</string>

@@ -2,17 +2,20 @@
 
 ```bash
 cd "E:/S.H.I.T/LanSync"
-GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat testDebugUnitTest --offline --no-configuration-cache --console=plain
-GRADLE_USER_HOME="C:/Users/LingTian/.gradle" ./gradlew.bat assembleDebug    --offline --no-configuration-cache --console=plain
+./gradlew.bat assembleDebug     --offline --no-configuration-cache --console=plain
+./gradlew.bat testDebugUnitTest              --no-configuration-cache --console=plain   # 不能带 --offline
 ```
+
+两条命令都用**机器级默认 `GRADLE_USER_HOME`**（不要加覆盖）。实测通过：`assembleDebug` 离线可编译，`testDebugUnitTest` 去掉 `--offline` 后依赖联网解析、全绿。
 
 ## 1. 四条前提（缺一即失败）
 
-1. **`GRADLE_USER_HOME` 必须覆盖为 `C:\Users\LingTian\.gradle`**。机器级默认 `E:\S.H.I.T\Gradle\GradleRepository` 缺全部测试依赖（junit / mockk / coroutines-test / ktor-server-test-host），`--offline` 下 `compileDebugUnitTestKotlin` 必失败；主源码编译不受影响，症状是"只有测试跑不起来"。
+1. **测试依赖不在任何离线缓存里**：`GRADLE_USER_HOME` 覆盖为 `C:\Users\LingTian\.gradle` 后只剩 `wrapper/`（无 `caches/`），连 Gradle 8.13 发行包都要联网下载；机器级仓库 `E:\S.H.I.T\Gradle\GradleRepository\caches\modules-2\files-2.1` 有 androidx / compose / ktor-server 但**没有** `junit:junit`、`io.mockk`、`kotlinx-coroutines-test`、`ktor-server-test-host`。所以 **`testDebugUnitTest` 必须去掉 `--offline`**（首次解析走网络，之后落进机器级缓存即可离线）；`assembleDebug` 主源码编译不受影响，可继续 `--offline`。
 2. **`local.properties` 必须存在**，至少 `sdk.dir=E\:\\S.H.I.T\\Android SDK`。它被 `.gitignore` 忽略且不在版本控制内，本机 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 为空无法兜底。⚠️ **切分支会把它删掉**：老提交上该文件仍被跟踪，`git checkout` 会用跟踪版静默覆盖被忽略的本地文件（git 对 ignored 文件不告警），随后快进到移除它的提交时文件消失而 `git status` 干净。
    - 切分支后先 `ls local.properties`；恢复：`git show 66a6291^:local.properties > local.properties`。
 3. **`./gradlew.bat` 可直接用**（`--version --offline` 输出 Gradle 8.13 / Launcher JVM 17.0.20.1，不联网）。仅当 `C:\` 缓存整体不可用时才回落用 Gradle 发行版自带的 `bin/gradle.bat`。
 4. **判定以输出里的 `BUILD SUCCESSFUL` 为准**，不要信 exit code：PowerShell 会把 JVM stderr 警告当 error 致 `ExitCode=1`；**不要把输出管道给 `tail`**——管道会用 `tail` 的 0 把 `BUILD FAILED` 掩盖成"成功"。
+   - `BUILD SUCCESSFUL` 还可能来自**根本没跑的测试**：`:app:testDebugUnitTest UP-TO-DATE` 表示本轮没有执行门禁。三道文本门禁读的是 `docs/**`、`.git` 引用与 main 源码文本，都不在 Test 任务的默认输入里，所以 `app/build.gradle.kts` 末尾用 `inputs.files(...)` 把它们登记成输入 —— 改文档后任务会重跑，没改动时才是 UP-TO-DATE。复核绿灯看 `app/build/test-results/testDebugUnitTest/*.xml` 的用例数与文件时间戳，不只看构建输出。
 
 ## 2. 仓库与依赖约束
 

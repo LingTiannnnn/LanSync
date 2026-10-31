@@ -28,7 +28,7 @@ import androidx.core.view.WindowCompat
  * - **颜色**：固定品牌 scheme（[dynamicColor] 默认关闭）；容器色经 [LocalContainers]。
  * - **系统栏**：Activity 必须先 `enableEdgeToEdge()`；此处**禁止**再写不透明
  *   `statusBarColor` / `navigationBarColor`，只按 luminance 设置图标亮暗。
- * - **间距**：经 [LocalSpacing] 注入 [LanSyncSpacing]。
+ * - **尺寸**：间距/图标/控件走 [LocalSpacing]，阴影走 [LocalElevation]，动效走 [LocalMotion]。
  */
 
 private val LightColorScheme = lightColorScheme(
@@ -128,7 +128,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /**
- * 设计系统访问器：间距 / 容器色。
+ * 设计系统访问器：间距 / 容器色 / 阴影 / 动效。
  * 颜色与字体仍经 [MaterialTheme.colorScheme] / [MaterialTheme.typography]。
  */
 object LanSyncTheme {
@@ -137,6 +137,16 @@ object LanSyncTheme {
 
     val containers: LanSyncContainerColors
         @Composable @ReadOnlyComposable get() = LocalContainers.current
+
+    val elevation: LanSyncElevation
+        @Composable @ReadOnlyComposable get() = LocalElevation.current
+
+    /** 系统「移除动画」开启时时长读数为 0。 */
+    val motion: LanSyncMotion
+        @Composable @ReadOnlyComposable get() {
+            val base = LocalMotion.current
+            return if (rememberMotionEnabled()) base else base.disabled()
+        }
 }
 
 @Composable
@@ -170,9 +180,13 @@ fun LanSyncTheme(
         }
     }
 
+    val motion = if (rememberMotionEnabled()) DefaultMotion else DefaultMotion.disabled()
+
     CompositionLocalProvider(
         LocalSpacing provides DefaultSpacing,
         LocalContainers provides containers,
+        LocalElevation provides DefaultElevation,
+        LocalMotion provides motion,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

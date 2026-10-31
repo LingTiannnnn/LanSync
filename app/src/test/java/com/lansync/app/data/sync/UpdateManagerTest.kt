@@ -95,26 +95,38 @@ class UpdateManagerTest {
     // ---------- 新增：calculateSyncDiffs 四类型 ----------
 
     @Test
-    fun `calculateSyncDiffs classifies four diff types`() {
+    fun `calculateSyncDiffs lists only apps where remote is behind local`() {
         val local = listOf(
+            app("com.behind", 9, name = "B").copy(versionName = "2.0.0"),
             app("com.newer", 5, name = "N"),
             app("com.same", 3, name = "S"),
             app("com.localonly", 1, name = "L")
         )
         val devices = listOf(
-            device("A", listOf(app("com.newer", 9, name = "N"), app("com.same", 3, name = "S"), app("com.remoteonly", 2, name = "R")))
+            device(
+                "A",
+                listOf(
+                    app("com.behind", 4, name = "B").copy(versionName = "1.0.0"),
+                    app("com.newer", 9, name = "N"),
+                    app("com.same", 3, name = "S"),
+                    app("com.remoteonly", 2, name = "R")
+                )
+            )
         )
-        val byPkg = um.calculateSyncDiffs(local, devices).associateBy { it.appInfo.packageName }
-        assertEquals(SyncDiff.DiffType.NEWER_ON_REMOTE, byPkg["com.newer"]?.diffType)
-        assertEquals(SyncDiff.DiffType.SAME_VERSION, byPkg["com.same"]?.diffType)
-        assertEquals(SyncDiff.DiffType.ONLY_ON_REMOTE, byPkg["com.remoteonly"]?.diffType)
-        assertEquals(SyncDiff.DiffType.ONLY_ON_LOCAL, byPkg["com.localonly"]?.diffType)
+        val diffs = um.calculateSyncDiffs(local, devices)
+        // 版本差异只收「远程落后」：远程更高归可更新，同版本与单侧存在不构成差异
+        assertEquals(1, diffs.size)
+        val diff = diffs.single()
+        assertEquals("com.behind", diff.appInfo.packageName)
+        assertEquals("2.0.0", diff.localVersion)
+        assertEquals("1.0.0", diff.remoteVersion)
+        assertEquals("A", diff.sourceDevice.deviceName)
     }
 
     @Test
     fun `calculateSyncDiffs skips system apps`() {
-        val local = listOf(app("com.sys", 1, sys = true))
-        val devices = listOf(device("A", listOf(app("com.sys", 9, sys = true))))
+        val local = listOf(app("com.sys", 9, sys = true))
+        val devices = listOf(device("A", listOf(app("com.sys", 4, sys = true))))
         assertTrue(um.calculateSyncDiffs(local, devices).isEmpty())
     }
 }

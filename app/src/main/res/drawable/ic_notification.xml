@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- LanSync 通知小图标。通知栏只接受单色 alpha 剪影，
+     与启动器前景同一几何（24dp 画布内标志 18dp 见方）。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group android:scaleX="0.070312"
+        android:scaleY="0.070312"
+        android:translateX="3.000"
+        android:translateY="3.000">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M192 0h16v16h-16zM96 16h128v16h-128zM96 32h144v16h-144zM96 48h160v16h-160zM96 64h144v16h-144zM96 80h128v16h-128zM96 96h64v16h-64zM96 112h64v16h-64zM96 128h64v16h-64zM48 144h16v16h-16zM112 144h48v16h-48zM32 160h128v16h-128zM16 176h144v16h-144zM0 192h160v16h-160zM16 208h144v16h-144zM32 224h128v16h-128zM48 240h16v16h-16z"/>
+    </group>
+</vector>

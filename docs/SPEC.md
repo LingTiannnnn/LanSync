@@ -103,7 +103,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 | `appList` | List\<AppInfo\> | 否 | `[]` | 该设备应用列表 |
 | `connectionState` | ConnectionState | 否 | `DISCOVERED` | 见 §7 |
 | `lastSeenTimeMs` | Long | 否 | `System.currentTimeMillis()` | 最近可见时间 |
-| `connectionError` | String? | **是** | `null` | 用户可见错误串 |
+| `connectionFailure` | ConnectionFailure? | **是** | `null` | 机器可读失败：`kind`（SEND_NO_RESPONSE / REJECTED_BY_PEER / WAIT_TIMEOUT / LINK_UNSTABLE / RECONNECTING / DEVICE_OFFLINE / UNEXPECTED）+ `retry`/`retryTotal`/`waitSeconds` 参数。**不承载自然语言**，UI 按 `kind` 映射 `strings.xml`（见 ARCH §7） |
 | `displayKey`（计算属性） | String | — | — | `"$ipAddress:$port"`（**不序列化**，`get()` 派生） |
 | `identityKey`（计算属性） | String | — | — | `instanceId` 非空取之，否则 `"$deviceName@$ipAddress"`（**不序列化**） |
 
@@ -426,7 +426,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
        │               Accepted        Rejected             Timeout         异常(catch)
        │                    │              │            (未被反向连接)          │
        │                    │              ▼                    ▼               ▼
-       │                    │        ERROR("对方拒绝连接")  ERROR("连接超时…")  ERROR(e.message?:"连接异常")
+       │                    │        ERROR(REJECTED_BY_PEER) ERROR(WAIT_TIMEOUT) ERROR(UNEXPECTED)
        │                    ▼
        │              CONNECTED ── addOrUpdateInConnected/Enriched + startHeartbeat + fetchAppListWithRetry
        │                    │
@@ -440,7 +440,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
        │      │    │         │          │                  │
        │      │    ▼         ▼          ▼                  │
        │   RECONNECTING  RECONNECTING  CONNECTION_TIMEOUT  │
-       │   ("连接不稳定…")("正在尝试重新连接…" ("连接超时，设备已离线")│
+       │  (LINK_UNSTABLE)(RECONNECTING) (DEVICE_OFFLINE)     │
        │      │        +tryFastReconnect)  │ removeFromConnected│
        │      │         │                  │ stopHeartbeat/Sync │
        │      └────┬────┘                  └───────────────────┘
@@ -453,15 +453,15 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 |---|---|---|---|
 | — | mDNS 新增设备 | DISCOVERED | 加入 `_enrichedDevices` |
 | DISCOVERED/DISCONNECTED | `connectDevice()` | CONNECTING | `connectingDevices.putIfAbsent` 去重；已 CONNECTED 直接返回 true |
-| CONNECTING | `sendConnectRequest`→null | ERROR | 文案「无法发送连接请求，目标设备无响应」 |
+| CONNECTING | `sendConnectRequest`→null | ERROR | `connectionFailure=ConnectionFailure(SEND_NO_RESPONSE)` |
 | CONNECTING | poll=Accepted | CONNECTED | 加入 connected+enriched；`startHeartbeat`；后台 `fetchAppListWithRetry(isInitiator=true)` |
-| CONNECTING | poll=Rejected | ERROR | 文案「对方拒绝连接」 |
-| CONNECTING | poll=Timeout | ERROR | 若已被反向连接（connected 中存在且 CONNECTED）→ 视为成功 true；否则 ERROR「连接超时（30秒内未收到响应）」 |
-| CONNECTING | 抛异常 | ERROR | 文案 `e.message ?: "连接异常"` |
-| CONNECTED | ping 成功 | CONNECTED | 清 `heartbeatFailCounts`；刷新 `lastSeenTimeMs`；`connectionError=null` |
-| CONNECTED | ping 失败 failCount≤1 | RECONNECTING | 「连接不稳定... (n/4)」 |
-| CONNECTED/RECONNECTING | ping 失败 1<failCount<4 | RECONNECTING | 「正在尝试重新连接... (n/4)」；`launch{ tryFastReconnect }` |
-| RECONNECTING | failCount≥4 | CONNECTION_TIMEOUT | 「连接超时，设备已离线」；`removeFromConnected`；stopHeartbeat/Sync；清计数 |
+| CONNECTING | poll=Rejected | ERROR | `REJECTED_BY_PEER`；对端原文只进 `FileLogger` |
+| CONNECTING | poll=Timeout | ERROR | 若已被反向连接（connected 中存在且 CONNECTED）→ 视为成功 true；否则 `WAIT_TIMEOUT`+`waitSeconds` |
+| CONNECTING | 抛异常 | ERROR | `UNEXPECTED`；`e.message` 只进 `FileLogger` |
+| CONNECTED | ping 成功 | CONNECTED | 清 `heartbeatFailCounts`；刷新 `lastSeenTimeMs`；`connectionFailure=null` |
+| CONNECTED | ping 失败 failCount≤1 | RECONNECTING | `LINK_UNSTABLE`+`retry`/`retryTotal` |
+| CONNECTED/RECONNECTING | ping 失败 1<failCount<4 | RECONNECTING | `RECONNECTING`+`retry`/`retryTotal`；`launch{ tryFastReconnect }` |
+| RECONNECTING | failCount≥4 | CONNECTION_TIMEOUT | `DEVICE_OFFLINE`；`removeFromConnected`；stopHeartbeat/Sync；清计数 |
 | RECONNECTING | `tryFastReconnect` fetchDeviceInfo≠null | CONNECTED | 清计数；`fetchAndEnrichDevice` |
 | CONNECTED | 本地 `disconnectDevice()` | DISCONNECTED | stopHeartbeat/Sync；`sendDisconnectNotification`；**appList 保留**；移出 connected |
 | CONNECTED | 远端 `POST /api/disconnect` | DISCONNECTED | 按 displayKey/identityKey 匹配；stopHeartbeat/Sync；**appList 保留**；移出 connected |

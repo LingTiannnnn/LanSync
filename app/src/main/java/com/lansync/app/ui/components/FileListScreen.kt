@@ -1,20 +1,23 @@
 package com.lansync.app.ui.components
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.lansync.app.R
 import com.lansync.app.data.transfer.LanSyncClient
+import com.lansync.app.ui.format.formattedFileSize
+import com.lansync.app.ui.theme.LanSyncMonoText
 import com.lansync.app.ui.theme.LanSyncTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -23,18 +26,20 @@ import java.util.Locale
 /** 时间戳显示格式（SimpleDateFormat 技术格式，非 UI 文案，故不入 strings.xml）。 */
 private const val TIME_PATTERN = "MM-dd HH:mm"
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileListScreen(
     files: List<LanSyncClient.DownloadedFileInfo>,
+    selectedFiles: List<String>,
+    onSelectedFilesChange: (List<String>) -> Unit,
+    appNames: Map<String, String>,
     onInstall: (String) -> Unit,
     onSave: (String) -> Unit,
     onDelete: (List<String>) -> Unit,
     onRefresh: () -> Unit,
+    onOpenUpdatesTab: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sp = LanSyncTheme.spacing
-    val selectedFiles = remember { mutableStateOf<Set<String>>(emptySet()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -42,102 +47,68 @@ fun FileListScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        if (files.isNotEmpty()) {
-            val allSelected = selectedFiles.value.size == files.size && files.isNotEmpty()
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = sp.space16, vertical = sp.space12),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (selectedFiles.value.isNotEmpty()) {
-                        Text(
-                            text = stringResource(R.string.selection_count_files, selectedFiles.value.size),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(Modifier.weight(1f))
-                    }
-                    TextButton(
-                        onClick = { showDeleteConfirm = true },
-                        enabled = selectedFiles.value.isNotEmpty()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(sp.iconMd))
-                        Spacer(Modifier.width(sp.space4))
-                        Text(stringResource(R.string.action_delete))
-                    }
-                    TextButton(onClick = {
-                        selectedFiles.value = if (allSelected) {
-                            emptySet()
-                        } else {
-                            files.map { it.fileName }.toSet()
-                        }
-                    }) {
-                        Icon(
-                            imageVector = if (allSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
-                            contentDescription = null,
-                            modifier = Modifier.size(sp.iconMd)
-                        )
-                        Spacer(Modifier.width(sp.space4))
-                        Text(stringResource(if (allSelected) R.string.action_deselect_all else R.string.action_select_all))
-                    }
-                    TextButton(onClick = { selectedFiles.value = emptySet() }) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                }
-            }
-        }
-
         if (files.isEmpty()) {
-            Box(
+            EmptyState(
+                icon = Icons.Default.FolderOpen,
+                title = stringResource(R.string.files_empty_title),
+                body = stringResource(R.string.files_empty_hint),
+                actionLabel = stringResource(R.string.files_empty_cta),
+                onAction = onOpenUpdatesTab,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(sp.space32),
-                contentAlignment = Alignment.Center,
-            ) {
-                EmptyState(
-                    icon = Icons.Default.FolderOpen,
-                    title = stringResource(R.string.files_empty_title),
-                    body = stringResource(R.string.files_empty_hint),
-                )
-            }
+            )
         } else {
             val totalBytes = files.sumOf { it.fileSize }
             SummaryCard(
                 primary = stringResource(R.string.files_summary_primary, files.size),
                 secondary = stringResource(
                     R.string.files_summary_secondary,
-                    formatFileSize(totalBytes),
+                    formattedFileSize(totalBytes),
                 ),
+                actionLabel = stringResource(R.string.cd_refresh_files),
+                onAction = onRefresh,
                 modifier = Modifier.padding(horizontal = sp.space16, vertical = sp.space8),
             )
+
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = sp.space8),
-                verticalArrangement = Arrangement.spacedBy(sp.space6)
+                // weight(1f) 把批量条压到列表底部（贴底栏上方），与远程/同步页同一位置语义
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(
+                    start = sp.space16,
+                    end = sp.space16,
+                    top = sp.space8,
+                    bottom = sp.space16,
+                ),
+                verticalArrangement = Arrangement.spacedBy(sp.space8)
             ) {
                 items(files, key = { it.fileName }) { file ->
                     DownloadedFileItem(
                         file = file,
-                        isSelected = file.fileName in selectedFiles.value,
+                        appName = appNames[file.packageName] ?: file.packageName,
+                        isSelected = file.fileName in selectedFiles,
                         onSelect = {
-                            selectedFiles.value = if (file.fileName in selectedFiles.value) {
-                                selectedFiles.value - file.fileName
-                            } else {
-                                selectedFiles.value + file.fileName
-                            }
+                            onSelectedFilesChange(
+                                if (file.fileName in selectedFiles) {
+                                    selectedFiles - file.fileName
+                                } else {
+                                    selectedFiles + file.fileName
+                                }
+                            )
                         },
                         onSave = { onSave(file.fileName) },
                         onInstall = { onInstall(file.fileName) }
                     )
                 }
+            }
+
+            if (selectedFiles.isNotEmpty()) {
+                // 与远程/同步页一致：全选/取消全选开关在顶栏，批量条只留计数 + 主操作
+                BatchBar(
+                    label = stringResource(R.string.selection_count_files, selectedFiles.size),
+                    actionLabel = stringResource(R.string.action_delete),
+                    onAction = { showDeleteConfirm = true },
+                )
             }
         }
     }
@@ -148,13 +119,13 @@ fun FileListScreen(
             icon = { Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error) },
             title = { Text(stringResource(R.string.files_delete_confirm_title)) },
             text = {
-                Text(stringResource(R.string.files_delete_confirm_message, selectedFiles.value.size))
+                Text(stringResource(R.string.files_delete_confirm_message, selectedFiles.size))
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        onDelete(selectedFiles.value.toList())
-                        selectedFiles.value = emptySet()
+                        onDelete(selectedFiles)
+                        onSelectedFilesChange(emptyList())
                         showDeleteConfirm = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -174,136 +145,69 @@ fun FileListScreen(
 @Composable
 private fun DownloadedFileItem(
     file: LanSyncClient.DownloadedFileInfo,
+    appName: String,
     isSelected: Boolean,
     onSelect: () -> Unit,
     onSave: () -> Unit,
     onInstall: () -> Unit
 ) {
     val sp = LanSyncTheme.spacing
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = sp.space12),
-        shape = RoundedCornerShape(sp.radiusMd),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(sp.space12)
-        ) {
+    LanSyncAppRow(
+        title = appName,
+        packageName = file.packageName,
+        selected = isSelected,
+        checked = isSelected,
+        onCheckedChange = { onSelect() },
+        icon = { AppIcon(packageName = file.packageName, size = sp.appIconSm) },
+        badges = {
+            if (file.isSplitApk) LanSyncBadge(LanSyncBadgeKind.Split)
+        },
+        supporting = {
+            RowSupportingText(
+                text = stringResource(
+                    R.string.file_meta_line,
+                    formattedFileSize(file.fileSize),
+                    formatTime(file.lastModified),
+                ),
+                modifier = Modifier.padding(top = sp.space2),
+            )
+            Text(
+                text = file.packageName,
+                style = LanSyncMonoText.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        trailing = {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(sp.space8),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onSelect() },
-                    modifier = Modifier.padding(end = sp.space8),
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-
-                AppIcon(
-                    packageName = file.packageName,
-                    size = sp.appIconSm
-                )
-
-                Spacer(Modifier.width(sp.space10))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = file.packageName,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        if (file.isSplitApk) {
-                            Spacer(Modifier.width(sp.space6))
-                            Surface(
-                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
-                                shape = RoundedCornerShape(sp.radiusXs)
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.badge_split),
-                                    modifier = Modifier.padding(horizontal = sp.space4, vertical = sp.hairline),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(sp.space2))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(sp.space8)
-                    ) {
-                        Text(
-                            text = formatFileSize(file.fileSize),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = stringResource(R.string.file_meta_separator),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = formatTime(file.lastModified),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(sp.space8))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = onSave,
-                    modifier = Modifier.height(sp.buttonHeight),
-                    contentPadding = PaddingValues(horizontal = sp.space12)
-                ) {
-                    Icon(Icons.Default.SaveAlt, contentDescription = null, modifier = Modifier.size(sp.iconSm))
-                    Spacer(Modifier.width(sp.space4))
-                    Text(stringResource(R.string.action_save), style = MaterialTheme.typography.labelMedium)
-                }
-
-                Spacer(Modifier.width(sp.space8))
-
-                FilledTonalButton(
+                DownloadedFileSaveAction(onSave = onSave)
+                RowActionButton(
                     onClick = onInstall,
-                    modifier = Modifier.height(sp.buttonHeight),
-                    contentPadding = PaddingValues(horizontal = sp.space12)
-                ) {
-                    Icon(Icons.Default.InstallMobile, contentDescription = null, modifier = Modifier.size(sp.iconSm))
-                    Spacer(Modifier.width(sp.space4))
-                    Text(stringResource(R.string.action_install), style = MaterialTheme.typography.labelMedium)
-                }
+                    label = stringResource(R.string.action_install),
+                    icon = Icons.Default.InstallMobile,
+                )
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
-private fun formatFileSize(bytes: Long): String {
-    return when {
-        bytes < 1024 -> stringResource(R.string.size_bytes, bytes)
-        bytes < 1024 * 1024 -> stringResource(R.string.size_kb, bytes / 1024.0)
-        else -> stringResource(R.string.size_mb_decimal, bytes / (1024.0 * 1024.0))
+private fun DownloadedFileSaveAction(onSave: () -> Unit, modifier: Modifier = Modifier) {
+    val sp = LanSyncTheme.spacing
+    OutlinedButton(
+        onClick = onSave,
+        modifier = modifier.heightIn(min = sp.minTouchTarget),
+        contentPadding = PaddingValues(horizontal = sp.space12),
+    ) {
+        Icon(Icons.Default.SaveAlt, contentDescription = null, modifier = Modifier.size(sp.iconSm))
+        Spacer(Modifier.width(sp.space4))
+        Text(stringResource(R.string.action_save), style = MaterialTheme.typography.labelLarge)
     }
 }
 
-private fun formatTime(timestamp: Long): String {
-    return SimpleDateFormat(TIME_PATTERN, Locale.getDefault()).format(Date(timestamp))
-}
+private fun formatTime(timestamp: Long): String =
+    SimpleDateFormat(TIME_PATTERN, Locale.getDefault()).format(Date(timestamp))

@@ -64,8 +64,15 @@ sealed interface ConnectionEvent {
  */
 sealed interface ConnectAttemptResult {
     data class Accepted(val responderName: String) : ConnectAttemptResult
-    data class Rejected(val message: String) : ConnectAttemptResult
-    data class TimedOut(val message: String) : ConnectAttemptResult
-    data class SendFailed(val message: String) : ConnectAttemptResult
-    data class Failed(val message: String) : ConnectAttemptResult
+
+    /** [remoteMessage] 是对端原文，仅留档与日志，不作为 UI 文案。 */
+    data class Rejected(val remoteMessage: String?) : ConnectAttemptResult
+
+    /** 轮询到总超时仍未得到答复；秒数由 UI 映射成文案。 */
+    data class TimedOut(val waitSeconds: Int) : ConnectAttemptResult
+
+    object SendFailed : ConnectAttemptResult
+
+    /** [detail] 为异常细节，仅日志。 */
+    data class Failed(val detail: String?) : ConnectAttemptResult
 }

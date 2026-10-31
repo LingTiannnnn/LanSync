@@ -1,6 +1,8 @@
 package com.lansync.app.data.transfer
 
+import com.lansync.app.data.FileLogger
 import com.lansync.app.data.installer.ApkInstaller
+import com.lansync.app.data.model.InstallFailure
 import com.lansync.app.data.model.UpdateInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,9 +29,23 @@ class DownloadInstallController(
     private val _installStatus = MutableStateFlow<InstallStatus?>(null)
     val installStatus: StateFlow<InstallStatus?> = _installStatus.asStateFlow()
 
+    /** 用户取消标志：`downloadApp` 每次开工前复位，取消后以清空进度 + Cancelled 结果收场。 */
+    @Volatile
+    private var cancelRequested = false
+
+    /**
+     * 取消当前下载（弹窗「取消」按钮）：中断底层 OkHttp 调用（阻塞读在 IO 线程上，
+     * 协程取消打不断它，必须 `Call.cancel()`）。半成品文件由客户端失败分支删除。
+     */
+    fun cancelDownload() {
+        cancelRequested = true
+        client.cancelCurrentDownload()
+    }
+
     suspend fun downloadApp(updateInfo: UpdateInfo): LanSyncClient.DownloadResult = withContext(Dispatchers.IO) {
         val remote = updateInfo.remoteApp
         val provider = updateInfo.providerDevice
+        cancelRequested = false
         _downloadProgress.value = DownloadProgress(remote.packageName, 0, DownloadProgress.Status.DOWNLOADING)
         val result = client.downloadApksFile(
             ipAddress = provider.ipAddress,
@@ -40,6 +56,12 @@ class DownloadInstallController(
                 _downloadProgress.value = DownloadProgress(remote.packageName, p.coerceAtMost(99), DownloadProgress.Status.DOWNLOADING)
             }
         )
+        if (cancelRequested) {
+            // 用户主动取消：清掉进度让弹窗关闭，调用方按 Cancelled 语义处理，不走失败文案
+            FileLogger.i(TAG, "download cancelled: ${remote.packageName}")
+            _downloadProgress.value = null
+            return@withContext LanSyncClient.DownloadResult.Error("Download cancelled")
+        }
         _downloadProgress.value = when (result) {
             is LanSyncClient.DownloadResult.Success -> DownloadProgress(remote.packageName, 100, DownloadProgress.Status.COMPLETED)
             is LanSyncClient.DownloadResult.Error -> DownloadProgress(remote.packageName, 0, DownloadProgress.Status.FAILED)
@@ -48,21 +70,26 @@ class DownloadInstallController(
     }
 
     fun installApp(updateInfo: UpdateInfo): ApkInstaller.InstallationResult {
-        val file = client.getDownloadedFile(updateInfo.remoteApp.packageName, updateInfo.remoteApp.versionCode)
+        val pkg = updateInfo.remoteApp.packageName
+        val file = client.getDownloadedFile(pkg, updateInfo.remoteApp.versionCode)
         return if (file != null) {
             installApp(updateInfo, file)
         } else {
-            _installStatus.value = InstallStatus.Failed(updateInfo.remoteApp.packageName, "Downloaded file not found")
-            ApkInstaller.InstallationResult.Error("Downloaded file not found")
+            val detail = "no downloaded file for $pkg/${updateInfo.remoteApp.versionCode}"
+            markInstallFailure(pkg, InstallFailure.FILE_MISSING, detail)
+            ApkInstaller.InstallationResult.Error(InstallFailure.FILE_MISSING, detail)
         }
     }
 
     fun installApp(updateInfo: UpdateInfo, file: File): ApkInstaller.InstallationResult {
         _installStatus.value = InstallStatus.Installing(updateInfo.remoteApp.packageName)
         return installer.installApks(file).also { r ->
-            _installStatus.value = when (r) {
-                is ApkInstaller.InstallationResult.Success -> InstallStatus.Success(updateInfo.remoteApp.packageName)
-                is ApkInstaller.InstallationResult.Error -> InstallStatus.Failed(updateInfo.remoteApp.packageName, r.message)
+            when (r) {
+                is ApkInstaller.InstallationResult.Success ->
+                    _installStatus.value = InstallStatus.Success(updateInfo.remoteApp.packageName)
+                is ApkInstaller.InstallationResult.Error ->
+                    markInstallFailure(updateInfo.remoteApp.packageName, r.failure, r.message)
+                is ApkInstaller.InstallationResult.Cancelled -> {} // 安装阶段不产生取消（取消只发生在下载）
             }
         }
     }
@@ -71,8 +98,12 @@ class DownloadInstallController(
         when (val dl = downloadApp(updateInfo)) {
             is LanSyncClient.DownloadResult.Success -> installApp(updateInfo, dl.file)
             is LanSyncClient.DownloadResult.Error -> {
-                _installStatus.value = InstallStatus.Failed(updateInfo.remoteApp.packageName, dl.message)
-                ApkInstaller.InstallationResult.Error(dl.message)
+                if (cancelRequested) {
+                    ApkInstaller.InstallationResult.Cancelled
+                } else {
+                    markInstallFailure(updateInfo.remoteApp.packageName, InstallFailure.DOWNLOAD_FAILED, dl.message)
+                    ApkInstaller.InstallationResult.Error(InstallFailure.DOWNLOAD_FAILED, dl.message)
+                }
             }
         }
 
@@ -81,15 +112,28 @@ class DownloadInstallController(
         val file = client.getDownloadedFileFromName(fileName)
         return if (file != null) {
             installer.installApks(file).also { r ->
-                _installStatus.value = when (r) {
-                    is ApkInstaller.InstallationResult.Success -> InstallStatus.Success(pkgName)
-                    is ApkInstaller.InstallationResult.Error -> InstallStatus.Failed(pkgName, r.message)
+                when (r) {
+                    is ApkInstaller.InstallationResult.Success ->
+                        _installStatus.value = InstallStatus.Success(pkgName)
+                    is ApkInstaller.InstallationResult.Error ->
+                        markInstallFailure(pkgName, r.failure, r.message)
+                    is ApkInstaller.InstallationResult.Cancelled -> {} // 安装阶段不产生取消（取消只发生在下载）
                 }
             }
         } else {
-            _installStatus.value = InstallStatus.Failed(pkgName, "文件不存在")
-            ApkInstaller.InstallationResult.Error("文件不存在: $fileName")
+            val detail = "no such downloaded file: $fileName"
+            markInstallFailure(pkgName, InstallFailure.FILE_MISSING, detail)
+            ApkInstaller.InstallationResult.Error(InstallFailure.FILE_MISSING, detail)
         }
+    }
+
+    /**
+     * 失败状态的唯一落点：`[InstallStatus.Failed.detail]` 是诊断原文（英文、可能含异常信息），
+     * UI 只读 `failure` 类别映射文案，原文在这里进 `FileLogger`（ARCH §7.2），否则它就随字段一起丢了。
+     */
+    private fun markInstallFailure(pkg: String, failure: InstallFailure, detail: String?) {
+        FileLogger.w(TAG, "install failed for $pkg: $failure ${detail.orEmpty()}")
+        _installStatus.value = InstallStatus.Failed(pkg, failure, detail)
     }
 
     fun getDownloadedFiles(): List<LanSyncClient.DownloadedFileInfo> = client.getDownloadedFiles()
@@ -105,6 +149,19 @@ class DownloadInstallController(
     sealed class InstallStatus {
         data class Installing(val packageName: String) : InstallStatus()
         data class Success(val packageName: String) : InstallStatus()
-        data class Failed(val packageName: String, val message: String) : InstallStatus()
+
+        /**
+         * [failure] 是 UI 唯一可渲染的信息；[detail]（下载/安装的诊断原文）由 [markInstallFailure]
+         * 写入 `FileLogger`，不上屏，否则英文诊断会漏进中文界面并绕过 strings.xml 唯一来源。
+         */
+        data class Failed(
+            val packageName: String,
+            val failure: InstallFailure,
+            val detail: String? = null,
+        ) : InstallStatus()
+    }
+
+    private companion object {
+        const val TAG = "DownloadInstallController"
     }
 }

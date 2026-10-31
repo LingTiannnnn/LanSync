@@ -1,24 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- LanSync 品牌图标（v2「方波 S」，像素语言）。
+     几何与 design/icon/lansync-mark.svg 同源：256 单位设计画布上的 16×16 像素网格，
+     经下面这一组 group 映射到 108dp 自适应层；标志 52.6dp 见方，
+     外接圆半径 31dp，落在 66dp 安全区圆内（余量 2dp）。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:scaleX="0.4"
-        android:scaleY="0.4"
-        android:translateX="32.4"
-        android:translateY="32.4">
+    <group android:scaleX="0.205375"
+        android:scaleY="0.205375"
+        android:translateX="27.712"
+        android:translateY="27.712">
         <path
-            android:fillColor="#4CAF50"
-            android:pathData="M54,0C24.18,0 0,24.18 0,54s24.18,54 54,54 54,-24.18 54,-54S83.82,0 54,0z"/>
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M54,27c-14.91,0 -27,12.09 -27,27s12.09,27 27,27 27,-12.09 27,-27 -12.09,-27 -27,-27zM54,72c-9.94,0 -18,-8.06 -18,-18s8.06,-18 18,-18 18,8.06 18,18 -8.06,18 -18,18z"/>
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M54,45c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9 -4.03,-9 -9,-9z"/>
-        <path
-            android:fillColor="#2196F3"
-            android:pathData="M81,45l-9,0l0,-9l-9,0l0,9l-9,0l0,9l9,0l0,9l9,0l0,-9l9,0z"/>
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M192 0h16v16h-16zM96 16h128v16h-128zM96 32h144v16h-144zM96 48h160v16h-160zM96 64h144v16h-144zM96 80h128v16h-128zM96 96h64v16h-64zM96 112h64v16h-64zM96 128h64v16h-64zM48 144h16v16h-16zM112 144h48v16h-48zM32 160h128v16h-128zM16 176h144v16h-144zM0 192h160v16h-160zM16 208h144v16h-144zM32 224h128v16h-128zM48 240h16v16h-16z"/>
     </group>
 </vector>

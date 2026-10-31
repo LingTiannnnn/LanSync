@@ -20,7 +20,7 @@ class LanSyncClientTransport(private val client: LanSyncClient) : ConnectionTran
     ): ConnectOutcome = when (val r = client.pollConnectStatus(targetIp, targetPort, requestId, timeoutMs, pollIntervalMs)) {
         is LanSyncClient.ConnectResult.Accepted -> ConnectOutcome.Accepted(r.responderName)
         is LanSyncClient.ConnectResult.Rejected -> ConnectOutcome.Rejected(r.message)
-        is LanSyncClient.ConnectResult.Timeout -> ConnectOutcome.Timeout(r.message)
+        is LanSyncClient.ConnectResult.Timeout -> ConnectOutcome.Timeout(r.waitSeconds)
     }
 
     override suspend fun pingDevice(ipAddress: String, port: Int, timeoutMs: Long): Boolean =

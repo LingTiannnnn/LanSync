@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.Call
 import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -113,7 +114,7 @@ class LanSyncClient(
 
     /**
      * 轮询配对状态（SPEC.md §7.2：默认 30s 总超时 / 500ms 间隔）。
-     * 超时返回 [ConnectResult.Timeout]（文案与旧实现一致）。
+     * 超时返回 [ConnectResult.Timeout]，只带等待秒数，不带文案。
      */
     suspend fun pollConnectStatus(
         targetIp: String,
@@ -127,7 +128,7 @@ class LanSyncClient(
             val result = tryPollOnce(targetIp, targetPort, requestId, pollIntervalMs)
             if (result != null) return@withContext result
         }
-        ConnectResult.Timeout("连接超时（${timeoutMs / 1000}秒内未收到响应）")
+        ConnectResult.Timeout((timeoutMs / 1000L).toInt())
     }
 
     private suspend fun tryPollOnce(
@@ -275,6 +276,15 @@ class LanSyncClient(
 
     // ---------- 下载（新 MD5 语义 D1） ----------
 
+    /** 当前进行中的下载 Call；OkHttp Call 线程安全，可在任意线程取消。 */
+    @Volatile
+    private var currentDownloadCall: Call? = null
+
+    /** 取消当前进行中的下载（无活动下载时空操作）：阻塞读会立刻抛 IOException 走失败分支。 */
+    fun cancelCurrentDownload() {
+        currentDownloadCall?.cancel()
+    }
+
     suspend fun downloadApksFile(
         ipAddress: String,
         port: Int,
@@ -306,9 +316,13 @@ class LanSyncClient(
         defaultFileName: String,
         onProgress: ((Int) -> Unit)? = null
     ): DownloadResult = withContext(Dispatchers.IO) {
+        // 异常（含用户取消中断）时删掉半成品，避免残缺文件混进 getDownloadedFiles()
+        var destination: File? = null
         try {
             val request = Request.Builder().url(url).get().build()
-            downloadClient.newCall(request).execute().use { response ->
+            val call = downloadClient.newCall(request)
+            currentDownloadCall = call
+            call.execute().use { response ->
                 if (!response.isSuccessful) {
                     val errorBody = response.body?.string()?.take(200) ?: ""
                     FileLogger.e(TAG, "$tag HTTP ${response.code}: $errorBody")
@@ -325,42 +339,47 @@ class LanSyncClient(
                 val contentDisposition = response.header("Content-Disposition")
                 val fileName = contentDisposition?.substringAfter("filename=\"")?.substringBeforeLast("\"")
                     ?.takeIf { it.isNotEmpty() } ?: defaultFileName
-                val destination = File(downloadsDir, fileName)
+                val dest = File(downloadsDir, fileName)
+                destination = dest
 
                 val contentLength = response.body?.contentLength()?.takeIf { it > 0 }
                     ?: response.header("X-File-Size")?.toLongOrNull()
                     ?: -1L
-                destination.outputStream().use { out ->
+                dest.outputStream().use { out ->
                     copyWithProgress(inputStream, out, contentLength, onProgress)
                 }
 
-                if (!destination.exists() || destination.length() == 0L) {
+                if (!dest.exists() || dest.length() == 0L) {
                     // 行为改进（TEST-PLAN §4 DL-7）：与缺头/不匹配两分支一致，清掉 0 字节残留，
                     // 否则它会被 getDownloadedFiles() 当成正常条目列进文件页。
-                    destination.delete()
+                    dest.delete()
                     FileLogger.e(TAG, "$tag: file empty or missing after write")
                     return@withContext DownloadResult.Error("Downloaded file is empty")
                 }
 
                 // 决策 D1（SPEC.md §8.3）：X-MD5 是唯一权威；缺头即失败，绝不猜测/兜底。
                 if (serverMd5.isEmpty()) {
-                    destination.delete()
+                    dest.delete()
                     FileLogger.e(TAG, "$tag: missing X-MD5 header -> reject (D1)")
                     return@withContext DownloadResult.Error("Missing X-MD5 header")
                 }
-                val actualMd5 = HashUtils.md5(destination) ?: ""
+                val actualMd5 = HashUtils.md5(dest) ?: ""
                 if (actualMd5 != serverMd5) {
-                    destination.delete()
+                    dest.delete()
                     FileLogger.w(TAG, "$tag: MD5 MISMATCH actual=$actualMd5 server=$serverMd5")
                     return@withContext DownloadResult.Error("MD5 verification failed")
                 }
 
-                FileLogger.i(TAG, "$tag SUCCESS -> ${destination.length()} bytes")
-                DownloadResult.Success(destination)
+                FileLogger.i(TAG, "$tag SUCCESS -> ${dest.length()} bytes")
+                DownloadResult.Success(dest)
             }
         } catch (e: Exception) {
+            // 取消/断连等中断：半成品必须删掉，否则会混进文件页（与 DL-7 同语义）
+            destination?.delete()
             FileLogger.e(TAG, "$tag EXCEPTION", e)
             DownloadResult.Error("Download failed")
+        } finally {
+            currentDownloadCall = null
         }
     }
 
@@ -433,7 +452,7 @@ class LanSyncClient(
     sealed class ConnectResult {
         data class Accepted(val responderName: String) : ConnectResult()
         data class Rejected(val message: String) : ConnectResult()
-        data class Timeout(val message: String) : ConnectResult()
+        data class Timeout(val waitSeconds: Int) : ConnectResult()
     }
 
     sealed class DownloadResult {

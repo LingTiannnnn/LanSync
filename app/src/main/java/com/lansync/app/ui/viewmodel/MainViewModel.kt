@@ -6,7 +6,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lansync.app.R
 import com.lansync.app.data.FileLogger
-import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.IncomingConnectRequest
 import com.lansync.app.data.model.RemoteAppEntry
@@ -18,6 +17,9 @@ import com.lansync.app.data.transfer.DownloadInstallController
 import com.lansync.app.data.transfer.DownloadedFileName
 import com.lansync.app.data.transfer.LanSyncClient
 import com.lansync.app.service.ForegroundSyncService
+import com.lansync.app.ui.theme.LanSyncTiming
+import com.lansync.app.ui.string.installFailureText
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,12 +37,13 @@ data class UiState(
     val isRunning: Boolean = false,
     val isScanningApps: Boolean = false,
     val needsInitialScan: Boolean = false,
+    val initialScanDismissed: Boolean = false,
     val isDownloading: Boolean = false,
     val currentDownloadProgress: DownloadInstallController.DownloadProgress? = null,
     val installStatus: DownloadInstallController.InstallStatus? = null,
     val serverPort: Int = 0,
     val isLoading: Boolean = false,
-    val connectionError: String? = null,
+    val connectionNotice: String? = null,
     val isStarting: Boolean = false,
     val isStopping: Boolean = false,
     val isFetchingRemoteApps: Boolean = false,
@@ -62,6 +65,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private var _lastDownloadedUpdateInfo: UpdateInfo? = null
 
+    /** 上一次 connectedDevices 的键集；用于检测「任一设备断开」并清空两页勾选。 */
+    private var lastConnectedKeys: Set<String> = emptySet()
+
     /** UI 文案统一走字符串资源（Phase 5：禁止硬编码字符串）。 */
     private fun str(@androidx.annotation.StringRes id: Int, vararg args: Any): String =
         getApplication<Application>().getString(id, *args)
@@ -82,7 +88,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     repository.scanLocalApps()
                     FileLogger.i(TAG, "initial scan done")
                     _uiState.value = _uiState.value.copy(needsInitialScan = false)
-                    ForegroundSyncService.start(getApplication())
+                    ensureServiceStarted()
                 } catch (t: Throwable) {
                     FileLogger.e(TAG, "autoStart initial path failed", t)
                     _uiState.value = _uiState.value.copy(needsInitialScan = false)
@@ -91,11 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        try {
-            ForegroundSyncService.start(getApplication())
-        } catch (t: Throwable) {
-            FileLogger.e(TAG, "ForegroundSyncService.start failed", t)
-        }
+        ensureServiceStarted()
         viewModelScope.launch {
             try {
                 repository.scanLocalApps()
@@ -115,12 +117,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.availableUpdates,
                 repository.syncDiffs
             ) { localApps, discoveredDevices, connectedDevices, availableUpdates, syncDiffs ->
+                // 断连即重置勾选：被断开设备的条目已不可见，残留勾选只会留下顶栏开关与批量条的僵尸状态
+                val connectedKeys = connectedDevices.map { it.displayKey }.toSet()
+                val disconnected = lastConnectedKeys.any { it !in connectedKeys }
+                lastConnectedKeys = connectedKeys
                 _uiState.value = _uiState.value.copy(
                     localApps = localApps,
                     discoveredDevices = discoveredDevices,
                     connectedDevices = connectedDevices,
                     availableUpdates = availableUpdates,
-                    syncDiffs = syncDiffs
+                    syncDiffs = syncDiffs,
+                    remoteAppSelections = if (disconnected) emptySet() else _uiState.value.remoteAppSelections,
+                    selectedUpdates = if (disconnected) emptySet() else _uiState.value.selectedUpdates,
                 )
             }.collect { }
         }
@@ -149,6 +157,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }.collect { }
         }
+    }
+
+    /** 服务启动失败只记录，不打断 UI 操作（FGS 权限/系统在个别 ROM 上会拒）。 */
+    private fun ensureServiceStarted() {
+        try {
+            ForegroundSyncService.start(getApplication())
+        } catch (t: Throwable) {
+            FileLogger.e(TAG, "ForegroundSyncService.start failed", t)
+        }
+    }
+
+    /** 首扫卡住时让用户离开遮罩；扫描在后台继续，缓存骨架照常展示。 */
+    fun skipInitialScan() {
+        _uiState.value = _uiState.value.copy(initialScanDismissed = true)
     }
 
     fun toggleRunning() {
@@ -186,25 +208,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun connectDevice(device: DeviceInfo) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
-                connectionError = null
+                connectionNotice = null
             )
             try {
                 val success = repository.connectDevice(device)
                 if (!success) {
                     _uiState.value = _uiState.value.copy(
-                        connectionError = str(R.string.error_connect_failed, device.deviceName)
+                        connectionNotice = str(R.string.error_connect_failed, device.deviceName)
                     )
                 }
             } catch (e: Exception) {
+                FileLogger.e("MainViewModel", "connectDevice failed for ${device.deviceName}", e)
                 _uiState.value = _uiState.value.copy(
-                    connectionError = str(R.string.error_connect_exception, e.message ?: "")
+                    connectionNotice = str(R.string.error_connect_failed, device.deviceName)
                 )
             }
         }
     }
 
     fun dismissConnectionError() {
-        _uiState.value = _uiState.value.copy(connectionError = null)
+        _uiState.value = _uiState.value.copy(connectionNotice = null)
     }
 
     fun disconnectDevice(device: DeviceInfo) {
@@ -232,7 +255,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 repository.refreshDeviceAppLists()
                 // 短暂保持进行中状态，让顶栏刷新动画可感知
-                kotlinx.coroutines.delay(600)
+                delay(LanSyncTiming.OPERATION_FEEDBACK_MS)
             } finally {
                 _uiState.value = _uiState.value.copy(
                     isFetchingRemoteApps = false,
@@ -258,10 +281,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun selectAllUpdates() {
-        _uiState.value = _uiState.value.copy(
-            selectedUpdates = _uiState.value.availableUpdates.map { it.remoteApp.packageName }.toSet()
-        )
+    /** 顶栏「全选」：勾选当前设备的全部可更新应用。 */
+    fun selectUpdates(packages: Collection<String>) {
+        _uiState.value = _uiState.value.copy(selectedUpdates = packages.toSet())
     }
 
     fun clearSelection() {
@@ -277,13 +299,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Log.i(TAG, "startBatchUpdate: ${updates.size} apps selected")
 
             val errors = mutableListOf<String>()
-            updates.forEach { update ->
+            for (update in updates) {
                 Log.d(TAG, "Batch: downloading/installing ${update.remoteApp.packageName}")
                 _lastDownloadedUpdateInfo = update
                 val result = repository.downloadAndInstallApp(update)
+                if (result is ApkInstaller.InstallationResult.Cancelled) {
+                    // 用户取消：终止剩余批次，保留已选清单供重试
+                    Log.i(TAG, "Batch: cancelled by user at ${update.remoteApp.packageName}")
+                    return@launch
+                }
                 if (result is ApkInstaller.InstallationResult.Error) {
                     Log.w(TAG, "Batch: FAILED for ${update.remoteApp.packageName}: ${result.message}")
-                    errors.add(str(R.string.batch_error_line, update.remoteApp.appName, result.message))
+                    errors.add(
+                        str(
+                            R.string.batch_error_line,
+                            update.remoteApp.appName,
+                            installFailureText(getApplication(), result.failure),
+                        )
+                    )
                 }
             }
 
@@ -345,6 +378,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.clearInstallStatus()
     }
 
+    /** 用户取消当前下载（进度弹窗「取消」按钮）：中断下载并关闭弹窗，不按失败处理。 */
+    fun cancelDownload() {
+        repository.cancelDownload()
+    }
+
     fun clearDownloadProgress() {
         repository.clearDownloadProgress()
     }
@@ -359,10 +397,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun selectAllRemoteApps(entries: List<RemoteAppEntry>) {
-        _uiState.value = _uiState.value.copy(
-            remoteAppSelections = entries.map { it.app.packageName }.toSet()
-        )
+    /** 顶栏「全选」：勾选当前可见列表（当前分类 tab 下的全部应用）。 */
+    fun selectRemoteApps(packages: Collection<String>) {
+        _uiState.value = _uiState.value.copy(remoteAppSelections = packages.toSet())
     }
 
     fun clearRemoteAppSelection() {
@@ -376,7 +413,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Log.i(TAG, "pullSelectedRemoteApps: ${targets.size} apps selected")
 
             val errors = mutableListOf<String>()
-            targets.forEach { entry ->
+            for (entry in targets) {
                 val updateInfo = UpdateInfo(
                     localApp = null,
                     remoteApp = entry.app,
@@ -386,9 +423,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "Pulling remote app: ${entry.app.packageName} from ${entry.sourceDevice.deviceName}")
                 _lastDownloadedUpdateInfo = updateInfo
                 val result = repository.downloadAndInstallApp(updateInfo)
+                if (result is ApkInstaller.InstallationResult.Cancelled) {
+                    // 用户取消：终止剩余拉取，保留已选清单供重试
+                    Log.i(TAG, "Pull cancelled by user at ${entry.app.packageName}")
+                    return@launch
+                }
                 if (result is ApkInstaller.InstallationResult.Error) {
                     Log.w(TAG, "Pull FAILED for ${entry.app.packageName}: ${result.message}")
-                    errors.add(str(R.string.batch_error_line, entry.app.appName, result.message))
+                    errors.add(
+                        str(
+                            R.string.batch_error_line,
+                            entry.app.appName,
+                            installFailureText(getApplication(), result.failure),
+                        )
+                    )
                 }
             }
 

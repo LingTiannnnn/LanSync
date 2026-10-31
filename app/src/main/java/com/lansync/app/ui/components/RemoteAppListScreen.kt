@@ -3,69 +3,65 @@ package com.lansync.app.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import com.lansync.app.R
-import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.RemoteAppEntry
-import com.lansync.app.data.model.UpdateInfo
-import com.lansync.app.ui.theme.LanSyncMetrics
+import com.lansync.app.ui.format.formattedFileSize
 import com.lansync.app.ui.theme.LanSyncTheme
 
 private const val ITEM_TYPE_REMOTE = "remote_app_item"
 
-@OptIn(ExperimentalMaterial3Api::class)
+enum class AppCategory { USER, SYSTEM }
+
+/** 跨设备按包名去重，同一应用取 versionCode 最高的来源设备。顶栏「全选」与页面列表共用这一份合并结果。 */
+fun mergeRemoteEntries(connectedDevices: List<DeviceInfo>): List<RemoteAppEntry> = buildList {
+    val bestByPackage = linkedMapOf<String, RemoteAppEntry>()
+    for (device in connectedDevices) {
+        for (app in device.appList) {
+            val existing = bestByPackage[app.packageName]
+            if (existing == null || app.versionCode > existing.app.versionCode) {
+                bestByPackage[app.packageName] = RemoteAppEntry(app = app, sourceDevice = device)
+            }
+        }
+    }
+    addAll(bestByPackage.values)
+}
+
+/** 分类过滤的唯一实现；页面列表与顶栏「是否全选」的口径必须一致。 */
+fun List<RemoteAppEntry>.filterByCategory(category: AppCategory): List<RemoteAppEntry> = filter { entry ->
+    when (category) {
+        AppCategory.USER -> !entry.app.isSystemApp
+        AppCategory.SYSTEM -> entry.app.isSystemApp
+    }
+}
+
 @Composable
 fun RemoteAppListScreen(
     connectedDevices: List<DeviceInfo>,
+    remoteEntries: List<RemoteAppEntry>,
+    category: AppCategory,
+    onCategoryChange: (AppCategory) -> Unit,
     selectedPackages: Set<String>,
     isRefreshing: Boolean = false,
     onToggleSelected: (String) -> Unit,
-    onSelectAll: (List<RemoteAppEntry>) -> Unit,
-    onClearSelection: () -> Unit,
     onPullApp: (RemoteAppEntry) -> Unit,
     onPullSelected: (List<RemoteAppEntry>) -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sp = LanSyncTheme.spacing
-    var searchQuery by rememberSaveable { mutableStateOf("") }
-    var categoryOrdinal by rememberSaveable { mutableStateOf(AppCategory.ALL.ordinal) }
-    val category = AppCategory.values().getOrElse(categoryOrdinal) { AppCategory.ALL }
     var hasTriggeredInitialRefresh by remember { mutableStateOf(false) }
 
-    val remoteEntries by remember(connectedDevices) {
-        derivedStateOf {
-            val bestByPackage = linkedMapOf<String, RemoteAppEntry>()
-            for (device in connectedDevices) {
-                for (app in device.appList) {
-                    val existing = bestByPackage[app.packageName]
-                    if (existing == null || app.versionCode > existing.app.versionCode) {
-                        bestByPackage[app.packageName] = RemoteAppEntry(app = app, sourceDevice = device)
-                    }
-                }
-            }
-            bestByPackage.values.toList()
-        }
-    }
-
-    val connectedDeviceCount by remember(connectedDevices) {
-        derivedStateOf {
-            connectedDevices.count {
-                it.connectionState == ConnectionState.CONNECTED || it.connectionState == ConnectionState.RECONNECTING
-            }
-        }
+    val connectedDeviceCount = connectedDevices.count {
+        it.connectionState == ConnectionState.CONNECTED || it.connectionState == ConnectionState.RECONNECTING
     }
 
     LaunchedEffect(connectedDevices) {
@@ -80,142 +76,81 @@ fun RemoteAppListScreen(
         }
     }
 
-    val filteredApps by remember(searchQuery, category, remoteEntries) {
-        derivedStateOf {
-            remoteEntries.filter { entry ->
-                val matchesSearch = searchQuery.isEmpty() ||
-                    entry.app.appName.contains(searchQuery, ignoreCase = true) ||
-                    entry.app.packageName.contains(searchQuery, ignoreCase = true)
-                val matchesCategory = when (category) {
-                    AppCategory.ALL -> true
-                    AppCategory.USER -> !entry.app.isSystemApp
-                    AppCategory.SYSTEM -> entry.app.isSystemApp
-                }
-                matchesSearch && matchesCategory
-            }
-        }
-    }
-
-    val totalAppCount by remember(remoteEntries) { derivedStateOf { remoteEntries.size } }
-    val userAppCount by remember(remoteEntries) { derivedStateOf { remoteEntries.count { !it.app.isSystemApp } } }
-    val systemAppCount by remember(remoteEntries) { derivedStateOf { remoteEntries.count { it.app.isSystemApp } } }
-
-    val isAllSelected by remember(filteredApps, selectedPackages) {
-        derivedStateOf {
-            filteredApps.isNotEmpty() && filteredApps.all { it.app.packageName in selectedPackages }
-        }
-    }
+    val filteredApps = remoteEntries.filterByCategory(category)
 
     Column(modifier = modifier.fillMaxSize()) {
-        SearchBar(
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            placeholder = stringResource(R.string.search_remote_placeholder)
+        MultiDeviceSummary(
+            connectedCount = connectedDeviceCount,
+            totalApps = remoteEntries.size,
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
         )
 
         CategoryTabs(
             selectedCategory = category,
-            onCategoryChange = { categoryOrdinal = it.ordinal },
-            totalCount = totalAppCount,
-            userCount = userAppCount,
-            systemCount = systemAppCount
+            onCategoryChange = onCategoryChange,
+            userCount = remoteEntries.count { !it.app.isSystemApp },
+            systemCount = remoteEntries.count { it.app.isSystemApp }
         )
 
-        Spacer(modifier = Modifier.height(sp.space4))
-
-        SectionHeader(
-            title = stringResource(R.string.remote_section_title),
-            icon = Icons.Default.Cloud,
-            count = filteredApps.size,
-            showSelectButtons = filteredApps.isNotEmpty(),
-            areAllSelected = isAllSelected,
-            onSelectAll = { onSelectAll(filteredApps) },
-            onClearSelection = onClearSelection
-        )
-
-        if (connectedDevices.isEmpty()) {
-            Box(
+        when {
+            connectedDevices.isEmpty() -> EmptyState(
+                icon = Icons.Default.CloudOff,
+                title = stringResource(R.string.remote_no_device_title),
+                body = stringResource(R.string.remote_empty_hint),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(sp.space32),
-                contentAlignment = Alignment.Center,
-            ) {
-                EmptyState(
-                    icon = Icons.Default.CloudOff,
-                    title = stringResource(R.string.remote_no_device_title),
-                    body = stringResource(R.string.remote_empty_hint),
-                )
-            }
-        } else {
-            MultiDeviceSummary(
-                connectedCount = connectedDeviceCount,
-                totalApps = totalAppCount,
-                isRefreshing = isRefreshing,
-                onRefresh = onRefresh,
             )
-        }
 
-        if (connectedDevices.isNotEmpty() && remoteEntries.isEmpty()) {
-            Box(
+            remoteEntries.isEmpty() -> EmptyState(
+                icon = Icons.Default.SyncProblem,
+                title = stringResource(R.string.remote_empty_applist),
+                actionLabel = stringResource(R.string.action_refresh_applist),
+                onAction = onRefresh,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(sp.space32),
-                contentAlignment = Alignment.Center,
-            ) {
-                EmptyState(
-                    icon = Icons.Default.SyncProblem,
-                    title = stringResource(R.string.remote_empty_applist),
-                    actionLabel = stringResource(R.string.action_refresh_applist),
-                    onAction = onRefresh,
-                )
-            }
-        } else if (filteredApps.isEmpty()) {
-            Box(
+            )
+
+            filteredApps.isEmpty() -> EmptyState(
+                icon = Icons.Default.Inbox,
+                title = stringResource(
+                    if (category == AppCategory.USER) R.string.remote_empty_user
+                    else R.string.remote_empty_system
+                ),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(sp.space32),
-                contentAlignment = Alignment.Center,
-            ) {
-                EmptyState(
-                    icon = Icons.Default.Inbox,
-                    title = when {
-                        searchQuery.isNotEmpty() ->
-                            stringResource(R.string.remote_empty_search, searchQuery)
-                        category == AppCategory.USER ->
-                            stringResource(R.string.remote_empty_user)
-                        category == AppCategory.SYSTEM ->
-                            stringResource(R.string.remote_empty_system)
-                        else ->
-                            stringResource(R.string.remote_empty_all)
-                    },
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = sp.space16, vertical = sp.space8),
-                verticalArrangement = Arrangement.spacedBy(sp.space8)
-            ) {
-                items(
-                    items = filteredApps,
-                    key = { "remote_${it.app.packageName}" },
-                    contentType = { ITEM_TYPE_REMOTE }
-                ) { entry ->
-                    RemoteAppItem(
-                        entry = entry,
-                        isSelected = entry.app.packageName in selectedPackages,
-                        onToggleSelected = onToggleSelected,
-                        onPull = { onPullApp(entry) }
+            )
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = sp.space16, vertical = sp.space8),
+                    verticalArrangement = Arrangement.spacedBy(sp.space8)
+                ) {
+                    items(
+                        items = filteredApps,
+                        key = { "remote_${it.app.packageName}" },
+                        contentType = { ITEM_TYPE_REMOTE }
+                    ) { entry ->
+                        RemoteAppItem(
+                            entry = entry,
+                            isSelected = entry.app.packageName in selectedPackages,
+                            onToggleSelected = onToggleSelected,
+                            onPull = { onPullApp(entry) }
+                        )
+                    }
+                }
+
+                if (selectedPackages.isNotEmpty()) {
+                    BatchBar(
+                        label = stringResource(R.string.selection_count_apps, selectedPackages.size),
+                        actionLabel = stringResource(R.string.action_pull_install),
+                        onAction = { onPullSelected(filteredApps) },
                     )
                 }
-            }
-
-            if (selectedPackages.isNotEmpty()) {
-                BatchBar(
-                    label = stringResource(R.string.selection_count_apps, selectedPackages.size),
-                    actionLabel = stringResource(R.string.action_pull_install),
-                    onAction = { onPullSelected(filteredApps) },
-                )
             }
         }
     }
@@ -229,15 +164,13 @@ fun MultiDeviceSummary(
     onRefresh: () -> Unit
 ) {
     val sp = LanSyncTheme.spacing
+    // 刷新中保留按钮槽位并显示指示器：此前 onAction=null 会让整颗按钮消失，「刷新中」状态看不见
     SummaryCard(
         primary = stringResource(R.string.summary_connected_devices, connectedCount),
         secondary = stringResource(R.string.summary_remote_apps, totalApps),
-        actionLabel = if (isRefreshing) {
-            stringResource(R.string.status_refreshing_short)
-        } else {
-            stringResource(R.string.cd_refresh)
-        },
-        onAction = if (isRefreshing) null else onRefresh,
+        actionLabel = stringResource(R.string.action_refresh),
+        onAction = onRefresh,
+        busy = isRefreshing,
         modifier = Modifier.padding(horizontal = sp.space16, vertical = sp.space4),
     )
     Spacer(modifier = Modifier.height(sp.space4))
@@ -251,126 +184,72 @@ fun RemoteAppItem(
     onPull: () -> Unit
 ) {
     val sp = LanSyncTheme.spacing
-    Card(
+    LanSyncAppRow(
+        title = entry.app.appName,
+        packageName = entry.app.packageName,
+        selected = isSelected,
+        checked = isSelected,
+        onCheckedChange = { onToggleSelected(entry.app.packageName) },
+        badges = {
+            if (!entry.app.isExtractable) LanSyncBadge(LanSyncBadgeKind.NotExtractable)
+            if (entry.app.isSplitApk) LanSyncBadge(LanSyncBadgeKind.Split)
+        },
+        supporting = {
+            RowSupportingText(
+                text = if (entry.app.fileSize > 0) {
+                    stringResource(
+                        R.string.version_size_line,
+                        entry.app.versionName,
+                        formattedFileSize(entry.app.fileSize),
+                    )
+                } else {
+                    entry.app.versionName
+                },
+                modifier = Modifier.padding(top = sp.space2),
+            )
+            RowSupportingText(
+                text = stringResource(R.string.sync_provider_only, entry.sourceDevice.deviceName),
+            )
+        },
+        trailing = {
+            RowActionButton(
+                onClick = onPull,
+                label = stringResource(R.string.action_pull),
+                icon = Icons.Default.CloudDownload,
+            )
+        },
+    )
+}
+
+/**
+ * 分类切换：与同步页「可更新 / 版本差异」同一套 chip 开关 UI（双 chip 等宽 + 计数入标签）。
+ * 本页 Column 无水平内边距，水平 16dp 在这里补齐。
+ */
+@Composable
+internal fun CategoryTabs(
+    selectedCategory: AppCategory,
+    onCategoryChange: (AppCategory) -> Unit,
+    userCount: Int,
+    systemCount: Int
+) {
+    val sp = LanSyncTheme.spacing
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = LanSyncMetrics.listItemMin),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                LanSyncTheme.containers.highest
-            } else {
-                LanSyncTheme.containers.low
-            },
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline),
+            .padding(horizontal = sp.space16, vertical = sp.space8),
+        horizontalArrangement = Arrangement.spacedBy(sp.space8),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(end = sp.space12),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = isSelected,
-                onCheckedChange = { onToggleSelected(entry.app.packageName) },
-                modifier = Modifier.padding(start = sp.space4)
-            )
-
-            AppIcon(
-                packageName = entry.app.packageName,
-                size = sp.appIconLg
-            )
-
-            Spacer(modifier = Modifier.width(sp.space10))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = entry.app.appName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (!entry.app.isExtractable) {
-                        Spacer(modifier = Modifier.width(sp.space6))
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(sp.radiusXs)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.badge_not_extractable),
-                                modifier = Modifier.padding(horizontal = sp.space4, vertical = sp.hairline),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(sp.space2))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(sp.space8),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = entry.app.versionName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (entry.app.fileSize > 0) {
-                        val sizeMb = remember(entry.app.fileSize) { entry.app.fileSize / (1024 * 1024) }
-                        Text(
-                            text = stringResource(R.string.size_mb, sizeMb),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = sp.space2)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PhoneAndroid,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(sp.iconXs)
-                    )
-                    Spacer(modifier = Modifier.width(sp.space4))
-                    Text(
-                        text = entry.sourceDevice.deviceName,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary,
-                        maxLines = 1
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(sp.space8))
-
-            Button(
-                onClick = onPull,
-                modifier = Modifier.height(sp.buttonHeight),
-                contentPadding = PaddingValues(horizontal = sp.space10),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CloudDownload,
-                    contentDescription = null,
-                    modifier = Modifier.size(sp.iconSm)
-                )
-                Spacer(modifier = Modifier.width(sp.space4))
-                Text(stringResource(R.string.action_pull), style = MaterialTheme.typography.labelMedium)
-            }
-        }
+        LanSyncFilterChip(
+            selected = selectedCategory == AppCategory.USER,
+            onClick = { onCategoryChange(AppCategory.USER) },
+            label = stringResource(R.string.category_user, userCount),
+            modifier = Modifier.weight(1f),
+        )
+        LanSyncFilterChip(
+            selected = selectedCategory == AppCategory.SYSTEM,
+            onClick = { onCategoryChange(AppCategory.SYSTEM) },
+            label = stringResource(R.string.category_system, systemCount),
+            modifier = Modifier.weight(1f),
+        )
     }
 }

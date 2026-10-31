@@ -3,6 +3,7 @@ package com.lansync.app.data.transfer
 import com.lansync.app.data.installer.ApkInstaller
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.DeviceInfo
+import com.lansync.app.data.model.InstallFailure
 import com.lansync.app.data.model.UpdateInfo
 import io.mockk.coEvery
 import io.mockk.every
@@ -83,7 +84,9 @@ class DownloadInstallControllerTest {
         val r = ctrl.installApp(update("com.a", 1L))
 
         assertTrue(r is ApkInstaller.InstallationResult.Error)
-        assertTrue(ctrl.installStatus.value is DownloadInstallController.InstallStatus.Failed)
+        assertEquals(InstallFailure.FILE_MISSING, (r as ApkInstaller.InstallationResult.Error).failure)
+        val failed = ctrl.installStatus.value as DownloadInstallController.InstallStatus.Failed
+        assertEquals(InstallFailure.FILE_MISSING, failed.failure)
     }
 
     @Test
@@ -102,6 +105,23 @@ class DownloadInstallControllerTest {
     }
 
     @Test
+    fun `downloadAndInstallApp maps download failure to DOWNLOAD_FAILED`() = runBlocking {
+        val client = mockk<LanSyncClient>()
+        val installer = mockk<ApkInstaller>()
+        coEvery { client.downloadApksFile(any(), any(), any(), any(), any()) } returns
+            LanSyncClient.DownloadResult.Error("MD5 verification failed")
+
+        val ctrl = DownloadInstallController(client, installer)
+        val r = ctrl.downloadAndInstallApp(update("com.a", 1L))
+
+        assertEquals(InstallFailure.DOWNLOAD_FAILED, (r as ApkInstaller.InstallationResult.Error).failure)
+        val failed = ctrl.installStatus.value as DownloadInstallController.InstallStatus.Failed
+        assertEquals(InstallFailure.DOWNLOAD_FAILED, failed.failure)
+        // 诊断原文只作为 detail 保留（供日志），不进入任何用户可见文案
+        assertEquals("MD5 verification failed", failed.detail)
+    }
+
+    @Test
     fun `installDownloadedFile missing returns Failed`() {
         val client = mockk<LanSyncClient>()
         val installer = mockk<ApkInstaller>()
@@ -111,7 +131,9 @@ class DownloadInstallControllerTest {
         val r = ctrl.installDownloadedFile("nope.apks", "com.a")
 
         assertTrue(r is ApkInstaller.InstallationResult.Error)
-        assertTrue(ctrl.installStatus.value is DownloadInstallController.InstallStatus.Failed)
+        assertEquals(InstallFailure.FILE_MISSING, (r as ApkInstaller.InstallationResult.Error).failure)
+        val failed = ctrl.installStatus.value as DownloadInstallController.InstallStatus.Failed
+        assertEquals(InstallFailure.FILE_MISSING, failed.failure)
     }
 
     @Test
@@ -127,5 +149,25 @@ class DownloadInstallControllerTest {
         ctrl.clearInstallStatus()
         assertEquals(null, ctrl.downloadProgress.value)
         assertEquals(null, ctrl.installStatus.value)
+    }
+
+    @Test
+    fun `cancelDownload clears progress and downloadAndInstallApp yields Cancelled not Failed`() = runBlocking {
+        val client = mockk<LanSyncClient>()
+        val installer = mockk<ApkInstaller>()
+        val ctrl = DownloadInstallController(client, installer)
+        // 还原真实时序：取消发生在下载**进行中**（开工时标志已复位，取消后才置位）
+        coEvery { client.downloadApksFile(any(), any(), any(), any(), any()) } coAnswers {
+            ctrl.cancelDownload()
+            LanSyncClient.DownloadResult.Error("Download failed")
+        }
+        every { client.cancelCurrentDownload() } returns Unit
+
+        val r = ctrl.downloadAndInstallApp(update("com.a", 1L))
+
+        assertTrue(r is ApkInstaller.InstallationResult.Cancelled)
+        // 取消不是失败：不写 InstallStatus.Failed，进度清空让弹窗关闭
+        assertEquals(null, ctrl.installStatus.value)
+        assertEquals(null, ctrl.downloadProgress.value)
     }
 }

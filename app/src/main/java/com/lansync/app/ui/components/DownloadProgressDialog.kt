@@ -1,74 +1,86 @@
 package com.lansync.app.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material.icons.filled.InstallMobile
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import com.lansync.app.R
 import com.lansync.app.data.transfer.DownloadInstallController
 import com.lansync.app.ui.theme.LanSyncTheme
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlin.math.abs
-import kotlin.math.roundToInt
 
+/**
+ * 下载进度对话框。
+ *
+ * 「安装中」状态由 `UiState.installStatus` 驱动（[installing]），
+ * 不再在组件里用 5 秒计时猜测安装结果 —— 安装是外部 Intent 行为，计时不可靠。
+ *
+ * 下载中唯一的退出是 [onCancel]（真正中断底层下载）；点外部/返回键不关闭，避免误触丢进度。
+ */
 @Composable
 fun DownloadProgressDialog(
     progress: DownloadInstallController.DownloadProgress,
+    installing: Boolean,
     onDismiss: () -> Unit,
+    onCancel: () -> Unit,
     onInstall: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val sp = LanSyncTheme.spacing
-    var installClicked by remember { mutableStateOf(false) }
-
-    LaunchedEffect(installClicked) {
-        if (installClicked) {
-            delay(5000L)
-            installClicked = false
-        }
-    }
+    val status = progress.status
+    val failed = status == DownloadInstallController.DownloadProgress.Status.FAILED
+    val completed = status == DownloadInstallController.DownloadProgress.Status.COMPLETED
 
     AlertDialog(
-        onDismissRequest = { if (progress.status != DownloadInstallController.DownloadProgress.Status.DOWNLOADING) onDismiss() },
+        onDismissRequest = {
+            if (status != DownloadInstallController.DownloadProgress.Status.DOWNLOADING) onDismiss()
+        },
         modifier = modifier,
         icon = {
             Icon(
-                imageVector = when (progress.status) {
+                imageVector = when (status) {
                     DownloadInstallController.DownloadProgress.Status.DOWNLOADING -> Icons.Default.Downloading
                     DownloadInstallController.DownloadProgress.Status.VERIFYING -> Icons.Default.VerifiedUser
                     DownloadInstallController.DownloadProgress.Status.COMPLETED -> Icons.Default.CheckCircle
                     DownloadInstallController.DownloadProgress.Status.FAILED -> Icons.Default.Error
                 },
                 contentDescription = null,
-                tint = when (progress.status) {
-                    DownloadInstallController.DownloadProgress.Status.FAILED -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.primary
-                }
+                tint = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             )
         },
         title = {
             Text(
-                text = when (progress.status) {
-                    DownloadInstallController.DownloadProgress.Status.DOWNLOADING -> stringResource(R.string.download_state_downloading)
-                    DownloadInstallController.DownloadProgress.Status.VERIFYING -> stringResource(R.string.download_state_verifying)
-                    DownloadInstallController.DownloadProgress.Status.COMPLETED -> stringResource(R.string.download_state_completed)
-                    DownloadInstallController.DownloadProgress.Status.FAILED -> stringResource(R.string.download_state_failed)
-                }
+                text = stringResource(
+                    when (status) {
+                        DownloadInstallController.DownloadProgress.Status.DOWNLOADING ->
+                            R.string.download_state_downloading
+                        DownloadInstallController.DownloadProgress.Status.VERIFYING ->
+                            R.string.download_state_verifying
+                        DownloadInstallController.DownloadProgress.Status.COMPLETED ->
+                            R.string.download_state_completed
+                        DownloadInstallController.DownloadProgress.Status.FAILED ->
+                            R.string.download_state_failed
+                    }
+                )
             )
         },
         text = {
@@ -78,16 +90,14 @@ fun DownloadProgressDialog(
             ) {
                 Text(
                     text = progress.packageName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
-                if (progress.status != DownloadInstallController.DownloadProgress.Status.FAILED) {
-                    LinearProgressIndicator(
+                if (!failed) {
+                    LanSyncProgressBar(
                         progress = (progress.progress / 100f).coerceIn(0f, 1f),
                         modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Text(
                         text = stringResource(R.string.download_progress_percent, progress.progress),
@@ -98,181 +108,77 @@ fun DownloadProgressDialog(
             }
         },
         confirmButton = {
-            if (progress.status == DownloadInstallController.DownloadProgress.Status.COMPLETED) {
-                Row(horizontalArrangement = Arrangement.spacedBy(sp.space8)) {
-                    if (onInstall != null && !installClicked) {
-                        OutlinedButton(onClick = {
-                            installClicked = true
-                            onInstall()
-                        }) {
-                            Icon(Icons.Default.InstallMobile, contentDescription = null, modifier = Modifier.size(sp.iconMd))
-                            Spacer(Modifier.width(sp.space4))
-                            Text(stringResource(R.string.action_install))
-                        }
-                    } else if (installClicked) {
-                        OutlinedButton(onClick = {}, enabled = false) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(sp.iconSm),
-                                strokeWidth = sp.strokeThin,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(Modifier.width(sp.space4))
-                            Text(stringResource(R.string.action_installing))
-                        }
+            when {
+                !completed && !failed -> {
+                    // 下载中：取消真正中断底层下载（onCancel → controller.cancelDownload）
+                    TextButton(onClick = onCancel) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                }
+                failed -> TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.action_ok))
+                }
+                else -> Row(horizontalArrangement = Arrangement.spacedBy(sp.space8)) {
+                    if (installing) {
+                        InProgressButton(label = stringResource(R.string.action_installing))
+                    } else if (onInstall != null) {
+                        RowActionButton(
+                            onClick = onInstall,
+                            label = stringResource(R.string.action_install),
+                            icon = Icons.Default.InstallMobile,
+                        )
                     }
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.action_ok))
                     }
-                }
-            } else if (progress.status == DownloadInstallController.DownloadProgress.Status.FAILED) {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.action_ok))
                 }
             }
         }
     )
 }
 
+/**
+ * 覆盖层进度条的宽度比例（登记过的例外，不是随手值）：
+ * 跑马灯只用于表达「在进行中」，比标题行短一截才不会与上下两行文字抢视线；
+ * 高度、颜色、轨道色由 `LanSyncProgressBar` 统一，这里只保留宽度选择。
+ */
+private const val OVERLAY_PROGRESS_WIDTH = 0.7f
+
+/** 遮罩内的加载卡（首扫与全屏等待共用）；spinner、进度条与文案走同一套规格。 */
 @Composable
-fun InstallStatusSnackbar(
-    status: DownloadInstallController.InstallStatus,
-    onDismiss: () -> Unit
+fun OverlayProgressCard(
+    title: String,
+    body: String,
+    footer: String,
+    modifier: Modifier = Modifier,
 ) {
     val sp = LanSyncTheme.spacing
-    // keyed on status：换一条安装反馈时必须重置可见性，否则首条关闭后后续不再显示
-    var isVisible by remember(status) { mutableStateOf(true) }
-    val offsetX = remember(status) { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(status) {
-        delay(10_000L)
-        if (isVisible) {
-            scope.launch {
-                offsetX.animateTo(1000f, tween(300))
-                isVisible = false
-                onDismiss()
-            }
-        }
-    }
-
-    AnimatedVisibility(
-        visible = isVisible,
-        exit = fadeOut(tween(200)) + slideOutHorizontally(tween(200))
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(sp.space32),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .padding(sp.space16)
-                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (abs(offsetX.value) > 200f) {
-                                scope.launch {
-                                    offsetX.animateTo(
-                                        if (offsetX.value > 0) 1000f else -1000f,
-                                        tween(300)
-                                    )
-                                    isVisible = false
-                                    onDismiss()
-                                }
-                            } else {
-                                scope.launch {
-                                    offsetX.animateTo(0f, tween(300))
-                                }
-                            }
-                        }
-                    ) { _, dragAmount ->
-                        scope.launch {
-                            val newValue =
-                                (offsetX.value + dragAmount).coerceIn(-500f, 500f)
-                            offsetX.snapTo(newValue)
-                        }
-                    }
-                }
-        ) {
-            when (status) {
-                is DownloadInstallController.InstallStatus.Installing -> {
-                    Surface(
-                        shape = RoundedCornerShape(sp.radiusXs),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shadowElevation = sp.space6
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(sp.space12),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(sp.iconXl),
-                                strokeWidth = sp.strokeThin,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Spacer(modifier = Modifier.width(sp.space12))
-                            Text(
-                                text = stringResource(R.string.install_installing, status.packageName),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-                is DownloadInstallController.InstallStatus.Success -> {
-                    Surface(
-                        shape = RoundedCornerShape(sp.radiusXs),
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        shadowElevation = sp.space6
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(sp.space12),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                            Spacer(modifier = Modifier.width(sp.space12))
-                            Text(
-                                text = stringResource(R.string.install_success, status.packageName),
-                                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-                is DownloadInstallController.InstallStatus.Failed -> {
-                    Surface(
-                        shape = RoundedCornerShape(sp.radiusXs),
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shadowElevation = sp.space6
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(sp.space12),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Error,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Spacer(modifier = Modifier.width(sp.space12))
-                            Text(
-                                text = status.message,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = {
-                                scope.launch {
-                                    offsetX.animateTo(1000f, tween(300))
-                                    isVisible = false
-                                    onDismiss()
-                                }
-                            }) {
-                                Text(stringResource(R.string.action_close))
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        LanSyncSpinner(size = sp.iconEmpty)
+        Spacer(Modifier.height(sp.space24))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(sp.space12))
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(sp.space24))
+        LanSyncProgressBar(modifier = Modifier.fillMaxWidth(OVERLAY_PROGRESS_WIDTH))
+        Spacer(Modifier.height(sp.space16))
+        Text(
+            text = footer,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

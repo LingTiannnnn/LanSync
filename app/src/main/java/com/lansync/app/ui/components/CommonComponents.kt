@@ -1,17 +1,41 @@
 package com.lansync.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,20 +43,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.lansync.app.R
-import com.lansync.app.ui.theme.LanSyncMetrics
+import com.lansync.app.ui.theme.LanSyncMonoText
 import com.lansync.app.ui.theme.LanSyncTheme
 
 /**
- * 共享 UI 原语（COMPONENTS.md §5–§9 / §12）。
- * 颜色只经 MaterialTheme / LanSyncTheme.containers；尺寸走 spacing / LanSyncMetrics。
+ * 共享 UI 原语。
+ *
+ * 颜色只经 `MaterialTheme.colorScheme` / [LanSyncTheme.containers] 的成对角色；
+ * 尺寸走 `LanSyncTheme.spacing`，圆角走 `MaterialTheme.shapes`，阴影走
+ * `LanSyncTheme.elevation`，动效走 `LanSyncTheme.motion`。
  */
+
+// ---------------------------------------------------------------- 状态徽标
 
 @Composable
 fun StatusChip(
@@ -72,6 +99,36 @@ fun StatusChip(
     }
 }
 
+/** 系统徽标种类：色对与圆角在此集中，不允许在行组件里手搓 `Surface + copy(alpha)`。 */
+enum class LanSyncBadgeKind { NotExtractable, Split, Updatable, Online }
+
+@Composable
+fun LanSyncBadge(
+    kind: LanSyncBadgeKind,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val visual: Triple<String, Color, Color> = when (kind) {
+        LanSyncBadgeKind.NotExtractable ->
+            Triple(stringResource(R.string.badge_not_extractable), scheme.errorContainer, scheme.onErrorContainer)
+        LanSyncBadgeKind.Split ->
+            Triple(stringResource(R.string.badge_split), scheme.tertiaryContainer, scheme.onTertiaryContainer)
+        LanSyncBadgeKind.Updatable ->
+            Triple(stringResource(R.string.badge_updatable), scheme.tertiaryContainer, scheme.onTertiaryContainer)
+        LanSyncBadgeKind.Online ->
+            Triple(stringResource(R.string.device_online_badge), scheme.secondaryContainer, scheme.onSecondaryContainer)
+    }
+    StatusChip(
+        text = visual.first,
+        containerColor = visual.second,
+        contentColor = visual.third,
+        leadingIcon = if (kind == LanSyncBadgeKind.Updatable) Icons.Default.NewReleases else null,
+        modifier = modifier,
+    )
+}
+
+// ---------------------------------------------------------------- 选择 chip
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanSyncFilterChip(
@@ -108,7 +165,7 @@ fun LanSyncFilterChip(
             }
             else -> null
         },
-        modifier = modifier.heightIn(min = LanSyncMetrics.minTouchTarget),
+        modifier = modifier.heightIn(min = sp.minTouchTarget),
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
             selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -116,6 +173,8 @@ fun LanSyncFilterChip(
         ),
     )
 }
+
+// ---------------------------------------------------------------- 空态 / 信息卡
 
 @Composable
 fun EmptyState(
@@ -130,11 +189,12 @@ fun EmptyState(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Box(
             modifier = Modifier
                 .size(sp.iconHero)
-                .clip(RoundedCornerShape(sp.radiusXl))
+                .clip(MaterialTheme.shapes.extraLarge)
                 .background(LanSyncTheme.containers.default),
             contentAlignment = Alignment.Center,
         ) {
@@ -165,7 +225,7 @@ fun EmptyState(
             Spacer(Modifier.height(sp.space16))
             FilledTonalButton(
                 onClick = onAction,
-                modifier = Modifier.heightIn(min = LanSyncMetrics.minTouchTarget),
+                modifier = Modifier.heightIn(min = sp.minTouchTarget),
             ) {
                 Text(actionLabel)
             }
@@ -180,6 +240,7 @@ fun MeshHint(
     modifier: Modifier = Modifier,
 ) {
     val sp = LanSyncTheme.spacing
+    val online = onlineCount.coerceAtMost(3)
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = LanSyncTheme.containers.low,
@@ -190,20 +251,17 @@ fun MeshHint(
             modifier = Modifier.padding(sp.space12),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            repeat(3) { i ->
+            repeat(3) { index ->
                 Box(
                     modifier = Modifier
                         .size(sp.space10)
                         .clip(CircleShape)
                         .background(
-                            if (i < onlineCount.coerceAtMost(3)) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer
-                            },
+                            if (index < online) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.primaryContainer,
                         ),
                 )
-                if (i < 2) {
+                if (index < 2) {
                     Box(
                         modifier = Modifier
                             .padding(horizontal = sp.space2)
@@ -222,16 +280,14 @@ fun MeshHint(
                 )
                 Text(
                     text = stringResource(R.string.mesh_hint_stats, onlineCount, totalVisible),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = LanSyncMonoText.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = FontFamily.Monospace,
                 )
             }
-            StatusChip(
-                text = stringResource(R.string.device_online_badge),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            )
+            // 无在线设备时不贴「在线」，避免与 0/N 统计自相矛盾
+            if (onlineCount > 0) {
+                LanSyncBadge(LanSyncBadgeKind.Online)
+            }
         }
     }
 }
@@ -242,6 +298,7 @@ fun SummaryCard(
     secondary: String? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    busy: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val sp = LanSyncTheme.spacing
@@ -270,10 +327,13 @@ fun SummaryCard(
                     )
                 }
             }
-            if (actionLabel != null && onAction != null) {
+            // busy 时保留按钮槽位（换成指示器），避免文字跳动且「进行中」状态始终可见
+            if (busy) {
+                LanSyncSpinner(size = sp.iconXl, strokeWidth = sp.strokeThin)
+            } else if (actionLabel != null && onAction != null) {
                 FilledTonalButton(
                     onClick = onAction,
-                    modifier = Modifier.heightIn(min = LanSyncMetrics.minTouchTarget),
+                    modifier = Modifier.heightIn(min = sp.minTouchTarget),
                 ) {
                     Text(actionLabel)
                 }
@@ -282,6 +342,13 @@ fun SummaryCard(
     }
 }
 
+// ---------------------------------------------------------------- 批量操作条
+
+/**
+ * 批量操作条：只有「计数标签 + 主操作」。全选/取消全选开关在顶栏（远程/同步/文件三页统一），
+ * 不再为本组件保留文字动作槽位。底色走 `secondaryContainer`/`onSecondaryContainer` 配对
+ * （浅色自动淡、深色自动深），不用 `inverseSurface`：反转底与 primary 文字在两种模式下都过不了辨识度。
+ */
 @Composable
 fun BatchBar(
     label: String,
@@ -291,34 +358,24 @@ fun BatchBar(
 ) {
     val sp = LanSyncTheme.spacing
     Surface(
-        shape = RoundedCornerShape(sp.radiusLg),
-        color = MaterialTheme.colorScheme.inverseSurface,
-        tonalElevation = sp.space6,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.secondaryContainer,
         modifier = modifier.padding(horizontal = sp.space16, vertical = sp.space8),
     ) {
         Row(
-            modifier = Modifier.padding(
-                start = sp.space16,
-                end = sp.space12,
-                top = sp.space12,
-                bottom = sp.space12,
-            ),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.padding(sp.space12),
+            horizontalArrangement = Arrangement.spacedBy(sp.space8, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = label,
-                color = MaterialTheme.colorScheme.inverseOnSurface,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )
             Button(
                 onClick = onAction,
-                modifier = Modifier.heightIn(min = LanSyncMetrics.minTouchTarget),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.inversePrimary,
-                    contentColor = MaterialTheme.colorScheme.inverseSurface,
-                ),
+                modifier = Modifier.heightIn(min = sp.minTouchTarget),
             ) {
                 Text(actionLabel)
             }
@@ -326,15 +383,13 @@ fun BatchBar(
     }
 }
 
+// ---------------------------------------------------------------- 分区头 / 搜索 / 强调条
+
 @Composable
 fun SectionHeader(
     title: String,
     icon: ImageVector,
     count: Int,
-    showSelectButtons: Boolean = false,
-    areAllSelected: Boolean = false,
-    onSelectAll: (() -> Unit)? = null,
-    onClearSelection: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val sp = LanSyncTheme.spacing
@@ -342,7 +397,6 @@ fun SectionHeader(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = sp.space4),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -356,123 +410,97 @@ fun SectionHeader(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.width(sp.space6))
+            val countDescription = stringResource(R.string.section_count_description, title, count)
             StatusChip(
                 text = count.toString(),
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.semantics { contentDescription = countDescription },
             )
-        }
-        if (showSelectButtons) {
-            TextButton(
-                onClick = { if (areAllSelected) onClearSelection?.invoke() else onSelectAll?.invoke() },
-                contentPadding = PaddingValues(horizontal = sp.space12),
-                modifier = Modifier.heightIn(min = LanSyncMetrics.minTouchTarget),
-            ) {
-                Text(
-                    stringResource(
-                        if (areAllSelected) R.string.action_clear_selection else R.string.action_select_all,
-                    ),
-                )
-            }
         }
     }
 }
 
-@Composable
-fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-) {
-    val sp = LanSyncTheme.spacing
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = sp.space16, vertical = sp.space10)
-            .heightIn(min = LanSyncMetrics.searchBarHeight),
-        placeholder = {
-            Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        },
-        leadingIcon = {
-            Icon(
-                Icons.Default.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        trailingIcon = if (query.isNotEmpty()) {
-            {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = stringResource(R.string.cd_clear),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        } else null,
-        singleLine = true,
-        shape = RoundedCornerShape(sp.radiusLg),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-        ),
-    )
-}
-
-/** 更新项左侧 tertiary 竖条（COMPONENTS.md §5）。 */
+/** 更新项左侧 tertiary 竖条。 */
 @Composable
 fun UpdateAccentBar(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .width(LanSyncMetrics.updateAccentBar)
+            .width(LanSyncTheme.spacing.accentBar)
             .fillMaxHeight()
             .background(MaterialTheme.colorScheme.tertiary),
     )
 }
 
-@Preview(name = "EmptyState Light")
-@Preview(name = "EmptyState Dark", uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+// ---------------------------------------------------------------- 行内动作按钮
+
+/**
+ * 行内主/次操作按钮：触控高度走 `minTouchTarget`（48dp 下限），
+ * 不允许再用固定矮高度压掉触摸目标（CONVENTIONS §3）。
+ */
 @Composable
-private fun EmptyStatePreview() {
-    LanSyncTheme {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            EmptyState(
-                icon = Icons.Default.Info,
-                title = "暂无数据",
-                body = "连接设备后开始同步",
-                actionLabel = "重试",
-                onAction = {},
-                modifier = Modifier.padding(24.dp),
-            )
+fun RowActionButton(
+    onClick: () -> Unit,
+    label: String,
+    icon: ImageVector?,
+    modifier: Modifier = Modifier,
+    filled: Boolean = true,
+    enabled: Boolean = true,
+    busy: Boolean = false,
+) {
+    val sp = LanSyncTheme.spacing
+    val content: @Composable () -> Unit = {
+        if (busy) {
+            LanSyncSpinner(size = sp.iconSm, strokeWidth = sp.strokeThin)
+        } else if (icon != null) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(sp.iconSm))
         }
+        Spacer(Modifier.width(sp.space4))
+        Text(label, style = MaterialTheme.typography.labelLarge)
+    }
+    if (filled) {
+        Button(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.heightIn(min = sp.minTouchTarget),
+            contentPadding = PaddingValues(horizontal = sp.space10),
+        ) { content() }
+    } else {
+        FilledTonalButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.heightIn(min = sp.minTouchTarget),
+            contentPadding = PaddingValues(horizontal = sp.space10),
+        ) { content() }
     }
 }
 
-@Preview(name = "MeshHint Light")
-@Preview(name = "MeshHint Dark", uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun MeshHintPreview() {
-    LanSyncTheme {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            MeshHint(onlineCount = 2, totalVisible = 3, modifier = Modifier.padding(16.dp))
-        }
-    }
-}
+/** 下载图标（行按钮默认图标集中一处，避免各屏各取）。 */
+val RowDownloadIcon: ImageVector = Icons.Default.Download
 
-@Preview(name = "BatchBar Light")
-@Preview(name = "BatchBar Dark", uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+/**
+ * 进行中的按钮：宽度与位置保持稳定， spinner 换 label 不跳版。
+ *
+ * 取代此前两处 `OutlinedButton(onClick = {}, enabled = false)` 的空 lambda 写法
+ * （禁用态不需要可点击语义，但 API 要求 onClick，这里给它一个真正的 no-op 语义体）。
+ */
 @Composable
-private fun BatchBarPreview() {
-    LanSyncTheme {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            BatchBar(label = "已选 3 · 约 120 MB", actionLabel = "一键更新", onAction = {})
-        }
+fun InProgressButton(
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    val sp = LanSyncTheme.spacing
+    OutlinedButton(
+        onClick = { /* 进行中：禁用态不触发动作 */ },
+        enabled = false,
+        modifier = modifier.heightIn(min = sp.minTouchTarget),
+        contentPadding = PaddingValues(horizontal = sp.space12),
+    ) {
+        LanSyncSpinner(size = sp.iconSm, strokeWidth = sp.strokeThin)
+        Spacer(Modifier.width(sp.space4))
+        Text(label, style = MaterialTheme.typography.labelLarge)
     }
 }

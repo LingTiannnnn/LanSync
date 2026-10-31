@@ -2,6 +2,7 @@ package com.lansync.app.data.connection
 
 import com.lansync.app.data.AppConfig
 import com.lansync.app.data.model.AppInfo
+import com.lansync.app.data.model.ConnectionFailure
 import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.ConnectRequestPayload
 import com.lansync.app.data.model.DeviceInfo
@@ -93,7 +94,7 @@ class DefaultConnectionCoordinatorTest {
         assertFalse(c.connect(d))
         val e = enrichedDevice(c, "192.168.1.5:9000")
         assertEquals(ConnectionState.ERROR, e?.connectionState)
-        assertEquals("无法发送连接请求，目标设备无响应", e?.connectionError)
+        assertEquals(ConnectionFailure.Kind.SEND_NO_RESPONSE, e?.connectionFailure?.kind)
     }
 
     // ---------- CS-4 被拒 ----------
@@ -106,20 +107,21 @@ class DefaultConnectionCoordinatorTest {
         assertFalse(c.connect(d))
         val e = enrichedDevice(c, "192.168.1.5:9000")
         assertEquals(ConnectionState.ERROR, e?.connectionState)
-        assertEquals("对方拒绝连接", e?.connectionError)
+        assertEquals(ConnectionFailure.Kind.REJECTED_BY_PEER, e?.connectionFailure?.kind)
     }
 
     // ---------- CS-5 轮询超时 ----------
     @Test
     fun `CS-5 poll timeout becomes ERROR`() = runTest {
-        val t = FakeTransport().apply { pollOutcome = ConnectOutcome.Timeout("连接超时（30秒内未收到响应）") }
+        val t = FakeTransport().apply { pollOutcome = ConnectOutcome.Timeout(30) }
         val c = newCoordinator(transport = t)
         val d = device("192.168.1.5", 9000, "Pixel", "inst-r")
         c.submit(ConnectionEvent.RawDevicesUpdated(listOf(d))); settle()
         assertFalse(c.connect(d))
         val e = enrichedDevice(c, "192.168.1.5:9000")
         assertEquals(ConnectionState.ERROR, e?.connectionState)
-        assertEquals("连接超时（30秒内未收到响应）", e?.connectionError)
+        assertEquals(ConnectionFailure.Kind.WAIT_TIMEOUT, e?.connectionFailure?.kind)
+        assertEquals(30, e?.connectionFailure?.waitSeconds)
     }
 
     // ---------- CS-7 心跳恢复清计数 ----------
@@ -135,10 +137,13 @@ class DefaultConnectionCoordinatorTest {
         // 恢复
         c.submit(ConnectionEvent.HeartbeatTick(key, alive = true)); settle()
         assertEquals(ConnectionState.CONNECTED, connectedDevice(c, key)?.connectionState)
-        assertNull(connectedDevice(c, key)?.connectionError)
+        assertNull(connectedDevice(c, key)?.connectionFailure)
         // 再失败一次应重新从 1/4 计数（证明计数已清）
         c.submit(ConnectionEvent.HeartbeatTick(key, alive = false)); settle()
-        assertEquals("连接不稳定... (1/4)", connectedDevice(c, key)?.connectionError)
+        assertEquals(
+            ConnectionFailure(ConnectionFailure.Kind.LINK_UNSTABLE, retry = 1, retryTotal = 4),
+            connectedDevice(c, key)?.connectionFailure,
+        )
     }
 
     // ---------- CS-8 首档不稳定 ----------
@@ -150,7 +155,10 @@ class DefaultConnectionCoordinatorTest {
         c.connect(device("192.168.1.5", 9000, "Pixel", "inst-r"))
         c.submit(ConnectionEvent.HeartbeatTick(key, alive = false)); settle()
         assertEquals(ConnectionState.RECONNECTING, connectedDevice(c, key)?.connectionState)
-        assertEquals("连接不稳定... (1/4)", connectedDevice(c, key)?.connectionError)
+        assertEquals(
+            ConnectionFailure(ConnectionFailure.Kind.LINK_UNSTABLE, retry = 1, retryTotal = 4),
+            connectedDevice(c, key)?.connectionFailure,
+        )
     }
 
     // ---------- CS-9 中档重连 ----------
@@ -163,7 +171,10 @@ class DefaultConnectionCoordinatorTest {
         c.submit(ConnectionEvent.HeartbeatTick(key, alive = false)); settle()
         c.submit(ConnectionEvent.HeartbeatTick(key, alive = false)); settle()
         assertEquals(ConnectionState.RECONNECTING, connectedDevice(c, key)?.connectionState)
-        assertEquals("正在尝试重新连接... (2/4)", connectedDevice(c, key)?.connectionError)
+        assertEquals(
+            ConnectionFailure(ConnectionFailure.Kind.RECONNECTING, retry = 2, retryTotal = 4),
+            connectedDevice(c, key)?.connectionFailure,
+        )
     }
 
     // ---------- CS-10 超时离线 ----------
@@ -175,7 +186,10 @@ class DefaultConnectionCoordinatorTest {
         c.connect(device("192.168.1.5", 9000, "Pixel", "inst-r"))
         repeat(4) { c.submit(ConnectionEvent.HeartbeatTick(key, alive = false)); settle() }
         assertEquals(ConnectionState.CONNECTION_TIMEOUT, enrichedDevice(c, key)?.connectionState)
-        assertEquals("连接超时，设备已离线", enrichedDevice(c, key)?.connectionError)
+        assertEquals(
+            ConnectionFailure(ConnectionFailure.Kind.DEVICE_OFFLINE),
+            enrichedDevice(c, key)?.connectionFailure,
+        )
         assertNull(connectedDevice(c, key)) // 从已连接列表移除
     }
 

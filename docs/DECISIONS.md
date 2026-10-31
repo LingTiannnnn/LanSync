@@ -40,6 +40,8 @@
 | DL-6 不写断言 | 该分支不可覆盖 → 保留防御分支、不钉成契约（论证只在 `docs/TEST-PLAN.md` §4 维护） |
 | `POST_NOTIFICATIONS` 请求挂在 Activity 创建点 | FGS 由 `MainViewModel.init → autoStart()` 自启，没有"用户点启动同步"的时机可挂；用户拒绝即容忍（不重试、不阻断，仅通知不可见）。真机行为待验证 |
 | 门禁用零依赖单测 | 不引入 Konsist（离线缓存无该库、代理不可靠）；分层门禁写成跑在 `testDebugUnitTest` 里的 JVM 单测，比外挂 lint 更难绕过 |
+| 失败原因 typed 化 | `data` 层不再产出面向用户的自然语言：连接侧 `DeviceInfo.connectionFailure: ConnectionFailure(kind, retry, retryTotal, waitSeconds)` 取代原 `connectionError: String?`，安装侧 `InstallFailure`、扫描侧 `LocalAppRepository.ScanFailure`、SAF 侧 `SaveFailure`；UI 只在 `ui/string/FailureText.kt` 做类别→资源映射，`e.message` 与对端回复文本只进 `FileLogger`。**代价**：`DefaultConnectionCoordinatorTest` 的逐字中文断言改为按 `kind`/参数断言。**不受协议影响**：`DeviceInfo` 是 §2.2 登记的内部模型，没有任何 HTTP 路由收发它。重开条件：若将来要把失败原因跨设备传递，必须先做协议版本协商 |
+| 首扫遮罩只给「跳过」不给「重试」 | 遮罩必须有出口（扫描卡住时用户不能被困），但重试按钮会并发触发第二次 `scanAndRefresh`，与进行中的那次争写同一份 `local_apps_cache.json`；重试入口放在跳出后的本地 tab（`UiState.localScanFailure` → 空态/陈旧提示） |
 | 不做 `build.ps1` 封装 | 命令与前提已完整写在 `docs/BUILD.md`，脚本化收益小 |
 | `main` 是唯一开发线 | 默认分支必须已是重构后代码，避免任何人 clone 拿到重构前的上帝类（否决"`main` 只作历史基线"） |
 | 历史分支保留 | 快进合回后保留作历史线，不再在其上开发；远端是否同步 / 删除待用户定 |

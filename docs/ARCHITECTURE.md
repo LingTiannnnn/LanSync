@@ -94,7 +94,7 @@ interface ConnectionCoordinator {
 ### 3.2 `UpdateCoordinator`
 **职责**：`combine(localApps, connectedDevices)` → 5s 节流 → `UpdateManager.findUpdates/deduplicateUpdates` → `_availableUpdates`；`calculateSyncDiffs` → `_syncDiffs`。
 **边界**：只读消费 `LocalAppRepository.localApps` 与 `ConnectionCoordinator.connectedDevices`，产出不可变列表；节流时间戳用**单一调度协程内的局部状态**替代共享可变 `lastUpdateRecalculationMs`（消除 P3 竞态）。
-**冻结规则**（SPEC 未涉但属行为契约，取自 `UpdateManager`/`calculateSyncDiffs`）：跳过系统应用；仅 `remoteApp.versionCode > localApp.versionCode` 可更新；去重取最高 versionCode，平级取 `deviceName` 字母序更小者；`SyncDiff` 四类型 NEWER_ON_REMOTE/ONLY_ON_REMOTE/SAME_VERSION/ONLY_ON_LOCAL。
+**规则**（SPEC 未涉；`findUpdates`/`deduplicateUpdates` 取自旧实现逐条一致，`calculateSyncDiffs` 语义经用户裁决收窄）：跳过系统应用；仅 `remoteApp.versionCode > localApp.versionCode` 可更新；去重取最高 versionCode，平级取 `deviceName` 字母序更小者；`SyncDiff` 只收「远程落后」（双端都有且本地 versionCode 更高）——远程更高已由可更新覆盖，同版本与单侧存在不构成差异。
 
 ### 3.3 `LocalAppRepository`
 **职责**：`AppScanner` 触发、`_localApps`、`local_apps_cache.json` 读写、图标预加载调度、通知已连接设备刷新。
@@ -248,7 +248,9 @@ data class LanSyncErrorDto(val code: String, val message: String)  // message �
 - **禁止 `e.message` 回显给客户端**：`respondText("...${e.message}")` 全部替换为 `call.respond(status, LanSyncErrorDto(code, 通用文案))`；`e.message`/堆栈**只进 `FileLogger`**。
 - **状态码保持 SPEC §3 不变**（403/404/409/400/500/503 语义一一对应），仅**错误体从纯文本改结构化 JSON**。
 - **互操作安全性**：旧客户端**不解析**错误体（下载仅取 `body.take(200)` 塞文案、连接类只看 `isSuccessful`），故错误体从 `text/plain` 改 `application/json` **不破坏互操作**（SPEC §3.2）。
-- **业务错误仍用 sealed result**：`ConnectResult`(Accepted/Rejected/Timeout)、`DownloadResult`(Success/Error)、`InstallationResult`(Success/Error) 保留，但 `Error.message` 收敛为**枚举 + 用户文案**，不含异常细节。
+- **业务错误用 sealed result + 类别枚举**：`ConnectResult`(Accepted/Rejected/Timeout(waitSeconds))、`DownloadResult`(Success/Error)、`InstallationResult`(Success/Error(failure, message?)) 保留；`Error` 携带机器可读的 `InstallFailure` 类别，异常原文降级为可选 `message`/`detail`（只作日志）。
+- **连接侧失败同理**：`DeviceInfo.connectionFailure: ConnectionFailure?` 用 `kind` + `retry`/`retryTotal`/`waitSeconds` 描述，不写自然语言。本机扫描侧同理（`LocalAppRepository.ScanFailure`、`SaveDialogState.Error.reason`）。
+- **UI 只做类别 → 资源映射**：唯一映射点 `ui/string/FailureText.kt`；把诊断原文渲染到界面即违规（`DesignSystemTest` 在 `ui/**` + `MainActivity` 上禁止内联中文字面量，且无豁免文件）。
 
 ---
 
@@ -346,7 +348,7 @@ com.lansync.app/
 
 ## 12. 架构验收标准（逐条状态）
 
-1. 🟡 门面 ≤150 行**未达字面**：现行门面 `LanSyncRepository` **164 行**，硬约束 ≤300 由 `LayeringTest` 守护；四协作者均在 300 行内、可独立测试。差距记录在 `docs/ROADMAP.md` §4。
+1. 🟡 门面 ≤150 行**未达字面**：`LanSyncRepository` 的实测行数只写在 §13.1 表内（由 `architecture/DocFactsTest` 对照源码校验，不在他处复制），硬约束 ≤300 由 `LayeringTest` 守护；四协作者均在 300 行内、可独立测试。差距记录在 `docs/ROADMAP.md` §4。
 2. ✅ 状态变更单点收敛（`DefaultConnectionCoordinator` Actor），`ConcurrentHashMap` + StateFlow 裸混用清零（§6）。
 3. 🟡 **形态不同**：`data/**` 零 `import ui.*` 由 `architecture/LayeringTest`（2 例，随 `testDebugUnitTest`）守护；本条字面要求是"**CI** 静态检查"，项目无 CI/CD 故字面未满足。已知绕过面：不写 import 而用全限定名。
 4. 🟡 回调注入（`setXxx`）已清零 ✅；**Hilt 未引入**（现状手写 `LanSyncGraph`，见 §13.3）→ 本条只满足一半。
@@ -386,10 +388,10 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `data/server/KtorLanSyncServer.kt` | Netty 引擎、`port=0` 动态分配、`resolvedConnectors()` 取实际端口 | ➖ 编译校验 |
 | `data/server/InMemoryPairingStore.kt` | 接收方配对子状态机（PENDING/ACCEPTED/REJECTED/TIMEOUT，15s） | ✅ (9) |
 | `data/server/NotifyingPairingStore.kt` | 适配器：`receiveRequest` → coordinator `IncomingRequestReceived` | ➖ |
-| `data/transfer/LanSyncClient.kt` | OkHttp 客户端：连接请求/轮询/响应/列表/设备信息/ping/disconnect/refresh + 下载与 `X-MD5` 校验 + 下载文件管理 | ✅ (18) |
+| `data/transfer/LanSyncClient.kt` | OkHttp 客户端：连接请求/轮询/响应/列表/设备信息/ping/disconnect/refresh + 下载与 `X-MD5` 校验（`Call` 级可取消，中断即删半成品）+ 下载文件管理 | ✅ (18) |
 | `data/transfer/DownloadedFileName.kt` | 产物命名 / 落盘名 / **包名反推的唯一实现** | ✅ (10) |
 | `data/transfer/AppPacker.kt` | 单包字节副本 `.apk` / split zip `.apks`（`base.apk` + `split_N.apk`），输出目录构造注入 | ✅ (6) |
-| `data/transfer/DownloadInstallController.kt` | 下载 / 安装 / 文件管理 + `downloadProgress`/`installStatus` StateFlow | ✅ (7) |
+| `data/transfer/DownloadInstallController.kt` | 下载 / 安装 / 文件管理 + 用户取消（`Cancelled` 结果，不算失败）+ `downloadProgress`/`installStatus` StateFlow | ✅ (9) |
 | `data/discovery/{DeviceDiscovery,JmDNSDeviceDiscovery}.kt` | SPEC §6：服务注册 + TXT 双键 + 60s 保活 + 陈旧清理 + MulticastLock；**scope 构造注入** | ❌ Android/JmDNS 耦合 |
 | `data/connection/ConnectionEvent.kt` | 事件密封接口 + `ConnectAttemptResult` | — |
 | `data/connection/{ConnectionCoordinator,DefaultConnectionCoordinator}.kt` | SPEC §7.4–7.7：**Actor 单点收敛**（单 `Channel` + 单消费协程持全部可变状态）；状态机/心跳/端口迁移/陈旧清理/去重/接受策略 | ✅ (21) 虚拟时间 |
@@ -397,16 +399,16 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `data/connection/ConnectionTransport.kt` | 传输抽象 + `ConnectOutcome`/`LocalIdentity` → coordinator 可用**手写 Fake** 测 | — |
 | `data/connection/LanSyncClientTransport.kt` | 适配器：`LanSyncClient` → `ConnectionTransport` | ➖ |
 | `data/localapps/{InstalledAppScanner,AppScanner}.kt` | PackageManager 扫描；D2：`md5 ?: ""` 且 `isExtractable=true` 为合法态 | ❌ 真机 |
-| `data/localapps/LocalAppRepository.kt` | `local_apps_cache.json` 读写 + `localApps`/`isScanning` + 「缓存骨架 + 后台刷新」+ `ScanResult.added/removedPackages` | ✅ (5) |
+| `data/localapps/LocalAppRepository.kt` | `local_apps_cache.json` 读写 + `localApps`/`isScanning`/`scanFailure` + 「缓存骨架 + 后台刷新」+ `ScanResult.added/removedPackages` | ✅ (7) |
 | `data/sync/UpdateManager.kt` | **纯函数**：`findUpdates`/`deduplicateUpdates`/`calculateSyncDiffs`（不自行 fetch） | ✅ (9) |
 | `data/sync/UpdateCoordinator.kt` | `combine(localApps, connectedDevices)` → 5s 节流 → `availableUpdates`/`syncDiffs`；`nowMillis` 可注入 | ✅ (4) |
 | `data/cache/IconCache.kt` / `AppIconDiskCache.kt` | data 层三级图标缓存（内存 Lru → 磁盘 PNG → PackageManager 绘制）+ preload | ➖ |
-| `data/repository/LanSyncRepository.kt` | **组合门面 164 行（硬约束 ≤300）**：11 路对外 StateFlow（自有 `serverPort`/`isRunning` 2 路 + 转发协作者 9 路）+ start/stop 生命周期编排 + 纯委托，零业务逻辑 | ➖ 编译 + 门禁 |
+| `data/repository/LanSyncRepository.kt` | **组合门面 165 行（硬约束 ≤300）**：12 路对外 StateFlow（自有 `serverPort`/`isRunning` 2 路 + 转发协作者 10 路）+ start/stop 生命周期编排 + 纯委托，零业务逻辑 | ➖ 编译 + 门禁 |
 | `data/repository/LanSyncGraph.kt` | **手写 DI 组合根**（129 行）：可空 late-bind 引用破 `server ↔ coordinator ↔ pairingStore` 构造环 | ➖ |
 | `service/ForegroundSyncService.kt` | `specialUse` FGS：承载 `repo.start/stop`、常驻通知（端口/连接数 + 停止/打开）、`START_STICKY` | ❌ 真机 |
 | `ui/viewmodel/MainViewModel.kt` | `AndroidViewModel`：`uiState: StateFlow<UiState>` 单一出口；`autoStart` 先灌缓存骨架 | ❌ 无 Robolectric 栈 |
-| `ui/theme/{Color,Theme,Spacing,Shape,Typography}.kt` | 设计系统（§13.4） | — |
-| `ui/components/*`（12 文件） | 5 Tab + `CommonComponents`/`IdentityStrip` + 覆盖层 | ❌ 真机目视 |
+| `ui/theme/{Color,Theme,Spacing,Shape,Typography,Elevation,Motion}.kt` | 设计系统（§13.4） | — |
+| `ui/components/*`（16 文件） | 4 Tab + 共享原语（`CommonComponents`/`AppRow`/`FeedbackBanner`/`StatusVisuals`/`LoadingVisuals`/`IdentityStrip`）+ 覆盖层 + `ui/format`/`ui/string` 取值桥 | ❌ 真机目视（写法由 `DesignSystemTest` 门禁） |
 | `data/{AppConfig,HashUtils,NetworkUtils,FileLogger}.kt` | 超时参数唯一来源 / MD5 工具（null 传播）/ IP 选取 / 文件日志 | ✅ AppConfig(2)/HashUtils(6)+一致性(2) |
 
 ### 13.2 三条端到端主链路
@@ -444,13 +446,16 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 
 - **配色 Teal 青绿**，唯一色值来源 `ui/theme/Color.kt`（`internal` 常量仅供 `Theme.kt` 组装 ColorScheme）：Primary40 `#00696B`、亮色背景 `#F6FAF9`、暗色 `#0E1416`（非纯黑）、Secondary 中性青灰、**Tertiary 琥珀承载"可更新"语义**、Error 为 M3 标准红。启动器底色同为 `#00696B`。
 - **`dynamicColor` 默认 `false`**：跨设备一致的单一设计系统优先于 Material You。
-- **令牌入口**：`LanSyncTheme.spacing`（`LanSyncSpacing` 4dp 基栅格 + icon/appIcon/radius/控件尺寸，经 `LocalSpacing` 注入）、`LanSyncTheme.containers`（`LocalContainers` 四档 surfaceContainer 兼容层）、`LanSyncShapes`（8/12/16/24/28）、`LanSyncMetrics`、`Typography.kt`（完整 M3 比例，组件禁止内联 `fontSize`/`letterSpacing`）。
-- **连接状态色全走 colorScheme 角色**：CONNECTED=secondary、CONNECTING/RECONNECTING=tertiary、ERROR/TIMEOUT=error、DISCOVERED=outline、DISCONNECTED=onSurfaceVariant。
-- **文案唯一来源** `res/values/strings.xml`（约 150 条，参数用 `%1$d`/`%1$s`）；组件经 `stringResource(id, args)`，VM/Service/SAF 助手经 `getString(id, args)`。
-- **edge-to-edge**：`MainActivity.onCreate` 调 `enableEdgeToEdge()`；`NavigationBar` 用 `containers.default` + `WindowInsets.navigationBars`；只按 luminance 设系统栏图标亮暗。
-- **`AppIcon(packageName, modifier, size: Dp = DefaultSpacing.appIconXl)`**——尺寸是 `Dp` 不是 `Int`，传值走 `LanSyncTheme.spacing.appIcon*`；其余共享子组件（`SearchBar`/`CategoryTabs`/`SectionHeader`/`UpdateItem`/`EmptyStateCard`）签名稳定，只换内部 token。
-- **结构**：底部 5 Tab（设备 / 本地应用 / 远程应用 / 同步 / 文件）+ 语境 TopBar（同步页 `selectedUpdates` 非空时切 Contextual TopBar + `BatchBar`）；共享组件在 `CommonComponents.kt`（`StatusChip`/`LanSyncFilterChip`/`EmptyState`/`MeshHint`/`SummaryCard`/`BatchBar`/`SectionHeader`/`SearchBar`/`UpdateAccentBar`）+ `IdentityStrip.kt`；覆盖层为配对 `ModalBottomSheet`、下载进度 Dialog、安装与操作反馈 Snackbar、首扫遮罩。
-- **门禁形态**：Compose UI 不是 JVM 单测目标 → `assembleDebug` 编译 + 零硬编码审计 + 基线不变 + 真机目视。
+- **品牌图标**：自适应图标三件套（`mipmap-anydpi-v26/` —— 两个入口共用同一前景/单色层）。前景 `drawable/ic_launcher_foreground` 是 108dp 视图，用**一组 `group`** 把 256 单位设计画布上的 16×16 像素网格映射过来：标志「方波 S」是一根方波导线、首尾各接一只反向像素箭头，同时读作像素 S（Sync）、双向传输与局域网数字信号；52.6dp 见方，外接圆半径 31dp 落在 66dp 安全区圆内（余量 2dp）。前景是单色白剪影，单色层 `drawable/ic_launcher_monochrome`（Android 13+ 主题图标）取同一几何。通知小图标是**独立 drawable** `drawable/ic_notification`（24dp 画布内标志 18dp，同一剪影），不复用启动器 drawable —— 通知栏只接受单色 alpha 剪影。像素母版、预览图与可重跑生成器在 `design/icon/`（`python design/icon/final.py` 一键重出全部资源与图稿；底色与 `Color.kt` 同源自 `#00696B`）。
+- **令牌入口**（唯一，七个文件）：`LanSyncTheme.spacing`（`LanSyncSpacing`：4dp 基栅格 + icon/appIcon/deviceIcon/描边/控件与列表尺寸，经 `LocalSpacing`）、`LanSyncTheme.containers`（`LocalContainers` 四档 surfaceContainer 兼容层）、`LanSyncTheme.elevation`（`LanSyncElevation`：`card` 1 / `banner` 6 / `overlay` 8，阴影不得借用间距）、`LanSyncTheme.motion`（`LanSyncMotion`：时长/自动消失/手势位移，系统"移除动画"时时长退化；组合外用 `LanSyncTiming`）、`LanSyncShapes`（8/12/16/24/28，圆角只走 `MaterialTheme.shapes`）、`Typography.kt`（M3 比例 + `LanSyncMonoText` 等宽数值样式）、`Theme.kt`（组装）。`LanSyncMetrics` 已并入 `LanSyncSpacing`；只登记有调用点的令牌，死值由 `DesignSystemTest` 判红。
+- **连接状态视觉唯一映射**在 `ui/components/StatusVisuals.kt`：一律取 M3 容器配对，不用 `color.copy(alpha = …)` 自造淡底 —— CONNECTED=secondaryContainer/onSecondaryContainer、CONNECTING 与 RECONNECTING=tertiaryContainer/onTertiaryContainer、ERROR 与 TIMEOUT=errorContainer/onErrorContainer、DISCOVERED/DISCONNECTED=containers.high/onSurfaceVariant；图标/状态条配色用同角色的 `accent`。次要文字一律 `onSurfaceVariant`（`outline` 是 3:1 非文本角色，做 11–12sp 正文只有 3.8:1）。
+- **文案唯一来源** `res/values/strings.xml`（140 条，参数用 `%1$d`/`%1$s`）；组件经 `stringResource(id, args)`，VM/Service 经 `getString(id, args)`。`cd_` 前缀只作无障碍描述，可见动作用 `action_`。
+- **加载态词汇单入口** `ui/components/LoadingVisuals.kt`：`LanSyncSpinner(size/strokeWidth/color 均有令牌默认)` 与 `LanSyncProgressBar(progress=null 表示跑马灯)`；裸 Material3 指示器只允许出现在该文件（`DesignSystemTest` 阻断）。宽度留给调用方，覆盖层的 `0.7f` 比例作为登记过的例外写在 `DownloadProgressDialog.kt`。
+- **失败原因走 typed 模型**：`data` 层只产出机器可读类别 —— `DeviceInfo.connectionFailure: ConnectionFailure?`（`kind` + `retry`/`retryTotal`/`waitSeconds`）、`InstallStatus.Failed.failure: InstallFailure`、`InstallationResult.Error.failure`、`LocalAppRepository.scanFailure: ScanFailure?`、`SaveDialogState.Error.reason: SaveFailure`。诊断原文（`e.message`、对端回复文本）只进 `FileLogger`，**永不上屏**。UI 侧唯一的映射点是 `ui/string/FailureText.kt`（类别 → 资源 id，组合期与 `Context` 两种入口），`DesignSystemTest` 因此在 `ui/**` + `MainActivity` 上零豁免地禁止内联中文字面量。
+- **edge-to-edge**：`MainActivity.onCreate` 调 `enableEdgeToEdge()`；`NavigationBar` 用 `containers.default` + `WindowInsets.navigationBars`；内容容器加 `imePadding()`；只按 luminance 设系统栏图标亮暗。
+- **`AppIcon(packageName, modifier, size: Dp? = null)`**——尺寸是 `Dp`，`null` 时取 `LanSyncTheme.spacing.appIconXl`（默认值也过 CompositionLocal，不直读常量表）。
+- **结构**：底部 4 Tab（设备 / 远程应用 / 同步 / 文件）+ 固定顶栏（左侧恒为页名，勾选前后不变；右上动作按 tab 定格——设备页=刷新，远程/同步页有勾选且可见列表非空时=「全选/取消全选」开关，其余为空）；共享原语 `CommonComponents.kt`（`StatusChip`/`LanSyncBadge`/`LanSyncFilterChip`/`EmptyState`/`MeshHint`/`SummaryCard`/`BatchBar`/`SectionHeader`/`UpdateAccentBar`/`RowActionButton`/`InProgressButton`）+ `AppRow.kt`（`LanSyncAppRow`/`RowSupportingText`，三个列表行共用）+ `LoadingVisuals.kt`（`LanSyncSpinner`/`LanSyncProgressBar`）+ `FeedbackBanner.kt` + `StatusVisuals.kt` + `IdentityStrip.kt`；覆盖层为配对 `ModalBottomSheet`、下载进度 Dialog、保存状态 Dialog、首扫遮罩，瞬时反馈统一挂在一个底部 `Column` 宿主里。
+- **门禁形态**：Compose UI 不是 JVM 单测目标 → `assembleDebug` 编译 + `architecture/DesignSystemTest`（源码文本审计：三禁 + 容器角色 + 触摸高度 + 令牌/样式零死值 + 加载态词汇单入口）+ 基线不变 + 真机目视。该门禁的正则只在 `ban()` 注册一次，规则用例与负控共用同一对象，另含三条反向检查（注册未被使用 / 绕过注册内联 `Regex` / 豁免文件已无裸用点），口径见 `docs/CONVENTIONS.md` §4 与 `docs/TEST-PLAN.md` §7。
 
 ### 13.5 与目标设计的其他差异
 

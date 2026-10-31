@@ -3,6 +3,7 @@ package com.lansync.app.data.connection
 import com.lansync.app.data.AppConfig
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.model.AppInfo
+import com.lansync.app.data.model.ConnectionFailure
 import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.IncomingConnectRequest
@@ -197,19 +198,19 @@ class DefaultConnectionCoordinator(
                     device.ipAddress, device.port, id.deviceName, id.ipAddress, id.port, id.instanceId
                 )
                 if (reqId == null) {
-                    ConnectAttemptResult.SendFailed("无法发送连接请求，目标设备无响应")
+                    ConnectAttemptResult.SendFailed
                 } else {
                     when (val o = transport.pollConnectStatus(
                         device.ipAddress, device.port, reqId, config.connectTimeoutMs, config.pollIntervalMs
                     )) {
                         is ConnectOutcome.Accepted -> ConnectAttemptResult.Accepted(o.responderName)
-                        is ConnectOutcome.Rejected -> ConnectAttemptResult.Rejected(o.message)
-                        is ConnectOutcome.Timeout -> ConnectAttemptResult.TimedOut(o.message)
+                        is ConnectOutcome.Rejected -> ConnectAttemptResult.Rejected(o.remoteMessage)
+                        is ConnectOutcome.Timeout -> ConnectAttemptResult.TimedOut(o.waitSeconds)
                     }
                 }
             } catch (e: Exception) {
                 FileLogger.e(TAG, "connect network error for ${device.deviceName}", e)
-                ConnectAttemptResult.Failed(e.message ?: "连接异常")
+                ConnectAttemptResult.Failed(e.message)
             }
             submit(ConnectionEvent.ConnectCompleted(device, result, deferred))
         }
@@ -222,7 +223,7 @@ class DefaultConnectionCoordinator(
                 val existingApps = enriched.find { it.displayKey == device.displayKey }?.appList.orEmpty()
                 val conn = device.copy(
                     connectionState = ConnectionState.CONNECTED, appList = existingApps,
-                    lastSeenTimeMs = now(), connectionError = null
+                    lastSeenTimeMs = now(), connectionFailure = null
                 )
                 upsertConnected(conn)
                 upsertEnriched(conn)
@@ -232,7 +233,14 @@ class DefaultConnectionCoordinator(
                 deferred.complete(true)
             }
             is ConnectAttemptResult.Rejected -> {
-                updateState(device, ConnectionState.ERROR, "对方拒绝连接"); publishDevices(); deferred.complete(false)
+                // 对端给的原文只进日志：它不是本机的受控文案，上屏会绕过 strings.xml
+                FileLogger.i(TAG, "connect rejected by ${device.deviceName}: ${result.remoteMessage.orEmpty()}")
+                updateState(
+                    device,
+                    ConnectionState.ERROR,
+                    ConnectionFailure(ConnectionFailure.Kind.REJECTED_BY_PEER),
+                )
+                publishDevices(); deferred.complete(false)
             }
             is ConnectAttemptResult.TimedOut -> {
                 val reverseConnected = connected.any {
@@ -242,14 +250,29 @@ class DefaultConnectionCoordinator(
                     FileLogger.i(TAG, "connect timeout but reverse-connected, treat as success")
                     deferred.complete(true)
                 } else {
-                    updateState(device, ConnectionState.ERROR, result.message); publishDevices(); deferred.complete(false)
+                    updateState(
+                        device,
+                        ConnectionState.ERROR,
+                        ConnectionFailure(ConnectionFailure.Kind.WAIT_TIMEOUT, waitSeconds = result.waitSeconds),
+                    )
+                    publishDevices(); deferred.complete(false)
                 }
             }
             is ConnectAttemptResult.SendFailed -> {
-                updateState(device, ConnectionState.ERROR, result.message); publishDevices(); deferred.complete(false)
+                updateState(
+                    device,
+                    ConnectionState.ERROR,
+                    ConnectionFailure(ConnectionFailure.Kind.SEND_NO_RESPONSE),
+                )
+                publishDevices(); deferred.complete(false)
             }
             is ConnectAttemptResult.Failed -> {
-                updateState(device, ConnectionState.ERROR, result.message); publishDevices(); deferred.complete(false)
+                updateState(
+                    device,
+                    ConnectionState.ERROR,
+                    ConnectionFailure(ConnectionFailure.Kind.UNEXPECTED),
+                )
+                publishDevices(); deferred.complete(false)
             }
         }
     }
@@ -261,7 +284,7 @@ class DefaultConnectionCoordinator(
             connected.find { it.displayKey == key }?.let { cur ->
                 val refreshed = cur.copy(
                     connectionState = ConnectionState.CONNECTED,
-                    lastSeenTimeMs = now(), connectionError = null
+                    lastSeenTimeMs = now(), connectionFailure = null
                 )
                 upsertConnected(refreshed); upsertEnriched(refreshed); publishDevices()
             }
@@ -275,7 +298,11 @@ class DefaultConnectionCoordinator(
             fc <= config.heartbeatPingTolerance -> {
                 val u = cur.copy(
                     connectionState = ConnectionState.RECONNECTING,
-                    connectionError = "连接不稳定... ($fc/$max)",
+                    connectionFailure = ConnectionFailure(
+                        kind = ConnectionFailure.Kind.LINK_UNSTABLE,
+                        retry = fc,
+                        retryTotal = max,
+                    ),
                     lastSeenTimeMs = now()
                 )
                 upsertConnected(u); upsertEnriched(u)
@@ -283,7 +310,11 @@ class DefaultConnectionCoordinator(
             fc < max -> {
                 val u = cur.copy(
                     connectionState = ConnectionState.RECONNECTING,
-                    connectionError = "正在尝试重新连接... ($fc/$max)",
+                    connectionFailure = ConnectionFailure(
+                        kind = ConnectionFailure.Kind.RECONNECTING,
+                        retry = fc,
+                        retryTotal = max,
+                    ),
                     lastSeenTimeMs = now()
                 )
                 upsertConnected(u); upsertEnriched(u)
@@ -293,7 +324,10 @@ class DefaultConnectionCoordinator(
                 }
             }
             else -> {
-                val t = cur.copy(connectionState = ConnectionState.CONNECTION_TIMEOUT, connectionError = "连接超时，设备已离线")
+                val t = cur.copy(
+                    connectionState = ConnectionState.CONNECTION_TIMEOUT,
+                    connectionFailure = ConnectionFailure(kind = ConnectionFailure.Kind.DEVICE_OFFLINE),
+                )
                 connected.removeAll { it.displayKey == key }
                 upsertEnriched(t)
                 stopHeartbeat(key); stopSync(key); failCounts.remove(key)
@@ -307,7 +341,7 @@ class DefaultConnectionCoordinator(
         if (!alive) return
         failCounts.remove(device.displayKey)
         val recovered = device.copy(
-            connectionState = ConnectionState.CONNECTED, lastSeenTimeMs = now(), connectionError = null
+            connectionState = ConnectionState.CONNECTED, lastSeenTimeMs = now(), connectionFailure = null
         )
         upsertConnected(recovered); upsertEnriched(recovered)
         launchFetchAppList(recovered.displayKey, device.ipAddress, device.port)
@@ -381,7 +415,10 @@ class DefaultConnectionCoordinator(
             stopHeartbeat(d.displayKey); stopSync(d.displayKey); failCounts.remove(d.displayKey)
             connected.removeAll { it.displayKey == d.displayKey }
             enriched.indexOfFirst { it.displayKey == d.displayKey }.takeIf { it >= 0 }?.let {
-                enriched[it] = enriched[it].copy(connectionState = ConnectionState.DISCONNECTED) // appList 保留
+                enriched[it] = enriched[it].copy(
+                    connectionState = ConnectionState.DISCONNECTED, // appList 保留
+                    connectionFailure = null, // 旧失败文案（重连计数/拒绝原因）不跟随到已断开卡
+                )
             }
         }
         publishDevices()
@@ -397,7 +434,11 @@ class DefaultConnectionCoordinator(
             catch (e: Exception) { FileLogger.w(TAG, "sendDisconnectNotification failed: ${e.message}") }
         }
         val existingApps = connected.find { it.displayKey == key }?.appList.orEmpty()
-        val disc = device.copy(connectionState = ConnectionState.DISCONNECTED, appList = existingApps)
+        val disc = device.copy(
+            connectionState = ConnectionState.DISCONNECTED,
+            appList = existingApps,
+            connectionFailure = null, // 同上：断开即失效，不把旧失败文案带进已断开卡
+        )
         connected.removeAll { it.displayKey == key }
         enriched.indexOfFirst { it.displayKey == key }.takeIf { it >= 0 }?.let { enriched[it] = disc }
         publishDevices()
@@ -459,8 +500,8 @@ class DefaultConnectionCoordinator(
         val i = enriched.indexOfFirst { it.displayKey == d.displayKey }; if (i >= 0) enriched[i] = d else enriched.add(d)
     }
 
-    private fun updateState(device: DeviceInfo, state: ConnectionState, error: String?) {
-        val updated = device.copy(connectionState = state, connectionError = error)
+    private fun updateState(device: DeviceInfo, state: ConnectionState, failure: ConnectionFailure?) {
+        val updated = device.copy(connectionState = state, connectionFailure = failure)
         enriched.indexOfFirst { it.displayKey == device.displayKey }.takeIf { it >= 0 }?.let { enriched[it] = updated }
         val c = connected.indexOfFirst { it.displayKey == device.displayKey }
         if (c >= 0) {

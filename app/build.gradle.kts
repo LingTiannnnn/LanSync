@@ -113,3 +113,15 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("io.ktor:ktor-server-test-host:2.3.5")
 }
+
+// 三道源码文本门禁读的东西都不在 Test 任务的默认输入里：`DocFactsTest` 读 `docs/**` 与 `.git` 引用，
+// `DesignSystemTest` / `LayeringTest` 读 main 源码文本。不显式声明，改文档（或改注释）不会让
+// `testDebugUnitTest` 失效，任务被 UP-TO-DATE 跳过 → 门禁"全绿"其实没跑。这里把它们登记成输入。
+val gateSources = files(
+    rootProject.fileTree("docs"),
+    rootProject.fileTree(".git/refs"),
+    rootProject.file(".git/packed-refs"),
+)
+tasks.withType<Test>().configureEach {
+    inputs.files(gateSources)
+}

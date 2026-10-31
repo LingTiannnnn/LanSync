@@ -35,6 +35,15 @@ class LocalAppRepository(
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
+    /**
+     * 最近一次扫描/落盘的失败类别，成功时回到 null。
+     *
+     * 之前失败被静默吞掉（只进 `FileLogger`），`localApps` 于是停在空列表或旧列表上，
+     * UI 只能显示「暂无应用数据」—— 用户分不清「真的没应用」和「扫描没成功」，也没有重试入口。
+     */
+    private val _scanFailure = MutableStateFlow<ScanFailure?>(null)
+    val scanFailure: StateFlow<ScanFailure?> = _scanFailure.asStateFlow()
+
     /** 缓存文件是否存在且非空（决定启动是否走「骨架展示」路径）。 */
     fun hasCache(): Boolean = cacheFile.exists() && cacheFile.length() > 0
 
@@ -58,7 +67,8 @@ class LocalAppRepository(
             val previousPackages = _localApps.value.map { it.packageName }.toSet()
             val apps = scanner.scanInstalledApps()
             _localApps.value = apps
-            writeCache(apps)
+            val written = writeCache(apps)
+            _scanFailure.value = if (written) null else ScanFailure.CACHE_UNWRITABLE
             val currentPackages = apps.map { it.packageName }.toSet()
             FileLogger.i(TAG, "scanAndRefresh: ${apps.size} apps (+${currentPackages.size - (currentPackages intersect previousPackages).size}/-${(previousPackages - currentPackages).size})")
             ScanResult(
@@ -68,6 +78,7 @@ class LocalAppRepository(
             )
         } catch (e: Exception) {
             FileLogger.e(TAG, "scanAndRefresh failed", e)
+            _scanFailure.value = ScanFailure.SCAN_FAILED
             ScanResult(_localApps.value, emptySet(), emptySet())
         } finally {
             _isScanning.value = false
@@ -82,12 +93,24 @@ class LocalAppRepository(
         emptyList()
     }
 
-    private fun writeCache(apps: List<AppInfo>) {
-        try {
-            cacheFile.writeText(json.encodeToString(apps))
-        } catch (e: Exception) {
-            FileLogger.e(TAG, "writeCache failed", e)
-        }
+    private fun writeCache(apps: List<AppInfo>): Boolean = try {
+        cacheFile.writeText(json.encodeToString(apps))
+        true
+    } catch (e: Exception) {
+        FileLogger.e(TAG, "writeCache failed", e)
+        false
+    }
+
+    /**
+     * 扫描链路失败类别（本地领域类型，不上线）。
+     * UI 只按类别映射文案（`ui/string/FailureText.kt`），异常原文不进界面。
+     */
+    enum class ScanFailure {
+        /** PackageManager 扫描抛异常：本机应用列表拿不到 */
+        SCAN_FAILED,
+
+        /** 扫描成功但缓存落盘失败：下次启动只能拿到旧骨架 */
+        CACHE_UNWRITABLE
     }
 
     /** 一次扫描的结果 + 与上一版的包名差异（接线层据此做图标预加载/清理，避免本类依赖 UI）。 */

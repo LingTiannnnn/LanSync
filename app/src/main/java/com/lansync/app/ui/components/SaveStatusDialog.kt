@@ -1,28 +1,62 @@
 package com.lansync.app.ui.components
 
-import android.net.Uri
 import android.content.Context
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.documentfile.provider.DocumentFile
 import com.lansync.app.R
+import com.lansync.app.data.FileLogger
+import com.lansync.app.ui.string.saveFailureText
 import com.lansync.app.ui.theme.LanSyncTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** SAF 保存失败类别（UI 侧本地类型，不上线）。 */
+enum class SaveFailure {
+    SOURCE_MISSING,
+    DIR_INACCESSIBLE,
+    CREATE_FAILED,
+    WRITE_FAILED,
+    PERMISSION_DENIED,
+    NO_SPACE,
+    UNKNOWN,
+}
+
 sealed class SaveDialogState {
     data class Saving(val fileName: String) : SaveDialogState()
     data class Completed(val fileName: String) : SaveDialogState()
-    data class Error(val fileName: String, val message: String) : SaveDialogState()
+
+    /**
+     * [reason] 是上屏的唯一依据（经 `FailureText` 映射资源）；
+     * [detail] 是异常原文，只进 `FileLogger`，渲染它会把英文堆栈式短句暴露给用户。
+     */
+    data class Error(
+        val fileName: String,
+        val reason: SaveFailure,
+        val detail: String? = null,
+    ) : SaveDialogState()
 }
 
 /**
@@ -34,16 +68,20 @@ suspend fun copyFileToSafDirectory(
     treeUri: Uri,
     fileName: String
 ): SaveDialogState = withContext(Dispatchers.IO) {
+    fun fail(reason: SaveFailure, detail: String? = null): SaveDialogState.Error {
+        FileLogger.w("SaveToSaf", "save failed for $fileName: $reason ${detail.orEmpty()}")
+        return SaveDialogState.Error(fileName, reason, detail)
+    }
     try {
         val downloadsDir = File(context.cacheDir, "downloads")
         val sourceFile = File(downloadsDir, fileName)
 
         if (!sourceFile.exists()) {
-            return@withContext SaveDialogState.Error(fileName, context.getString(R.string.save_err_source_missing))
+            return@withContext fail(SaveFailure.SOURCE_MISSING, sourceFile.absolutePath)
         }
 
         val documentFile = DocumentFile.fromTreeUri(context, treeUri)
-            ?: return@withContext SaveDialogState.Error(fileName, context.getString(R.string.save_err_dir_inaccessible))
+            ?: return@withContext fail(SaveFailure.DIR_INACCESSIBLE, treeUri.toString())
 
         val mimeType = when {
             fileName.endsWith(".apks") -> "application/zip"
@@ -61,7 +99,7 @@ suspend fun copyFileToSafDirectory(
         }
 
         val createdFile = documentFile.createFile(mimeType, targetName)
-            ?: return@withContext SaveDialogState.Error(fileName, context.getString(R.string.save_err_create_failed))
+            ?: return@withContext fail(SaveFailure.CREATE_FAILED, targetName)
 
         context.contentResolver.openOutputStream(createdFile.uri)?.use { output ->
             sourceFile.inputStream().use { input ->
@@ -71,19 +109,19 @@ suspend fun copyFileToSafDirectory(
                     output.write(buffer, 0, bytesRead)
                 }
             }
-        } ?: return@withContext SaveDialogState.Error(fileName, context.getString(R.string.save_err_write_failed))
+        } ?: return@withContext fail(SaveFailure.WRITE_FAILED, createdFile.uri.toString())
 
         SaveDialogState.Completed(fileName)
     } catch (e: SecurityException) {
-        SaveDialogState.Error(fileName, context.getString(R.string.save_err_permission, e.message ?: ""))
+        fail(SaveFailure.PERMISSION_DENIED, e.message)
     } catch (e: java.io.IOException) {
         if (e.message?.contains("No space") == true || e.message?.contains("ENOSPC") == true) {
-            SaveDialogState.Error(fileName, context.getString(R.string.save_err_no_space))
+            fail(SaveFailure.NO_SPACE, e.message)
         } else {
-            SaveDialogState.Error(fileName, context.getString(R.string.save_err_generic, e.message ?: ""))
+            fail(SaveFailure.UNKNOWN, e.message)
         }
     } catch (e: Exception) {
-        SaveDialogState.Error(fileName, context.getString(R.string.save_err_generic, e.message ?: ""))
+        fail(SaveFailure.UNKNOWN, e.message)
     }
 }
 
@@ -106,19 +144,20 @@ fun SaveStatusDialog(
                 },
                 contentDescription = null,
                 tint = when (state) {
-                    is SaveDialogState.Saving -> MaterialTheme.colorScheme.primary
-                    is SaveDialogState.Completed -> MaterialTheme.colorScheme.primary
                     is SaveDialogState.Error -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.primary
                 }
             )
         },
         title = {
             Text(
-                text = when (state) {
-                    is SaveDialogState.Saving -> stringResource(R.string.save_state_saving)
-                    is SaveDialogState.Completed -> stringResource(R.string.save_state_completed)
-                    is SaveDialogState.Error -> stringResource(R.string.save_state_error)
-                }
+                text = stringResource(
+                    when (state) {
+                        is SaveDialogState.Saving -> R.string.save_state_saving
+                        is SaveDialogState.Completed -> R.string.save_state_completed
+                        is SaveDialogState.Error -> R.string.save_state_error
+                    }
+                )
             )
         },
         text = {
@@ -132,18 +171,15 @@ fun SaveStatusDialog(
                         is SaveDialogState.Completed -> state.fileName
                         is SaveDialogState.Error -> state.fileName
                     },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
 
                 when (state) {
                     is SaveDialogState.Saving -> {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        Spacer(Modifier.height(sp.space4))
+                        LanSyncProgressBar(modifier = Modifier.fillMaxWidth())
                         Text(
                             text = stringResource(R.string.save_saving_hint),
                             style = MaterialTheme.typography.labelMedium,
@@ -160,11 +196,11 @@ fun SaveStatusDialog(
                     is SaveDialogState.Error -> {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(sp.radiusXs),
+                            shape = MaterialTheme.shapes.extraSmall,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = state.message,
+                                text = saveFailureText(state.reason),
                                 modifier = Modifier.padding(sp.space8),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
@@ -176,17 +212,13 @@ fun SaveStatusDialog(
         },
         confirmButton = {
             when (state) {
-                is SaveDialogState.Completed -> {
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(R.string.action_ok))
-                    }
+                is SaveDialogState.Completed, is SaveDialogState.Error -> TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.action_ok))
                 }
-                is SaveDialogState.Error -> {
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(R.string.action_ok))
-                    }
+                is SaveDialogState.Saving -> {
+                    LanSyncSpinner(size = sp.iconMd, strokeWidth = sp.strokeThin)
+                    Spacer(Modifier.height(sp.space2))
                 }
-                is SaveDialogState.Saving -> {}
             }
         }
     )

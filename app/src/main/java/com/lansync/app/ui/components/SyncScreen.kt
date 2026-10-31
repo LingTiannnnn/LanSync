@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,12 +13,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import com.lansync.app.R
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.SyncDiff
 import com.lansync.app.data.model.UpdateInfo
+import com.lansync.app.ui.format.formattedFileSize
 import com.lansync.app.ui.theme.LanSyncTheme
 
 @Composable
@@ -28,212 +29,160 @@ fun SyncScreen(
     syncDiffs: List<SyncDiff>,
     availableUpdates: List<UpdateInfo>,
     selectedUpdates: Set<String>,
+    selectedDeviceKey: String?,
+    onSelectDevice: (String) -> Unit,
     onRefreshDevice: (DeviceInfo) -> Unit,
     onToggleSelected: (String) -> Unit,
-    onSelectAll: () -> Unit,
-    onClearSelection: () -> Unit,
     onInstallUpdate: (UpdateInfo) -> Unit,
     onInstallSelectedUpdates: () -> Unit,
     onRefreshDevices: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sp = LanSyncTheme.spacing
-    // 只保存 displayKey（String 可入 Bundle）；DeviceInfo 非 Parcelable，rememberSaveable 会在恢复时崩溃
-    var selectedDeviceKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var searchQuery by rememberSaveable { mutableStateOf("") }
     var showDiffsOnly by rememberSaveable { mutableStateOf(false) }
 
     if (connectedDevices.isEmpty()) {
-        Box(modifier = modifier.fillMaxSize().padding(sp.space16), contentAlignment = Alignment.Center) {
-            EmptySyncState()
-        }
-    } else {
-        Column(modifier = modifier.fillMaxSize()) {
-            Column(modifier = Modifier.weight(1f).padding(sp.space16)) {
-                val currentDevice = connectedDevices.firstOrNull { it.displayKey == selectedDeviceKey }
-                    ?: connectedDevices.firstOrNull()
+        EmptyState(
+            icon = Icons.Default.LinkOff,
+            title = stringResource(R.string.sync_empty_title),
+            body = stringResource(R.string.sync_empty_hint),
+            actionLabel = stringResource(R.string.action_refresh),
+            onAction = onRefreshDevices,
+            modifier = Modifier
+                .fillMaxSize()
+                .then(modifier)
+                .padding(sp.space16),
+        )
+        return
+    }
 
-                ConnectedDeviceChips(
-                    devices = connectedDevices,
-                    selectedDevice = currentDevice,
-                    onSelectDevice = { selectedDeviceKey = it.displayKey }
+    val currentDevice = connectedDevices.firstOrNull { it.displayKey == selectedDeviceKey }
+        ?: connectedDevices.firstOrNull() ?: return
+
+    val deviceUpdates = availableUpdates.filter { update ->
+        update.providerDevice.displayKey == currentDevice.displayKey
+    }
+    val deviceDiffs = syncDiffs.filter { diff ->
+        diff.sourceDevice.displayKey == currentDevice.displayKey
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        // 底部留白不放这里：列表溢出时会被 16dp padding 裁出一条常驻空带，改放 LazyColumn contentPadding
+        Column(
+            modifier = Modifier.weight(1f)
+                .padding(start = sp.space16, top = sp.space16, end = sp.space16)
+        ) {
+            ConnectedDeviceChips(
+                devices = connectedDevices,
+                selectedDevice = currentDevice,
+                onSelectDevice = { onSelectDevice(it.displayKey) }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Sync,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(sp.iconLg),
                 )
+                Spacer(Modifier.width(sp.space6))
+                Text(
+                    text = stringResource(R.string.sync_device_title, currentDevice.deviceName),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                // 单台设备刷新：此前 onRefreshDevice 一直挂着没人调
+                IconButton(onClick = { onRefreshDevice(currentDevice) }) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = stringResource(R.string.cd_refresh),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
-                Spacer(Modifier.height(sp.space8))
+            SyncModeRow(
+                updatableCount = deviceUpdates.size,
+                diffCount = deviceDiffs.size,
+                showDiffsOnly = showDiffsOnly,
+                onModeChange = { showDiffsOnly = it },
+            )
 
-                if (currentDevice != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(sp.space6))
-                            Text(
-                                text = stringResource(R.string.sync_device_title, currentDevice.deviceName),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+            if (!showDiffsOnly && deviceUpdates.isEmpty() && deviceDiffs.isEmpty() &&
+                currentDevice.appList.isNotEmpty()
+            ) {
+                // 「已全同步」是成功态，与空态同一套原语，不再另起一张卡
+                EmptyState(
+                    icon = Icons.Default.CheckCircle,
+                    title = stringResource(R.string.sync_all_synced),
+                    modifier = Modifier.fillMaxWidth().padding(sp.space24),
+                )
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(sp.space8),
+                    contentPadding = PaddingValues(bottom = sp.space16),
+                ) {
+                    if (!showDiffsOnly && deviceUpdates.isNotEmpty()) {
+                        items(deviceUpdates, key = { "sync_update_${it.remoteApp.packageName}" }) { update ->
+                            UpdateItem(
+                                updateInfo = update,
+                                isSelected = update.remoteApp.packageName in selectedUpdates,
+                                onToggleSelected = onToggleSelected,
+                                onInstall = { onInstallUpdate(update) }
                             )
                         }
                     }
 
-                    SearchBar(
-                        query = searchQuery,
-                        onQueryChange = { searchQuery = it },
-                        placeholder = stringResource(R.string.search_user_placeholder)
-                    )
-
-                    val deviceUpdates by remember(searchQuery, currentDevice, availableUpdates) {
-                        derivedStateOf {
-                            availableUpdates.filter { update ->
-                                update.providerDevice.displayKey == currentDevice.displayKey &&
-                                    (searchQuery.isEmpty() ||
-                                        update.remoteApp.appName.contains(searchQuery, ignoreCase = true))
-                            }
+                    if (showDiffsOnly && deviceDiffs.isNotEmpty()) {
+                        item(key = "header_diffs") {
+                            SectionHeader(
+                                title = stringResource(R.string.sync_section_remote_behind),
+                                icon = Icons.Default.CompareArrows,
+                                count = deviceDiffs.size
+                            )
+                        }
+                        items(deviceDiffs, key = { "diff_${it.appInfo.packageName}" }) { diff ->
+                            DiffItem(diff = diff)
                         }
                     }
 
-                    val deviceDiffs by remember(searchQuery, currentDevice, syncDiffs) {
-                        derivedStateOf {
-                            syncDiffs.filter { diff ->
-                                diff.sourceDevice.displayKey == currentDevice.displayKey &&
-                                    (searchQuery.isEmpty() ||
-                                        diff.appInfo.appName.contains(searchQuery, ignoreCase = true))
-                            }
+                    if (!showDiffsOnly && deviceUpdates.isEmpty()) {
+                        item(key = "empty") {
+                            EmptyState(
+                                icon = Icons.Default.Inbox,
+                                title = stringResource(R.string.sync_empty_user),
+                                modifier = Modifier.fillMaxWidth().padding(sp.space24),
+                            )
                         }
                     }
 
-                    SyncModeRow(
-                        updatableCount = deviceUpdates.size,
-                        diffCount = deviceDiffs.count { it.diffType == SyncDiff.DiffType.NEWER_ON_REMOTE },
-                        showDiffsOnly = showDiffsOnly,
-                        onModeChange = { showDiffsOnly = it },
-                    )
-
-                    if (!showDiffsOnly) {
-                        SectionHeader(
-                            title = stringResource(R.string.sync_section_user),
-                            icon = Icons.Default.Person,
-                            count = currentDevice.appList.count { !it.isSystemApp }
-                        )
-                    }
-
-                    val newerOnRemoteDiffs = remember(deviceDiffs) {
-                        deviceDiffs.filter { it.diffType == SyncDiff.DiffType.NEWER_ON_REMOTE }
-                    }
-
-                    if (deviceUpdates.isEmpty() && newerOnRemoteDiffs.isEmpty() && currentDevice.appList.isNotEmpty() && searchQuery.isEmpty()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(sp.space24),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(sp.iconEmpty)
-                                )
-                                Spacer(Modifier.height(sp.space8))
-                                Text(
-                                    text = stringResource(R.string.sync_all_synced),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(sp.space8)
-                        ) {
-                            if (!showDiffsOnly && deviceUpdates.isNotEmpty()) {
-                                item(key = "header_updates") {
-                                    SectionHeader(
-                                        title = stringResource(R.string.sync_section_updatable),
-                                        icon = Icons.Default.NewReleases,
-                                        count = deviceUpdates.size,
-                                        showSelectButtons = true,
-                                        areAllSelected = deviceUpdates.all { it.remoteApp.packageName in selectedUpdates },
-                                        onSelectAll = onSelectAll,
-                                        onClearSelection = onClearSelection
-                                    )
-                                }
-                                items(deviceUpdates, key = { "sync_update_${it.remoteApp.packageName}" }) { update ->
-                                    UpdateItem(
-                                        updateInfo = update,
-                                        isSelected = update.remoteApp.packageName in selectedUpdates,
-                                        onToggleSelected = onToggleSelected,
-                                        onInstall = { onInstallUpdate(update) }
-                                    )
-                                }
-                            }
-
-                            if (showDiffsOnly && newerOnRemoteDiffs.isNotEmpty()) {
-                                item(key = "header_diffs") {
-                                    SectionHeader(
-                                        title = stringResource(R.string.sync_section_newer_on_remote),
-                                        icon = Icons.Default.CompareArrows,
-                                        count = newerOnRemoteDiffs.size
-                                    )
-                                }
-                                items(newerOnRemoteDiffs, key = { "diff_${it.appInfo.packageName}" }) { diff ->
-                                    DiffItem(diff = diff)
-                                }
-                            }
-
-                            if (showDiffsOnly && deviceDiffs.any { it.diffType == SyncDiff.DiffType.ONLY_ON_REMOTE }) {
-                                val onlyRemote = deviceDiffs.filter { it.diffType == SyncDiff.DiffType.ONLY_ON_REMOTE }
-                                item(key = "header_only_remote") {
-                                    SectionHeader(
-                                        title = stringResource(R.string.sync_section_only_remote),
-                                        icon = Icons.Default.CloudDownload,
-                                        count = onlyRemote.size
-                                    )
-                                }
-                                items(onlyRemote, key = { "only_remote_${it.appInfo.packageName}" }) { diff ->
-                                    DiffItem(diff = diff)
-                                }
-                            }
-
-                            if ((!showDiffsOnly && deviceUpdates.isEmpty()) ||
-                                (showDiffsOnly && newerOnRemoteDiffs.isEmpty() && deviceDiffs.none { it.diffType == SyncDiff.DiffType.ONLY_ON_REMOTE })
-                            ) {
-                                item(key = "empty") {
-                                    EmptyStateCard(
-                                        message = if (searchQuery.isNotEmpty())
-                                            stringResource(R.string.sync_empty_search, searchQuery)
-                                        else
-                                            stringResource(R.string.sync_empty_user)
-                                    )
-                                }
-                            }
+                    if (showDiffsOnly && deviceDiffs.isEmpty()) {
+                        item(key = "empty_diffs") {
+                            EmptyState(
+                                icon = Icons.Default.Inbox,
+                                title = stringResource(R.string.sync_empty_behind),
+                                modifier = Modifier.fillMaxWidth().padding(sp.space24),
+                            )
                         }
                     }
                 }
             }
+        }
 
-            if (selectedUpdates.isNotEmpty()) {
-                BatchBar(
-                    label = stringResource(R.string.selection_count_apps, selectedUpdates.size),
-                    actionLabel = stringResource(R.string.action_batch_update),
-                    onAction = onInstallSelectedUpdates,
-                )
-            }
+        if (selectedUpdates.isNotEmpty()) {
+            BatchBar(
+                label = stringResource(R.string.selection_count_apps, selectedUpdates.size),
+                actionLabel = stringResource(R.string.action_batch_update),
+                onAction = onInstallSelectedUpdates,
+            )
         }
     }
-}
-
-@Composable
-fun EmptySyncState() {
-    EmptyState(
-        icon = Icons.Default.LinkOff,
-        title = stringResource(R.string.remote_empty_title),
-        body = stringResource(R.string.remote_empty_hint),
-    )
 }
 
 @Composable
@@ -266,7 +215,6 @@ private fun SyncModeRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectedDeviceChips(
     devices: List<DeviceInfo>,
@@ -276,22 +224,17 @@ fun ConnectedDeviceChips(
     val sp = LanSyncTheme.spacing
     Row(
         horizontalArrangement = Arrangement.spacedBy(sp.space6),
-        modifier = Modifier.horizontalScroll(rememberScrollState())
+        modifier = Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(vertical = sp.space4),
     ) {
         devices.forEach { device ->
-            FilterChip(
+            // 统一走共享 chip：此前这里用裸 FilterChip，触摸高度与选中配色都绕开了设计系统
+            LanSyncFilterChip(
                 selected = selectedDevice?.displayKey == device.displayKey,
                 onClick = { onSelectDevice(device) },
-                label = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Link, null, modifier = Modifier.size(sp.chipIcon))
-                        Spacer(Modifier.width(sp.space4))
-                        Text(device.deviceName, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                },
-                leadingIcon = if (selectedDevice?.displayKey == device.displayKey) {
-                    { Icon(Icons.Default.Check, null, Modifier.size(sp.iconMd)) }
-                } else null
+                label = device.deviceName,
+                leadingIcon = Icons.Default.Link,
             )
         }
     }
@@ -300,11 +243,15 @@ fun ConnectedDeviceChips(
 @Composable
 fun DiffItem(diff: SyncDiff) {
     val sp = LanSyncTheme.spacing
+    val scheme = MaterialTheme.colorScheme
     Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+            containerColor = LanSyncTheme.containers.low,
+            contentColor = scheme.onSurface,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = sp.hairline)
+        elevation = CardDefaults.cardElevation(defaultElevation = LanSyncTheme.elevation.card),
     ) {
         Row(
             modifier = Modifier.padding(sp.space12),
@@ -314,50 +261,80 @@ fun DiffItem(diff: SyncDiff) {
 
             Spacer(Modifier.width(sp.space10))
 
-            Column(Modifier.weight(1f, fill = false)) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    diff.appInfo.appName,
+                    text = diff.appInfo.appName,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
+                    color = scheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                Row(Modifier.padding(top = sp.space2)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = sp.space2),
+                ) {
+                    // 落后的是远端版本号：用 tertiary 琥珀高亮，呼应「可更新」徽标的色彩语义
+                    val pair = stringResource(R.string.version_pair, diff.localVersion, diff.remoteVersion)
+                    val remoteStart = pair.length - diff.remoteVersion.length
                     Text(
-                        diff.localVersion ?: stringResource(R.string.diff_version_placeholder),
-                        color = MaterialTheme.colorScheme.outline,
+                        text = buildAnnotatedString {
+                            append(pair)
+                            if (remoteStart > 0 && pair.substring(remoteStart) == diff.remoteVersion) {
+                                addStyle(SpanStyle(color = scheme.tertiary), remoteStart, pair.length)
+                            }
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        stringResource(R.string.version_arrow),
-                        color = MaterialTheme.colorScheme.outline,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        diff.remoteVersion,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        fontWeight = FontWeight.Medium,
-                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(sp.radiusSm),
-                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.15f)
-            ) {
-                Text(
-                    stringResource(R.string.diff_newer_on_remote),
-                    modifier = Modifier.padding(horizontal = sp.space8, vertical = sp.space4),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
+            if (diff.appInfo.fileSize > 0) {
+                RowSupportingText(text = formattedFileSize(diff.appInfo.fileSize))
             }
         }
     }
+}
+}
+
+@Composable
+fun UpdateItem(
+    updateInfo: UpdateInfo,
+    isSelected: Boolean,
+    onToggleSelected: (String) -> Unit,
+    onInstall: () -> Unit
+) {
+    val sp = LanSyncTheme.spacing
+    val remote = updateInfo.remoteApp
+    LanSyncAppRow(
+        title = remote.appName,
+        packageName = remote.packageName,
+        selected = isSelected,
+        checked = isSelected,
+        onCheckedChange = { onToggleSelected(remote.packageName) },
+        accent = true,
+        badges = { LanSyncBadge(LanSyncBadgeKind.Updatable) },
+        supporting = {
+            RowSupportingText(
+                text = if (updateInfo.localApp != null) {
+                    stringResource(R.string.version_pair, updateInfo.localApp.versionName, remote.versionName)
+                } else {
+                    remote.versionName
+                },
+                modifier = Modifier.padding(top = sp.space2),
+                emphasis = true,
+            )
+            // 来源设备不再展示（同页只看一台设备）；该行只留安装包大小
+            if (remote.fileSize > 0) {
+                RowSupportingText(text = formattedFileSize(remote.fileSize))
+            }
+        },
+        trailing = {
+            RowActionButton(
+                onClick = onInstall,
+                label = stringResource(R.string.action_install),
+                icon = Icons.Default.Download,
+            )
+        },
+    )
 }

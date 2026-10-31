@@ -12,14 +12,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import com.lansync.app.R
-import com.lansync.app.ui.theme.LanSyncMetrics
+import com.lansync.app.ui.theme.LanSyncMonoText
 import com.lansync.app.ui.theme.LanSyncTheme
 
 /**
- * 设备首页身份条（COMPONENTS.md §2）：primaryContainer 贴 statusBars，
+ * 设备首页身份条：primaryContainer 底色（顶栏已吃 statusBars，此处不得再叠 inset），
  * 本机名 + 运行开关 + HeroStats 三格。
  */
 @Composable
@@ -40,7 +39,6 @@ fun IdentityStrip(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.primaryContainer)
-            // TopAppBar 已消费 statusBars，此处不得再叠 inset（会形成空额头）
             .padding(horizontal = sp.space16, vertical = sp.space12),
     ) {
         Row(
@@ -49,7 +47,7 @@ fun IdentityStrip(
         ) {
             Box(
                 modifier = Modifier
-                    .size(LanSyncMetrics.deviceIcon)
+                    .size(sp.deviceIcon)
                     .background(
                         MaterialTheme.colorScheme.primary,
                         MaterialTheme.shapes.medium,
@@ -82,18 +80,25 @@ fun IdentityStrip(
                     } else {
                         stringResource(R.string.status_stopped)
                     },
-                    style = MaterialTheme.typography.labelSmall,
+                    style = LanSyncMonoText.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontFamily = FontFamily.Monospace,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Switch(
-                checked = isRunning,
-                onCheckedChange = { if (!isStarting && !isStopping) onToggleRunning() },
-                enabled = !isStarting && !isStopping,
-            )
+            // 启动/停止过程中给出指示器，而不是只把开关变灰（状态必须可见）
+            if (isStarting || isStopping) {
+                LanSyncSpinner(
+                    size = sp.iconXl,
+                    strokeWidth = sp.strokeThin,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            } else {
+                Switch(
+                    checked = isRunning,
+                    onCheckedChange = { onToggleRunning() },
+                )
+            }
         }
 
         Spacer(Modifier.height(sp.space12))

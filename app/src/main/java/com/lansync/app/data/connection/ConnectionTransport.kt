@@ -59,8 +59,12 @@ interface ConnectionTransport {
  */
 sealed interface ConnectOutcome {
     data class Accepted(val responderName: String) : ConnectOutcome
-    data class Rejected(val message: String) : ConnectOutcome
-    data class Timeout(val message: String) : ConnectOutcome
+
+    /** 对端拒绝时的原文，仅供日志/留档。 */
+    data class Rejected(val remoteMessage: String?) : ConnectOutcome
+
+    /** 轮询总超时；秒数交 UI 映射文案。 */
+    data class Timeout(val waitSeconds: Int) : ConnectOutcome
 }
 
 /**

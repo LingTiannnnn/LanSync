@@ -175,6 +175,83 @@ class DocFactsTest {
         assertEquals(".qoder/agents 镜像的测试基线漂移：\n" + drift.joinToString("\n"), 0, drift.size)
     }
 
+    /** 规模数字的提取式：正控与负控共用同一份定义（不在自检里另抄正则）。 */
+    private val stringsEntry = Regex("""<string name=""")
+    private val docStringsCount = Regex("""strings\.xml`?\s*（(\d+) 条""")
+    private val docComponentCount = Regex("""ui/components/\*`?\s*（(\d+) 文件""")
+    private val docRowCount = Regex("""(\d+) 行""")
+    private val facadeRowMarker = "`data/repository/LanSyncRepository.kt`"
+
+    /** 按 pattern 抓第一个数字；抓不到就是检查失效，直接 error 而不是静默跳过。 */
+    private fun number(pattern: Regex, text: String, what: String): Int =
+        pattern.find(text)?.groupValues?.get(1)?.toInt()
+            ?: error("$what：匹配式没抓到数字，pattern=[${pattern.pattern}]")
+
+    /**
+     * UI 与门面的规模数字：文档写了就必须与实测一致。
+     *
+     * 行数口径与 `LayeringTest` 的门面检查相同（`readLines().size`），避免同一事实两处计数不同。
+     * 数字本身只允许在 `docs/ARCHITECTURE.md` §13.1/§13.4 各出现一次，其他文档一律指过去不复制
+     * （复制即漂移，见 `docs/CONVENTIONS.md` §6）。
+     */
+    @Test
+    fun `documented ui and facade counts match measured`() {
+        val arch = read("docs/ARCHITECTURE.md")
+
+        val measuredStrings = stringsEntry.findAll(read("app/src/main/res/values/strings.xml")).count()
+        assertTrue("strings.xml 解析到 0 条，检查已失效", measuredStrings > 0)
+        assertEquals(
+            "docs/ARCHITECTURE.md §13.4 的 strings.xml 条数与实测不符",
+            measuredStrings,
+            number(docStringsCount, arch, "strings.xml 条数"),
+        )
+
+        val componentsDir = file("app/src/main/java/com/lansync/app/ui/components")
+        assertTrue("找不到组件目录：${componentsDir.path}", componentsDir.isDirectory)
+        val measuredComponents = componentsDir.listFiles().orEmpty().count { it.isFile && it.extension == "kt" }
+        assertTrue("组件目录扫到 0 个 .kt，检查已失效", measuredComponents > 0)
+        assertEquals(
+            "docs/ARCHITECTURE.md §13.1 的组件文件数与实测不符",
+            measuredComponents,
+            number(docComponentCount, arch, "ui/components 文件数"),
+        )
+
+        val facadeLine = arch.lines().firstOrNull { it.contains(facadeRowMarker) }
+            ?: error("docs/ARCHITECTURE.md §13.1 找不到 $facadeRowMarker 表行")
+        val measuredFacade = file("app/src/main/java/com/lansync/app/data/repository/LanSyncRepository.kt")
+            .readLines().size
+        assertEquals(
+            "docs/ARCHITECTURE.md §13.1 的门面行数与实测不符",
+            measuredFacade,
+            number(docRowCount, facadeLine, "门面行数"),
+        )
+    }
+
+    /**
+     * 负控（CONVENTIONS §4）：上面的四条提取式必须真能从"数字写错了"的样本里抓到值。
+     * 句式改动导致匹配式失效时，正控走的是 `error()`（找不到基线）而不是判红，容易被当成环境问题放过；
+     * 这里让同一批 pattern 跑坏样本，证明它们认得自己该抓的东西。
+     */
+    @Test
+    fun `ui and facade count detectors fire on the known bad inputs`() {
+        val badArch = """
+            | `ui/components/*`（18 文件） | 5 Tab + 共享原语 |
+            | $facadeRowMarker | **组合门面 301 行（硬约束 ≤300）** | 编译 |
+            - **文案唯一来源** `res/values/strings.xml`（999 条，参数用占位符）
+        """.trimIndent()
+
+        assertEquals("组件文件数的坏样本必须被抓到", 18, number(docComponentCount, badArch, "样本 ui/components 文件数"))
+        assertEquals("strings 条数的坏样本必须被抓到", 999, number(docStringsCount, badArch, "样本 strings 条数"))
+        val row = badArch.lines().firstOrNull { it.contains(facadeRowMarker) }
+            ?: error("门面表行的定位式失效：$facadeRowMarker")
+        assertEquals("门面行数的坏样本必须被抓到", 301, number(docRowCount, row, "样本门面行数"))
+        assertEquals(
+            "strings 计数式必须按条目计数",
+            2,
+            stringsEntry.findAll("<string name=\"a\"><string name=\"b\"/>").count(),
+        )
+    }
+
     @Test
     fun `per file case counts in test plan match measured`() {
         val measured = measuredTestFiles().associate { it.nameWithoutExtension to measuredCaseCount(it) }

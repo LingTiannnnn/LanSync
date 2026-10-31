@@ -41,7 +41,7 @@
 
 ### 2.3 UpdateManager / Models / HashUtils 必覆盖断言
 
-- **`UpdateManagerTest`**：`findUpdates` 只收 remote > local、跳过任一侧为系统应用、跳过本地缺失包；`deduplicateUpdates` 同包名取最高 `versionCode`、**平级取 `deviceName` 字母序更小者**（SPEC §3.2）、空输入返回空；`calculateSyncDiffs` 四种差异类型分类且跳过系统应用。
+- **`UpdateManagerTest`**：`findUpdates` 只收 remote > local、跳过任一侧为系统应用、跳过本地缺失包；`deduplicateUpdates` 同包名取最高 `versionCode`、**平级取 `deviceName` 字母序更小者**（SPEC §3.2）、空输入返回空；`calculateSyncDiffs` 只收「远程落后」（双端都有且本地更高，远程更高/同版本/单侧存在均排除）且跳过系统应用。
 - **`ModelsTest` 的 `encodeDefaults=false` 字节快照**（SPEC §1.2.1，必测）：`DeviceInfoResponse(deviceName="X")` **不含** `version`；`GenericStatusResponse()` 序列化为 `{}`、`GenericStatusResponse(status="pong")` 为 `{"status":"pong"}`；`AppInfo(isSystemApp=false, isSplitApk=false)` **不含**这两字段（=true 时含）；`ConnectStatusResponse(status="rejected", accepted=false)` **不含** `accepted`。除单测外，路由测试同样保留这些断言。
 - **`HashUtilsTest` 的 null 语义**（SPEC §8.2）：空列表 → null；任一路径不可读 → null；全部不可读 → null。**绝不返回空文件的摘要**（`d41d8cd9…` 幽灵指纹是缺陷，不得作为断言目标）。
 
@@ -112,14 +112,14 @@
 |---|---|---|
 | CS-1 | mDNS 新设备 | → DISCOVERED |
 | CS-2 | `connectDevice` + poll Accepted | DISCOVERED→CONNECTING→CONNECTED；startHeartbeat；fetchAppListWithRetry(initiator) |
-| CS-3 | `sendConnectRequest` → null | → ERROR「无法发送连接请求，目标设备无响应」 |
-| CS-4 | poll Rejected | → ERROR「对方拒绝连接」 |
-| CS-5 | poll Timeout（未被反向连接） | → ERROR「连接超时（30秒内未收到响应）」 |
+| CS-3 | `sendConnectRequest` → null | → ERROR；`connectionFailure.kind = SEND_NO_RESPONSE` |
+| CS-4 | poll Rejected | → ERROR；`kind = REJECTED_BY_PEER` |
+| CS-5 | poll Timeout（未被反向连接） | → ERROR；`kind = WAIT_TIMEOUT` + `waitSeconds = 30` |
 | CS-6 | poll Timeout 但已反向连接 | 视为成功 true（折叠进 CS-16） |
-| CS-7 | 心跳 ping 成功 | 清 failCount；CONNECTED；lastSeen 刷新；connectionError = null |
-| CS-8 | ping 失败 failCount = 1 | → RECONNECTING「连接不稳定… (1/4)」 |
-| CS-9 | ping 失败 1 < failCount < 4 | → RECONNECTING「正在尝试重新连接…」+ tryFastReconnect |
-| CS-10 | failCount ≥ 4 | → CONNECTION_TIMEOUT「连接超时，设备已离线」；移出 connected；停心跳/同步 |
+| CS-7 | 心跳 ping 成功 | 清 failCount；CONNECTED；lastSeen 刷新；`connectionFailure = null`；再失败回到 `retry = 1` |
+| CS-8 | ping 失败 failCount = 1 | → RECONNECTING；`kind = LINK_UNSTABLE` + `retry/retryTotal = 1/4` |
+| CS-9 | ping 失败 1 < failCount < 4 | → RECONNECTING；`kind = RECONNECTING` + `retry/retryTotal = 2/4`；触发 tryFastReconnect |
+| CS-10 | failCount ≥ 4 | → CONNECTION_TIMEOUT；`kind = DEVICE_OFFLINE`；移出 connected；停心跳/同步 |
 | CS-11 | tryFastReconnect 且 `fetchDeviceInfo != null` | → CONNECTED + fetchAndEnrich |
 | CS-12 | 本地 disconnect | → DISCONNECTED；**appList 保留**；发 disconnect 通知 |
 | CS-13 | 远端 disconnect（displayKey/identityKey 匹配） | → DISCONNECTED；appList 保留 |
@@ -193,10 +193,11 @@
 
 | 门禁 | 阻断条件 |
 |---|---|
-| `testDebugUnitTest` | 任一 L1/L2/L3 用例失败；或 `LayeringTest` / `DocFactsTest` 违规 |
+| `testDebugUnitTest` | 任一 L1/L2/L3 用例失败；或 `LayeringTest` / `DocFactsTest` / `DesignSystemTest` 违规 |
 | `assembleDebug` | 编译 / 资源合并失败 |
 | `architecture/LayeringTest` | ① `data/**` 出现 `import com.lansync.app.ui.*`（输出 `文件:行号: 原文`）；② `LanSyncRepository.kt` > 300 行。**显式兜底"扫到 0 个文件即失败"**，否则路径写错时门禁静默空过 |
-| `architecture/DocFactsTest` | 文档字面量与仓库实测不符：`docs/BUILD.md` §3 版本锁表与 SDK / `jvmTarget` 行、`docs/STATUS.md` §2 与 §10 的测试基线、§10 逐文件例数、`.qoder/agents` 镜像数字、远端同步表述与 `.git` 引用矛盾。**自带检测器自检例**，匹配式失效即失败，不会静默空过 |
+| `architecture/DesignSystemTest` | `ui/**`（非 theme）+ `MainActivity` 出现注册过的被禁写法：色字面量 / 裸 `.dp` / 裸 `.sp` 与内联 `fontSize` / 内联 `fontWeight` / `copy(alpha=)` / 写死 `tween`·`delay` / 内联中文串 / 原语外裸 `FilterChip` / 原语外裸进度指示器 / `surfaceVariant` 容器色 / 交互控件固定高度；或令牌与样式表存在零引用死值。**负控与反向检查**：每条注册项的最小坏样本必须被自己的正则命中；注册了却没有规则调用它、绕过注册内联 `Regex`、豁免的原语文件里已无裸用点 —— 都判红（口径见 `docs/CONVENTIONS.md` §4） |
+| `architecture/DocFactsTest` | 文档字面量与仓库实测不符：`docs/BUILD.md` §3 版本锁表与 SDK / `jvmTarget` 行、`docs/STATUS.md` §2 与 §10 的测试基线、§10 逐文件例数、`docs/ARCHITECTURE.md` §13.1 门面行数与 `ui/components` 文件数、§13.4 `strings.xml` 条数、`.qoder/agents` 镜像数字、远端同步表述与 `.git` 引用矛盾。**自带检测器自检例**，匹配式失效即失败，不会静默空过。门禁输入（`docs/**` 与 `.git` 引用）已在 `app/build.gradle.kts` 登记，改文档会真正触发重跑 |
 | `assembleRelease` + 真机冒烟 | 安装器链路失败（Phase 7 范畴） |
 | §6 人工签核 | 任一红线组合失败 |
 
@@ -225,10 +226,11 @@
 
 ## 10. 当前落地清单
 
-16 个测试文件 / 154 例（用例数以仓库实测为准）。
+17 个测试文件 / 179 例（用例数以仓库实测为准）。
 
 | 测试文件 | 例数 | 锁定 |
 |---|---|---|
+| `architecture/DesignSystemTest` | 19 | CONVENTIONS §3 设计系统门禁：零硬编码三禁（色值 / `.dp` / 中文字面量）+ 禁 `color.copy(alpha)` / 内联 `fontWeight` / 写死动效时长 + 容器色只走 `LanSyncTheme.containers` + 裸 `FilterChip` 只准出现在 `CommonComponents.kt` + 裸进度指示器只准出现在 `LoadingVisuals.kt` + 固定按钮高度限制 + `Spacing`/`Elevation` 令牌与 `Typography` 样式零死值。源码文本扫描，注释行不参与匹配；结构性范围豁免只有 `ui/theme/`（令牌定义处）与上述两个原语文件，**中文字面量一条无豁免文件**。每条被禁写法由 `ban()` 注册一份「正则 + 最小坏样本」，规则与负控共用同一对象（内联 `Regex` 进不了 `violationsOf`）：`detectors fire on the known bad inputs` 证明每条正则都认得自己管的那种写法，`every registered pattern is enforced by a rule` 反查注册了却没有规则使用、或绕过注册内联正则，`primitive exemptions point at real call sites` 证明两处豁免指向真实裸用点，`comment lines are excluded from matching` 证明注释行不被匹配 |
 | `data/server/LanSyncRoutingTest` | 33 | §3.1 状态码矩阵、§3.2 三响应头与 Content-Type、§3.3 不回显 `e.message`、SPEC §1.2.1 省略、D1 |
 | `data/transfer/LanSyncClientTest` | 18 | DL-1/2/3/5/7/8/9/10/11 + `parseConnectStatus` + `fetchAppList` |
 | `data/connection/DefaultConnectionCoordinatorTest` | 21 | CS-1…CS-17（含 CS-17a–d）、`incomingRequests`、周期心跳 |
@@ -236,14 +238,14 @@
 | `data/server/InMemoryPairingStoreTest` | 9 | §2.2 配对状态机、15s 超时、getStatus 映射、respond 取消 timeout、clearAll |
 | `data/sync/UpdateManagerTest` | 9 | §2.3 `findUpdates` / `deduplicateUpdates` / `calculateSyncDiffs` |
 | `data/transfer/DownloadedFileNameTest` | 10 | DL-12 命名 / 反推边界 / 正向匹配 |
-| `data/transfer/DownloadInstallControllerTest` | 7 | 下载与安装进度状态流 |
-| `architecture/DocFactsTest` | 7 | CONVENTIONS §6 文档事实门禁：BUILD §3 版本锁表与 SDK/`jvmTarget` 行、STATUS §2 与 §10 测试基线、§10 逐文件例数、`.qoder/agents` 镜像数、远端同步表述对照 `.git` 引用，外加检测器自检 |
+| `data/transfer/DownloadInstallControllerTest` | 9 | 下载与安装进度状态流；取消以 `Cancelled` 收场（清进度、不写 Failed）；失败只暴露 typed `InstallFailure`（FILE_MISSING / DOWNLOAD_FAILED），诊断原文留在 `detail` 不上屏 |
+| `architecture/DocFactsTest` | 9 | CONVENTIONS §6 文档事实门禁：BUILD §3 版本锁表与 SDK/`jvmTarget` 行、STATUS §2 与 §10 测试基线、§10 逐文件例数、§13.1 门面行数与组件文件数、§13.4 `strings.xml` 条数、`.qoder/agents` 镜像数、远端同步表述对照 `.git` 引用；两条检测器自检例（版本/同步表述 + 规模数字提取式）跑内存坏样本，匹配式失效即判红 |
 | `data/transfer/AppPackerTest` | 6 | 单包字节一致与命名、split zip 结构、不可提取/空路径 → null、D1 不等式、`clearCache` |
 | `data/HashUtilsTest` | 6 | §2.4 null 传播三态 |
-| `data/localapps/LocalAppRepositoryTest` | 5 | hasCache、`scanAndRefresh` 写缓存+状态+added、`loadCacheSkeleton` 不触发扫描、跨次 added/removed、损坏缓存自愈 |
+| `data/localapps/LocalAppRepositoryTest` | 7 | hasCache、`scanAndRefresh` 写缓存+状态+added、`loadCacheSkeleton` 不触发扫描、跨次 added/removed、损坏缓存自愈；扫描失败 → `SCAN_FAILED` 且保留旧列表、落盘失败 → `CACHE_UNWRITABLE` |
 | `data/sync/UpdateCoordinatorTest` | 4 | combine / 节流 / 立即重算（注入 `nowMillis`） |
 | `architecture/LayeringTest` | 2 | §7 分层门禁 |
 | `data/AppConfigTest` | 2 | SPEC §7.2 全部默认参数 |
 | `data/packer/HashUtilsConsistencyTest` | 2 | MD5 一致性（含 nonexistent → null） |
 
-**无 JVM 单测（靠编译 + `assembleDebug` + 真机验收）**：`AppScanner`、`JmDNSDeviceDiscovery`、`IconCache`/`AppIconDiskCache`、`ForegroundSyncService`、`LanSyncRepository`、`LanSyncGraph`、`KtorLanSyncServer`、全部 Compose UI 与 `MainViewModel`。项目无 Robolectric / 无 UI 测试 / 无覆盖率工具；为 Android 耦合类新建测试栈属扩大范围，须先与用户确认。
+**无 JVM 单测（靠编译 + `assembleDebug` + 真机验收）**：`AppScanner`、`JmDNSDeviceDiscovery`、`IconCache`/`AppIconDiskCache`、`ForegroundSyncService`、`LanSyncRepository`、`LanSyncGraph`、`KtorLanSyncServer`、全部 Compose UI 与 `MainViewModel`。项目无 Robolectric / 无 UI 测试 / 无覆盖率工具；为 Android 耦合类新建测试栈属扩大范围，须先与用户确认。`DesignSystemTest` 审的是 UI **源码文本**（写法与令牌健康度），不渲染 UI、不替代真机目视。

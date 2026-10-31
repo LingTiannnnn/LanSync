@@ -76,3 +76,14 @@ internal val OnSurfaceVariantDark = Color(0xFFBEC9C7)
 
 internal val PureWhite = Color(0xFFFFFFFF)
 internal val ScrimColor = Color(0xFF000000)
+
+/**
+ * 模态遮罩浓度：**45% 黑**（`0x73`），深于 M3 默认 scrim 的 32%。
+ *
+ * 首扫遮罩期间界面确实不可操作，因此刻意压得更深；这是登记过的例外
+ * （见 `docs/CONVENTIONS.md` §3），只允许在令牌文件里定义，组件内不得再写
+ * `colorScheme.scrim.copy(alpha = …)` 之类的自造淡化。
+ */
+object LanSyncDim {
+    val overlay: Color = Color(0x73000000)
+}

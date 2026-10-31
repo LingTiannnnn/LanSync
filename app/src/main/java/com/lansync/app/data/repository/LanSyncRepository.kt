@@ -149,6 +149,7 @@ class LanSyncRepository(
         downloadController.installDownloadedFile(fileName, pkgName)
     fun getDownloadedFiles() = downloadController.getDownloadedFiles()
     fun deleteDownloadedFiles(fileNames: List<String>) = downloadController.deleteDownloadedFiles(fileNames)
+    fun cancelDownload() = downloadController.cancelDownload()
     fun clearDownloadProgress() = downloadController.clearDownloadProgress()
     fun clearInstallStatus() = downloadController.clearInstallStatus()
 

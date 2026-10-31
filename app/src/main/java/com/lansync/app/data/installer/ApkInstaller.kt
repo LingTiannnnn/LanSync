@@ -2,9 +2,9 @@ package com.lansync.app.data.installer
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.core.content.FileProvider
 import com.lansync.app.data.FileLogger
+import com.lansync.app.data.model.InstallFailure
 import java.io.File
 
 class ApkInstaller(private val context: Context) {
@@ -14,7 +14,7 @@ class ApkInstaller(private val context: Context) {
 
         if (!file.exists()) {
             FileLogger.e("ApkInstaller", "installApks: file not found! ${file.absolutePath}")
-            return InstallationResult.Error("File not found")
+            return InstallationResult.Error(InstallFailure.FILE_MISSING, "missing ${file.absolutePath}")
         }
 
         return try {
@@ -35,12 +35,12 @@ class ApkInstaller(private val context: Context) {
                 FileLogger.i("ApkInstaller", "installApks SUCCESS: launched installer for ${file.name}")
                 InstallationResult.Success
             } else {
-                FileLogger.e("ApkInstaller", "installApks: No package installer available!")
-                InstallationResult.Error("No package installer available")
+                FileLogger.e("ApkInstaller", "installApks: no package installer for ${file.name}")
+                InstallationResult.Error(InstallFailure.INSTALLER_UNAVAILABLE, "no resolver for ${getMimeType(file)}")
             }
         } catch (e: Exception) {
             FileLogger.e("ApkInstaller", "installApks EXCEPTION: ${e.message}", e)
-            InstallationResult.Error(e.message ?: "Unknown error")
+            InstallationResult.Error(InstallFailure.INSTALLER_EXCEPTION, e.message)
         }
     }
 
@@ -55,6 +55,14 @@ class ApkInstaller(private val context: Context) {
 
     sealed class InstallationResult {
         object Success : InstallationResult()
-        data class Error(val message: String) : InstallationResult()
+
+        /** 用户在下载中主动取消：不是失败，UI 不按错误处理，也不进失败文案映射。 */
+        object Cancelled : InstallationResult()
+
+        /**
+         * [failure] 是 UI 唯一可渲染的信息（经 `ui/string/FailureText.kt` 映射资源）；
+         * [message] 只作诊断，进 `FileLogger`，不得上屏（ARCH §7 / CONVENTIONS §3）。
+         */
+        data class Error(val failure: InstallFailure, val message: String? = null) : InstallationResult()
     }
 }
