@@ -402,7 +402,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `data/localapps/LocalAppRepository.kt` | `local_apps_cache.json` 读写 + `localApps`/`isScanning`/`scanFailure` + 「缓存骨架 + 后台刷新」+ `ScanResult.added/removedPackages` | ✅ (7) |
 | `data/sync/UpdateManager.kt` | **纯函数**：`findUpdates`/`deduplicateUpdates`/`calculateSyncDiffs`（不自行 fetch） | ✅ (9) |
 | `data/sync/UpdateCoordinator.kt` | `combine(localApps, connectedDevices)` → 5s 节流 → `availableUpdates`/`syncDiffs`；`nowMillis` 可注入 | ✅ (4) |
-| `data/cache/IconCache.kt` / `AppIconDiskCache.kt` | data 层三级图标缓存（内存 Lru → 磁盘 PNG → PackageManager 绘制）+ preload | ➖ |
+| `data/cache/IconCache.kt` / `AppIconDiskCache.kt` | data 层三级图标缓存（内存 Lru → 磁盘 PNG → PackageManager 绘制）+ preload + 失败负缓存 | ➖ |
 | `data/repository/LanSyncRepository.kt` | **组合门面 165 行（硬约束 ≤300）**：12 路对外 StateFlow（自有 `serverPort`/`isRunning` 2 路 + 转发协作者 10 路）+ start/stop 生命周期编排 + 纯委托，零业务逻辑 | ➖ 编译 + 门禁 |
 | `data/repository/LanSyncGraph.kt` | **手写 DI 组合根**（129 行）：可空 late-bind 引用破 `server ↔ coordinator ↔ pairingStore` 构造环 | ➖ |
 | `service/ForegroundSyncService.kt` | `specialUse` FGS：承载 `repo.start/stop`、常驻通知（端口/连接数 + 停止/打开）、`START_STICKY` | ❌ 真机 |
