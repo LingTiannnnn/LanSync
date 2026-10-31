@@ -137,14 +137,7 @@ fun DownloadProgressDialog(
     )
 }
 
-/**
- * 覆盖层进度条的宽度比例（登记过的例外，不是随手值）：
- * 跑马灯只用于表达「在进行中」，比标题行短一截才不会与上下两行文字抢视线；
- * 高度、颜色、轨道色由 `LanSyncProgressBar` 统一，这里只保留宽度选择。
- */
-private const val OVERLAY_PROGRESS_WIDTH = 0.7f
-
-/** 遮罩内的加载卡（首扫与全屏等待共用）；spinner、进度条与文案走同一套规格。 */
+/** 遮罩内的加载卡（首扫与全屏等待共用）；spinner 与文案走同一套规格。 */
 @Composable
 fun OverlayProgressCard(
     title: String,
@@ -173,8 +166,6 @@ fun OverlayProgressCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(sp.space24))
-        LanSyncProgressBar(modifier = Modifier.fillMaxWidth(OVERLAY_PROGRESS_WIDTH))
-        Spacer(Modifier.height(sp.space16))
         Text(
             text = footer,
             style = MaterialTheme.typography.bodySmall,

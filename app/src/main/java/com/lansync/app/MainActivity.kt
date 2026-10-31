@@ -236,66 +236,73 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
     val cutoutPadding = WindowInsets.displayCutout.asPaddingValues()
     val layoutDirection = LocalLayoutDirection.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(
-                start = cutoutPadding.calculateStartPadding(layoutDirection),
-                end = cutoutPadding.calculateEndPadding(layoutDirection),
-            ),
-    ) {
-        LanSyncTopBar(
-            isScanningApps = uiState.isScanningApps,
-            selectedTab = selectedTab,
-            isRefreshing = uiState.isFetchingRemoteApps,
-            onRefreshDevices = { viewModel.refreshDevices() },
-            selectionAllSelected = selectionAllSelected,
-            onSelectionToggle = onSelectionToggle,
-        )
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(
+                    start = cutoutPadding.calculateStartPadding(layoutDirection),
+                    end = cutoutPadding.calculateEndPadding(layoutDirection),
+                ),
+        ) {
+            LanSyncTopBar(
+                isScanningApps = uiState.isScanningApps,
+                selectedTab = selectedTab,
+                isRefreshing = uiState.isFetchingRemoteApps,
+                onRefreshDevices = { viewModel.refreshDevices() },
+                selectionAllSelected = selectionAllSelected,
+                onSelectionToggle = onSelectionToggle,
+            )
 
-        Box(modifier = Modifier.weight(1f)) {
-            // tab 切换走共享动效时长（系统「移除动画」时退化为瞬时），不再硬跳
-            Crossfade(
-                targetState = selectedTab,
-                modifier = Modifier.fillMaxSize().imePadding(),
-                animationSpec = tween(durationMillis = LanSyncTheme.motion.standard),
-            ) { tab ->
-                LanSyncTabContent(
-                    selectedTab = tab,
+            Box(modifier = Modifier.weight(1f)) {
+                // tab 切换走共享动效时长（系统「移除动画」时退化为瞬时），不再硬跳
+                Crossfade(
+                    targetState = selectedTab,
+                    modifier = Modifier.fillMaxSize().imePadding(),
+                    animationSpec = tween(durationMillis = LanSyncTheme.motion.standard),
+                ) { tab ->
+                    LanSyncTabContent(
+                        selectedTab = tab,
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        appNames = appNames,
+                        remoteEntries = remoteEntries,
+                        remoteCategory = remoteCategory,
+                        onRemoteCategoryChange = { remoteCategoryOrdinal = it.ordinal },
+                        syncDeviceKey = syncDeviceKey,
+                        onSyncDeviceSelect = { syncDeviceKey = it },
+                        selectedFileNames = selectedFileNames,
+                        onSelectedFilesChange = { selectedFileNames = it },
+                        saveDirLauncher = saveDirLauncher,
+                        onSaveTargetFileNameChange = { saveTargetFileName = it },
+                        onOpenUpdatesTab = { selectedTab = 2 },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                LanSyncOverlays(
                     uiState = uiState,
+                    downloadProgress = downloadProgress,
                     viewModel = viewModel,
-                    appNames = appNames,
-                    remoteEntries = remoteEntries,
-                    remoteCategory = remoteCategory,
-                    onRemoteCategoryChange = { remoteCategoryOrdinal = it.ordinal },
-                    syncDeviceKey = syncDeviceKey,
-                    onSyncDeviceSelect = { syncDeviceKey = it },
-                    selectedFileNames = selectedFileNames,
-                    onSelectedFilesChange = { selectedFileNames = it },
-                    saveDirLauncher = saveDirLauncher,
-                    onSaveTargetFileNameChange = { saveTargetFileName = it },
-                    onOpenUpdatesTab = { selectedTab = 2 },
-                    modifier = Modifier.fillMaxSize(),
+                    saveDialogState = saveDialogState,
+                    onDismissSaveDialog = { saveDialogState = null },
                 )
             }
 
-            LanSyncOverlays(
-                uiState = uiState,
-                downloadProgress = downloadProgress,
-                viewModel = viewModel,
-                saveDialogState = saveDialogState,
-                onDismissSaveDialog = { saveDialogState = null },
+            LanSyncBottomBar(
+                selectedTab = selectedTab,
+                onTabSelected = { tab ->
+                    selectedTab = tab
+                    if (tab == 3) viewModel.loadDownloadedFiles()
+                },
             )
         }
 
-        LanSyncBottomBar(
-            selectedTab = selectedTab,
-            onTabSelected = { tab ->
-                selectedTab = tab
-                if (tab == 3) viewModel.loadDownloadedFiles()
-            },
-        )
+        // 首扫遮罩必须挂在根级：放进内容区 Box 会漏出顶栏/底栏，失去全屏模态语义
+        if (uiState.needsInitialScan && !uiState.initialScanDismissed) {
+            InitialScanOverlay(onSkip = { viewModel.skipInitialScan() })
+        }
     }
 }
 
@@ -685,10 +692,5 @@ private fun LanSyncOverlays(
             onReject = { viewModel.rejectIncomingRequest(pendingRequest.requestId) },
             onDismiss = { viewModel.dismissIncomingRequest(pendingRequest.requestId) },
         )
-    }
-
-    // 首扫遮罩带逃生口：扫描长时间不返回时用户可以离开，之后在本地列表里手动重扫
-    if (uiState.needsInitialScan && !uiState.initialScanDismissed) {
-        InitialScanOverlay(onSkip = { viewModel.skipInitialScan() })
     }
 }

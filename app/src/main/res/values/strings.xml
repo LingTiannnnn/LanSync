@@ -152,7 +152,7 @@
     <string name="initial_scan_title">正在扫描本地应用列表</string>
     <string name="initial_scan_body">首次使用需要扫描设备上安装的所有应用\n请稍候，此过程可能需要一些时间</string>
     <string name="initial_scan_footer">扫描完成后将自动启动同步服务</string>
-    <string name="initial_scan_skip">先跳过，稍后重试</string>
+    <string name="initial_scan_skip">转入后台扫描</string>
     <string name="incoming_expiring">即将超时，请尽快允许或拒绝</string>
 
     <!-- ===== 保存状态对话框 / SAF ===== -->

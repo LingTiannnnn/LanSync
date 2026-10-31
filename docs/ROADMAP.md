@@ -38,7 +38,7 @@
 ## 5. 已知 UI 残留
 
 - 横屏 / `displayCutout` 的水平安全区由根 Column 取 `displayCutout` 的 start/end 两个分量承担（`asPaddingValues()` + `calculateStartPadding/EndPadding`）；顶栏吃 `statusBars`、底栏吃 `navigationBars`，垂直方向不叠加。**具体效果仍待真机确认**（§1）。
-- 首扫遮罩常驻一个「先跳过」出口，跳过后落到本地 tab 可手动重扫；跳过标记只活于 `ViewModel`（进程重建后重来），是否要持久化"用户已跳过"未裁决。
+- 首扫遮罩常驻一个「转入后台扫描」出口（根级全屏模态，跳过后扫描继续、完成自动就位），跳过后落到本地 tab 可手动重扫；跳过标记只活于 `ViewModel`（进程重建后重来），是否要持久化"用户已跳过"未裁决。
 - 本地扫描失败已 typed 化（`LocalAppRepository.ScanFailure` → `UiState.localScanFailure` → 空态重试 / 陈旧提示），但**权限被拒与「确实没有应用」仍不区分**：`InstalledAppScanner` 不上报权限状态，`UiState` 里也就没有可区分的字段。
 - 预览覆盖共享原语（`DesignSystemPreviews.kt`：空态 / 徽标 / 应用行 / 批量条 / 反馈条 / 身份条 / 加载词汇 / chip·进行中按钮·段落头 × light-dark，应用行、反馈条与身份条另有 `fontScale = 1.4f` 大字号基线），**各屏整屏预览仍缺**。`IncomingConnectionSheet` 也没有预览：它是 `ModalBottomSheet`（弹窗层），静态预览渲染不出内容，只能靠真机/交互动图确认。升 BOM 前若能有设备截图基线更好。
 
