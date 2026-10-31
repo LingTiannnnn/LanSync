@@ -1,6 +1,7 @@
 package com.lansync.app.data.sync
 
 import com.lansync.app.data.AppConfig
+import com.lansync.app.data.AppNameKeyer
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.DeviceInfo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,7 +30,7 @@ class UpdateCoordinatorTest {
         // com.a 远端更高 → 可更新；com.b 本地更高 → 版本差异（远程落后）
         val localApps = MutableStateFlow(listOf(app("com.a", 1), app("com.b", 9)))
         val connected = MutableStateFlow(listOf(device("A", listOf(app("com.a", 5), app("com.b", 4)))))
-        val coord = UpdateCoordinator(UpdateManager(), localApps, connected, AppConfig.DEFAULT, backgroundScope) { 10_000L }
+        val coord = UpdateCoordinator(UpdateManager(AppNameKeyer { it }), localApps, connected, AppConfig.DEFAULT, backgroundScope) { 10_000L }
         coord.start()
         runCurrent()
         assertEquals(1, coord.availableUpdates.value.size)
@@ -44,7 +45,7 @@ class UpdateCoordinatorTest {
         val localApps = MutableStateFlow(listOf(app("com.a", 1)))
         val connected = MutableStateFlow(listOf(device("A", listOf(app("com.a", 5)))))
         var clock = 10_000L
-        val coord = UpdateCoordinator(UpdateManager(), localApps, connected, AppConfig.DEFAULT, backgroundScope) { clock }
+        val coord = UpdateCoordinator(UpdateManager(AppNameKeyer { it }), localApps, connected, AppConfig.DEFAULT, backgroundScope) { clock }
         coord.start()
         runCurrent()
         assertEquals(5L, coord.availableUpdates.value[0].remoteApp.versionCode)
@@ -67,7 +68,7 @@ class UpdateCoordinatorTest {
     fun `recalculateNow bypasses throttle and start`() = runTest {
         val localApps = MutableStateFlow(listOf(app("com.a", 1)))
         val connected = MutableStateFlow(listOf(device("A", listOf(app("com.a", 9)))))
-        val coord = UpdateCoordinator(UpdateManager(), localApps, connected, AppConfig.DEFAULT, backgroundScope) { 0L }
+        val coord = UpdateCoordinator(UpdateManager(AppNameKeyer { it }), localApps, connected, AppConfig.DEFAULT, backgroundScope) { 0L }
         coord.recalculateNow() // 未 start，直接重算
         assertEquals(1, coord.availableUpdates.value.size)
         assertEquals(9L, coord.availableUpdates.value[0].remoteApp.versionCode)
@@ -77,7 +78,7 @@ class UpdateCoordinatorTest {
     fun `empty localApps yields no updates`() = runTest {
         val localApps = MutableStateFlow(emptyList<AppInfo>())
         val connected = MutableStateFlow(listOf(device("A", listOf(app("com.a", 5)))))
-        val coord = UpdateCoordinator(UpdateManager(), localApps, connected, AppConfig.DEFAULT, backgroundScope) { 10_000L }
+        val coord = UpdateCoordinator(UpdateManager(AppNameKeyer { it }), localApps, connected, AppConfig.DEFAULT, backgroundScope) { 10_000L }
         coord.recalculateNow()
         assertTrue(coord.availableUpdates.value.isEmpty())
     }

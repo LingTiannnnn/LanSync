@@ -22,7 +22,7 @@
 
 ## 2. 基线
 
-- **179/179 全绿**：17 个测试文件，用例数按源码实测（`@Test` 计数口径同 `architecture/DocFactsTest`）；文件 × 例数 × 锁定契约的映射见 `docs/TEST-PLAN.md` §10。`assembleDebug` 通过（判定只看输出里的 `BUILD SUCCESSFUL`）。
+- **187/187 全绿**：18 个测试文件，用例数按源码实测（`@Test` 计数口径同 `architecture/DocFactsTest`）；文件 × 例数 × 锁定契约的映射见 `docs/TEST-PLAN.md` §10。`assembleDebug` 通过（判定只看输出里的 `BUILD SUCCESSFUL`）。
 - ⚠️ **跑 `testDebugUnitTest` 不能加 `--offline`**：机器级仓库 `E:\S.H.I.T\Gradle\GradleRepository\caches` 里没有 `junit:junit`、`io.mockk`、`kotlinx-coroutines-test`、`ktor-server-test-host`，离线解析必失败；去掉 `--offline` 让测试依赖走网络解析即可跑通。主源码编译（`assembleDebug`）不受影响，可继续 `--offline`。
 - **DL-6（空 body）经查证不可覆盖**，裁决为"保留防御分支、不写断言"（`docs/TEST-PLAN.md` §4）。
 
@@ -37,7 +37,7 @@
 
 App 运行时走全新栈，**但 Phase 4/5 的运行时行为与 UI 视觉效果全部待真机验证**：FGS 存活、mDNS 发现、配对/心跳/端口迁移、下载校验、安装拉起、暗色对比度、大字号、三键/手势导航白条、横屏、reduce-motion。这些没有设备就无法自动化；**真机互操作矩阵（新×新 / 新×旧 / 旧×新 / 旧×旧）从未执行**，用户已明确暂缓。
 
-JVM 侧没有待跑项：`testDebugUnitTest` 179/179 实测全绿（0 失败 / 0 错误 / 0 跳过），`assembleDebug` 通过。缺口全部集中在真机：需要设备才能把 §4 上面那段清单从"未验"变成结论。
+JVM 侧没有待跑项：`testDebugUnitTest` 187/187 实测全绿（0 失败 / 0 错误 / 0 跳过），`assembleDebug` 通过。缺口全部集中在真机：需要设备才能把 §4 上面那段清单从"未验"变成结论。
 
 ⚠️ 该验收是 Phase 6 的前置：协议版本协商与鉴权会碰互操作红线，无真机兜底不宜动。别把"已交付"当"已验收"。
 

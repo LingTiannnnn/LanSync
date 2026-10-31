@@ -3,6 +3,7 @@ package com.lansync.app.data.repository
 import android.content.Context
 import android.os.Build
 import com.lansync.app.data.AppConfig
+import com.lansync.app.data.DefaultAppNameKeyer
 import com.lansync.app.data.NetworkUtils
 import com.lansync.app.data.cache.IconCache
 import com.lansync.app.data.connection.ConnectionCoordinator
@@ -105,7 +106,7 @@ object LanSyncGraph {
         serverRef = server
 
         val updateCoordinator = UpdateCoordinator(
-            updateManager = UpdateManager(),
+            updateManager = UpdateManager(DefaultAppNameKeyer),
             localApps = localAppRepository.localApps,
             connectedDevices = coordinator.connectedDevices,
             config = config,

@@ -41,7 +41,8 @@
 
 ### 2.3 UpdateManager / Models / HashUtils 必覆盖断言
 
-- **`UpdateManagerTest`**：`findUpdates` 只收 remote > local、跳过任一侧为系统应用、跳过本地缺失包；`deduplicateUpdates` 同包名取最高 `versionCode`、**平级取 `deviceName` 字母序更小者**（SPEC §3.2）、空输入返回空；`calculateSyncDiffs` 只收「远程落后」（双端都有且本地更高，远程更高/同版本/单侧存在均排除）且跳过系统应用。
+- **`UpdateManagerTest`**：`findUpdates` 只收 remote > local、跳过任一侧为系统应用、跳过本地缺失包；`deduplicateUpdates` 同包名取最高 `versionCode`、**平级取 `deviceName` 字母序更小者**（SPEC §3.2）、空输入返回空；`calculateSyncDiffs` 只收「远程落后」（双端都有且本地更高，远程更高/同版本/单侧存在均排除）且跳过系统应用；两者输出按 appName 拼音 A–Z 升序（同字母中文先于英文、非字母开头殿后，映射 Fake keyer 驱动）。
+- **`AppNameOrderingTest`**：`sortedByAppName` 排序口径——全拼升序、同字母中文先于英文、`#` 段殿后、包名定序、空名归 `#`；ICU 转写本体不在此测（Android 耦合，真机目视）。
 - **`ModelsTest` 的 `encodeDefaults=false` 字节快照**（SPEC §1.2.1，必测）：`DeviceInfoResponse(deviceName="X")` **不含** `version`；`GenericStatusResponse()` 序列化为 `{}`、`GenericStatusResponse(status="pong")` 为 `{"status":"pong"}`；`AppInfo(isSystemApp=false, isSplitApk=false)` **不含**这两字段（=true 时含）；`ConnectStatusResponse(status="rejected", accepted=false)` **不含** `accepted`。除单测外，路由测试同样保留这些断言。
 - **`HashUtilsTest` 的 null 语义**（SPEC §8.2）：空列表 → null；任一路径不可读 → null；全部不可读 → null。**绝不返回空文件的摘要**（`d41d8cd9…` 幽灵指纹是缺陷，不得作为断言目标）。
 
@@ -226,7 +227,7 @@
 
 ## 10. 当前落地清单
 
-17 个测试文件 / 179 例（用例数以仓库实测为准）。
+18 个测试文件 / 187 例（用例数以仓库实测为准）。
 
 | 测试文件 | 例数 | 锁定 |
 |---|---|---|
@@ -236,7 +237,8 @@
 | `data/connection/DefaultConnectionCoordinatorTest` | 21 | CS-1…CS-17（含 CS-17a–d）、`incomingRequests`、周期心跳 |
 | `data/model/ModelsTest` | 13 | DTO roundtrip + `encodeDefaults=false` 字节快照 |
 | `data/server/InMemoryPairingStoreTest` | 9 | §2.2 配对状态机、15s 超时、getStatus 映射、respond 取消 timeout、clearAll |
-| `data/sync/UpdateManagerTest` | 9 | §2.3 `findUpdates` / `deduplicateUpdates` / `calculateSyncDiffs` |
+| `data/sync/UpdateManagerTest` | 12 | §2.3 `findUpdates` / `deduplicateUpdates` / `calculateSyncDiffs`；输出按 appName 拼音 A–Z 升序（同字母中文先于英文、非字母开头殿后） |
+| `data/AppNameOrderingTest` | 5 | `sortedByAppName` 排序口径：全拼升序、同字母中文先于英文、`#` 段殿后、包名定序、空名归 `#` |
 | `data/transfer/DownloadedFileNameTest` | 10 | DL-12 命名 / 反推边界 / 正向匹配 |
 | `data/transfer/DownloadInstallControllerTest` | 9 | 下载与安装进度状态流；取消以 `Cancelled` 收场（清进度、不写 Failed）；失败只暴露 typed `InstallFailure`（FILE_MISSING / DOWNLOAD_FAILED），诊断原文留在 `detail` 不上屏 |
 | `architecture/DocFactsTest` | 9 | CONVENTIONS §6 文档事实门禁：BUILD §3 版本锁表与 SDK/`jvmTarget` 行、STATUS §2 与 §10 测试基线、§10 逐文件例数、§13.1 门面行数与组件文件数、§13.4 `strings.xml` 条数、`.qoder/agents` 镜像数、远端同步表述对照 `.git` 引用；两条检测器自检例（版本/同步表述 + 规模数字提取式）跑内存坏样本，匹配式失效即判红 |

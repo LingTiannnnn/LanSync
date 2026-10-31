@@ -1,5 +1,6 @@
 package com.lansync.app.data.sync
 
+import com.lansync.app.data.AppNameKeyer
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.SyncDiff
@@ -17,7 +18,17 @@ import org.junit.Test
  */
 class UpdateManagerTest {
 
-    private val um = UpdateManager()
+    private val um = UpdateManager(AppNameKeyer { it })
+
+    // 拼音排序用例专用：映射常见中文名，其余按原样小写（模拟非汉字原样保留）
+    private val keyed = UpdateManager(AppNameKeyer { name ->
+        mapOf(
+            "阿里云盘" to "aliyunpan",
+            "安兔兔" to "antutu",
+            "微信" to "weixin",
+            "360卫士" to "360weishi"
+        )[name] ?: name.lowercase()
+    })
 
     private fun app(pkg: String, vc: Long, sys: Boolean = false, name: String = pkg) =
         AppInfo(pkg, name, "1.0", vc, emptyList(), "m", true, 1L, isSystemApp = sys)
@@ -128,5 +139,37 @@ class UpdateManagerTest {
         val local = listOf(app("com.sys", 9, sys = true))
         val devices = listOf(device("A", listOf(app("com.sys", 4, sys = true))))
         assertTrue(um.calculateSyncDiffs(local, devices).isEmpty())
+    }
+
+    // ---------- 新增：输出按 appName 拼音 A–Z 升序（data/AppNameOrdering 口径） ----------
+
+    @Test
+    fun `calculateSyncDiffs sorts pinyin ascending with Chinese before English in same letter`() {
+        val names = listOf("微信", "Alipay", "安兔兔", "阿里云盘")
+        val local = names.mapIndexed { i, n -> app("com.p$i", 9, name = n) }
+        val devices = listOf(device("A", names.mapIndexed { i, n -> app("com.p$i", 4, name = n) }))
+        val order = keyed.calculateSyncDiffs(local, devices).map { it.appInfo.appName }
+        // 同首字母段内中文整体先于英文；中文之间按全拼字母序
+        assertEquals(listOf("阿里云盘", "安兔兔", "Alipay", "微信"), order)
+    }
+
+    @Test
+    fun `calculateSyncDiffs puts non letter initials last`() {
+        val local = listOf(app("com.d", 9, name = "360卫士"), app("com.w", 9, name = "微信"))
+        val devices = listOf(
+            device("A", listOf(app("com.d", 4, name = "360卫士"), app("com.w", 4, name = "微信")))
+        )
+        val order = keyed.calculateSyncDiffs(local, devices).map { it.appInfo.appName }
+        assertEquals(listOf("微信", "360卫士"), order)
+    }
+
+    @Test
+    fun `deduplicateUpdates output is sorted by appName`() {
+        val updates = listOf(
+            UpdateInfo(null, app("com.w", 5, name = "微信"), device("D", emptyList()), true),
+            UpdateInfo(null, app("com.a", 5, name = "阿里云盘"), device("D", emptyList()), true)
+        )
+        val order = keyed.deduplicateUpdates(updates).map { it.remoteApp.appName }
+        assertEquals(listOf("阿里云盘", "微信"), order)
     }
 }

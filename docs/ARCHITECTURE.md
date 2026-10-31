@@ -94,7 +94,7 @@ interface ConnectionCoordinator {
 ### 3.2 `UpdateCoordinator`
 **职责**：`combine(localApps, connectedDevices)` → 5s 节流 → `UpdateManager.findUpdates/deduplicateUpdates` → `_availableUpdates`；`calculateSyncDiffs` → `_syncDiffs`。
 **边界**：只读消费 `LocalAppRepository.localApps` 与 `ConnectionCoordinator.connectedDevices`，产出不可变列表；节流时间戳用**单一调度协程内的局部状态**替代共享可变 `lastUpdateRecalculationMs`（消除 P3 竞态）。
-**规则**（SPEC 未涉；`findUpdates`/`deduplicateUpdates` 取自旧实现逐条一致，`calculateSyncDiffs` 语义经用户裁决收窄）：跳过系统应用；仅 `remoteApp.versionCode > localApp.versionCode` 可更新；去重取最高 versionCode，平级取 `deviceName` 字母序更小者；`SyncDiff` 只收「远程落后」（双端都有且本地 versionCode 更高）——远程更高已由可更新覆盖，同版本与单侧存在不构成差异。
+**规则**（SPEC 未涉；`findUpdates`/`deduplicateUpdates` 取自旧实现逐条一致，`calculateSyncDiffs` 语义经用户裁决收窄；输出顺序 2026-11 由「appName 降序/无序」统一改为**拼音 A–Z 升序**，口径见 §13.1 `AppNameOrdering`）：跳过系统应用；仅 `remoteApp.versionCode > localApp.versionCode` 可更新；去重取最高 versionCode，平级取 `deviceName` 字母序更小者；`SyncDiff` 只收「远程落后」（双端都有且本地 versionCode 更高）——远程更高已由可更新覆盖，同版本与单侧存在不构成差异。
 
 ### 3.3 `LocalAppRepository`
 **职责**：`AppScanner` 触发、`_localApps`、`local_apps_cache.json` 读写、图标预加载调度、通知已连接设备刷新。
@@ -374,7 +374,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 门面（data/repository/LanSyncRepository，纯委托 ≤300 行）← 组合根（data/repository/LanSyncGraph）
    ↑                              ↓
 服务/传输（KtorLanSyncServer + lanSyncModule · LanSyncClient · JmDNSDeviceDiscovery · AppPacker · ApkInstaller · ForegroundSyncService）
-基础设施（AppScanner · HashUtils · NetworkUtils · IconCache/AppIconDiskCache · FileLogger · AppConfig · SharedPreferences/JSON）
+基础设施（AppScanner · AppNameOrdering/IcuAppNameKeyer · HashUtils · NetworkUtils · IconCache/AppIconDiskCache · FileLogger · AppConfig · SharedPreferences/JSON）
 ```
 
 `app/src/main/java/com/lansync/app/`：
@@ -400,7 +400,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `data/connection/LanSyncClientTransport.kt` | 适配器：`LanSyncClient` → `ConnectionTransport` | ➖ |
 | `data/localapps/{InstalledAppScanner,AppScanner}.kt` | PackageManager 扫描；D2：`md5 ?: ""` 且 `isExtractable=true` 为合法态 | ❌ 真机 |
 | `data/localapps/LocalAppRepository.kt` | `local_apps_cache.json` 读写 + `localApps`/`isScanning`/`scanFailure` + 「缓存骨架 + 后台刷新」+ `ScanResult.added/removedPackages` | ✅ (7) |
-| `data/sync/UpdateManager.kt` | **纯函数**：`findUpdates`/`deduplicateUpdates`/`calculateSyncDiffs`（不自行 fetch） | ✅ (9) |
+| `data/sync/UpdateManager.kt` | **纯函数**：`findUpdates`/`deduplicateUpdates`/`calculateSyncDiffs`（不自行 fetch）；后两者输出按 appName 拼音 A–Z 升序（`sortedByAppName`，keyer 注入） | ✅ (12) |
 | `data/sync/UpdateCoordinator.kt` | `combine(localApps, connectedDevices)` → 5s 节流 → `availableUpdates`/`syncDiffs`；`nowMillis` 可注入 | ✅ (4) |
 | `data/cache/IconCache.kt` / `AppIconDiskCache.kt` | data 层三级图标缓存（内存 Lru → 磁盘 PNG → PackageManager 绘制）+ preload + 失败负缓存 | ➖ |
 | `data/repository/LanSyncRepository.kt` | **组合门面 165 行（硬约束 ≤300）**：12 路对外 StateFlow（自有 `serverPort`/`isRunning` 2 路 + 转发协作者 10 路）+ start/stop 生命周期编排 + 纯委托，零业务逻辑 | ➖ 编译 + 门禁 |
@@ -409,6 +409,8 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `ui/viewmodel/MainViewModel.kt` | `AndroidViewModel`：`uiState: StateFlow<UiState>` 单一出口；`autoStart` 先灌缓存骨架 | ❌ 无 Robolectric 栈 |
 | `ui/theme/{Color,Theme,Spacing,Shape,Typography,Elevation,Motion}.kt` | 设计系统（§13.4） | — |
 | `ui/components/*`（16 文件） | 4 Tab + 共享原语（`CommonComponents`/`AppRow`/`FeedbackBanner`/`StatusVisuals`/`LoadingVisuals`/`IdentityStrip`）+ 覆盖层 + `ui/format`/`ui/string` 取值桥 | ❌ 真机目视（写法由 `DesignSystemTest` 门禁） |
+| `data/AppNameOrdering.kt` | 应用名拼音 A–Z 混排唯一口径 `sortedByAppName`：全拼升序、同字母中文先于英文、非字母开头归 `#` 段殿后、包名定序 | ✅ (5) |
+| `data/IcuAppNameKeyer.kt` | ICU 中文→拼音转写（`android.icu`）+ 生产单例 `DefaultAppNameKeyer`；独立成文件隔离 android.icu，保 `AppNameOrdering` JVM 可加载 | ❌ Android/icu |
 | `data/{AppConfig,HashUtils,NetworkUtils,FileLogger}.kt` | 超时参数唯一来源 / MD5 工具（null 传播）/ IP 选取 / 文件日志 | ✅ AppConfig(2)/HashUtils(6)+一致性(2) |
 
 ### 13.2 三条端到端主链路

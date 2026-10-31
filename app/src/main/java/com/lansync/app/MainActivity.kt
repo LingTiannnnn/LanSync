@@ -66,7 +66,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lansync.app.data.DefaultAppNameKeyer
 import com.lansync.app.data.model.RemoteAppEntry
+import com.lansync.app.data.sortedByAppName
 import com.lansync.app.data.transfer.DownloadInstallController
 import com.lansync.app.ui.components.AppCategory
 import com.lansync.app.ui.components.FeedbackBanner
@@ -170,7 +172,11 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
     // 文件页选择态：List<String>（ArrayList 可入 Bundle），Set 直接进 rememberSaveable 会崩
     var selectedFileNames by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
-    val remoteEntries = remember(uiState.connectedDevices) { mergeRemoteEntries(uiState.connectedDevices) }
+    // 展示顺序：appName 拼音 A–Z 升序（与同步页两列表同一排序口径，见 data/AppNameOrdering）
+    val remoteEntries = remember(uiState.connectedDevices) {
+        mergeRemoteEntries(uiState.connectedDevices)
+            .sortedByAppName(DefaultAppNameKeyer, { it.app.appName }, { it.app.packageName })
+    }
     val remoteFiltered = remember(remoteEntries, remoteCategory) { remoteEntries.filterByCategory(remoteCategory) }
     val remoteAllSelected = uiState.remoteAppSelections.isNotEmpty() &&
         remoteFiltered.isNotEmpty() &&
