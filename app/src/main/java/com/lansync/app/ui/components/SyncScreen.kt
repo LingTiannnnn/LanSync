@@ -59,11 +59,15 @@ fun SyncScreen(
     val currentDevice = connectedDevices.firstOrNull { it.displayKey == selectedDeviceKey }
         ?: connectedDevices.firstOrNull() ?: return
 
-    val deviceUpdates = availableUpdates.filter { update ->
-        update.providerDevice.displayKey == currentDevice.displayKey
+    val deviceUpdates = remember(currentDevice, availableUpdates) {
+        availableUpdates.filter { update ->
+            update.providerDevice.displayKey == currentDevice.displayKey
+        }
     }
-    val deviceDiffs = syncDiffs.filter { diff ->
-        diff.sourceDevice.displayKey == currentDevice.displayKey
+    val deviceDiffs = remember(currentDevice, syncDiffs) {
+        syncDiffs.filter { diff ->
+            diff.sourceDevice.displayKey == currentDevice.displayKey
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {

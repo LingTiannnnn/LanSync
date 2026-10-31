@@ -1,7 +1,10 @@
 package com.lansync.app.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
+/** 全 val 只读，@Immutable 契约成立。 */
+@Immutable
 @Serializable
 data class AppInfo(
     val packageName: String,
@@ -35,7 +38,9 @@ enum class ConnectionState {
  *
  * 本类型只挂在本地领域模型 [DeviceInfo] 上，不是跨设备 DTO（SPEC §2.2 冻结的是
  * `DeviceInfoResponse` 等响应体），因此不参与线上字节契约。
+ * 全 val 只读，@Immutable 契约成立。
  */
+@Immutable
 @Serializable
 data class ConnectionFailure(
     val kind: Kind,
@@ -88,6 +93,8 @@ enum class InstallFailure {
     INSTALLER_EXCEPTION
 }
 
+/** 全 val 只读，@Immutable 契约成立。 */
+@Immutable
 @Serializable
 data class DeviceInfo(
     val ipAddress: String,
@@ -106,6 +113,8 @@ data class DeviceInfo(
         else "$deviceName@$ipAddress"
 }
 
+/** 全 val 只读，@Immutable 契约成立。 */
+@Immutable
 data class UpdateInfo(
     val localApp: AppInfo?,
     val remoteApp: AppInfo,
@@ -113,12 +122,18 @@ data class UpdateInfo(
     val canUpdate: Boolean
 )
 
+/** 全 val 只读，@Immutable 契约成立。 */
+@Immutable
 data class RemoteAppEntry(
     val app: AppInfo,
     val sourceDevice: DeviceInfo
 )
 
-/** 版本差异（同步 Tab）：双端都安装且**本地版本更高**（远程落后）。远程更高归「可更新」，不在此列。 */
+/**
+ * 版本差异（同步 Tab）：双端都安装且**本地版本更高**（远程落后）。远程更高归「可更新」，不在此列。
+ * 全 val 只读，@Immutable 契约成立。
+ */
+@Immutable
 data class SyncDiff(
     val appInfo: AppInfo,
     val localVersion: String,
@@ -144,6 +159,8 @@ data class ConnectResponsePayload(
     val message: String? = null
 )
 
+/** 全 val 只读，@Immutable 契约成立。 */
+@Immutable
 data class IncomingConnectRequest(
     val requestId: String,
     val requesterName: String,

@@ -1,5 +1,6 @@
 package com.lansync.app.data.transfer
 
+import androidx.compose.runtime.Immutable
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.installer.ApkInstaller
 import com.lansync.app.data.model.InstallFailure
@@ -142,6 +143,8 @@ class DownloadInstallController(
     fun clearDownloadProgress() { _downloadProgress.value = null }
     fun clearInstallStatus() { _installStatus.value = null }
 
+    /** 全 val 只读，@Immutable 契约成立。 */
+    @Immutable
     data class DownloadProgress(val packageName: String, val progress: Int, val status: Status) {
         enum class Status { DOWNLOADING, VERIFYING, COMPLETED, FAILED }
     }

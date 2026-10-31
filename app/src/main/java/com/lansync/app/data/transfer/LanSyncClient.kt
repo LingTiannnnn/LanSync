@@ -1,5 +1,6 @@
 package com.lansync.app.data.transfer
 
+import androidx.compose.runtime.Immutable
 import com.lansync.app.data.FileLogger
 import com.lansync.app.data.HashUtils
 import com.lansync.app.data.model.AppInfo
@@ -440,6 +441,8 @@ class LanSyncClient(
         downloadsDir.listFiles()?.forEach { it.delete() }
     }
 
+    /** 全 val 只读，@Immutable 契约成立。 */
+    @Immutable
     data class DownloadedFileInfo(
         val fileName: String,
         val filePath: String,

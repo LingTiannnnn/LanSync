@@ -38,8 +38,6 @@ data class UiState(
     val isScanningApps: Boolean = false,
     val needsInitialScan: Boolean = false,
     val initialScanDismissed: Boolean = false,
-    val isDownloading: Boolean = false,
-    val currentDownloadProgress: DownloadInstallController.DownloadProgress? = null,
     val installStatus: DownloadInstallController.InstallStatus? = null,
     val serverPort: Int = 0,
     val isLoading: Boolean = false,
@@ -62,6 +60,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    /** 下载进度独立 flow：tick 频繁，不并入巨石 UiState（避免每次进度更新重发全部状态）。 */
+    val downloadProgress: StateFlow<DownloadInstallController.DownloadProgress?> = repository.downloadProgress
 
     private var _lastDownloadedUpdateInfo: UpdateInfo? = null
 
@@ -144,15 +145,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.isRunning,
                 repository.isScanningApps,
                 repository.serverPort,
-                repository.downloadProgress,
                 repository.installStatus
-            ) { isRunning, isScanningApps, serverPort, downloadProgress, installStatus ->
+            ) { isRunning, isScanningApps, serverPort, installStatus ->
                 _uiState.value = _uiState.value.copy(
                     isRunning = isRunning,
                     isScanningApps = isScanningApps,
                     serverPort = serverPort,
-                    currentDownloadProgress = downloadProgress,
-                    isDownloading = downloadProgress?.status == DownloadInstallController.DownloadProgress.Status.DOWNLOADING,
                     installStatus = installStatus
                 )
             }.collect { }

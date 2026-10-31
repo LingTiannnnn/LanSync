@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
     // Material3 1.1 Scaffold 会在 layout{} 内 subcompose topBar；复杂 topBar 易触发 SlotTable 崩溃，
     // 故改用 Column 顶栏/内容/底栏三段布局，绕开该问题。
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -170,7 +171,7 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
     var selectedFileNames by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
     val remoteEntries = remember(uiState.connectedDevices) { mergeRemoteEntries(uiState.connectedDevices) }
-    val remoteFiltered = remoteEntries.filterByCategory(remoteCategory)
+    val remoteFiltered = remember(remoteEntries, remoteCategory) { remoteEntries.filterByCategory(remoteCategory) }
     val remoteAllSelected = uiState.remoteAppSelections.isNotEmpty() &&
         remoteFiltered.isNotEmpty() &&
         remoteFiltered.all { it.app.packageName in uiState.remoteAppSelections }
@@ -281,6 +282,7 @@ fun LanSyncApp(viewModel: MainViewModel = viewModel()) {
 
             LanSyncOverlays(
                 uiState = uiState,
+                downloadProgress = downloadProgress,
                 viewModel = viewModel,
                 saveDialogState = saveDialogState,
                 onDismissSaveDialog = { saveDialogState = null },
@@ -607,11 +609,12 @@ private fun FileTabContent(
 @Composable
 private fun LanSyncOverlays(
     uiState: UiState,
+    downloadProgress: DownloadInstallController.DownloadProgress?,
     viewModel: MainViewModel,
     saveDialogState: SaveDialogState?,
     onDismissSaveDialog: () -> Unit,
 ) {
-    uiState.currentDownloadProgress?.let { progress ->
+    downloadProgress?.let { progress ->
             DownloadProgressDialog(
                 progress = progress,
                 installing = uiState.installStatus is DownloadInstallController.InstallStatus.Installing,

@@ -76,7 +76,7 @@ fun RemoteAppListScreen(
         }
     }
 
-    val filteredApps = remoteEntries.filterByCategory(category)
+    val filteredApps = remember(remoteEntries, category) { remoteEntries.filterByCategory(category) }
 
     Column(modifier = modifier.fillMaxSize()) {
         MultiDeviceSummary(
