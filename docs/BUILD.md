@@ -28,7 +28,7 @@ cd "E:/S.H.I.T/LanSync"
 | 层 | 技术 / 版本 |
 |---|---|
 | 语言 / JVM | Kotlin **1.9.20**，`jvmTarget = 17`，JDK 17.0.20.1（`C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot`） |
-| UI | Jetpack Compose + Material3，BOM **2023.10.01**（material3 1.1.x），Compose 编译器扩展 **1.5.5** |
+| UI | Jetpack Compose + Material3，BOM **2023.10.01**（material3 1.1.x），Compose 编译器扩展 **1.5.5**；ui/ui-graphics/foundation/runtime/animation 显式 **1.6.8**（修复大列表触摸命中测试 hitTest 的框架级卡顿，pointer 管线，2026-10-31 真机插桩定位） |
 | 服务端 | Ktor Server 2.3.5（Netty）+ ContentNegotiation(kotlinx-json) |
 | 客户端 | OkHttp **4.12.0** |
 | 发现 | JmDNS 3.5.8 |
