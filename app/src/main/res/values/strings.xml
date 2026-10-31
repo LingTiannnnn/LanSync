@@ -107,14 +107,11 @@
     <string name="sync_device_title">%1$s 的同步对比</string>
     <string name="sync_section_diffs">版本差异</string>
     <string name="sync_all_synced">应用版本已同步，无差异</string>
-    <string name="sync_empty_user">该设备暂无用户应用</string>
-    <string name="sync_empty_behind">该设备没有落后于本机的应用</string>
-    <string name="sync_empty_title">还没有已连接的设备</string>
-    <string name="sync_empty_hint">在「设备」页面连接设备后，这里会列出可更新的应用</string>
+    <string name="sync_empty_user">暂无可更新应用</string>
+    <string name="sync_empty_behind">远程设备没有落后于本机的应用</string>
 
     <!-- ===== 文件 Tab ===== -->
     <string name="files_empty_title">暂无已下载文件</string>
-    <string name="files_empty_hint">在「远程应用」或「同步」页面下载应用后，文件将显示在这里</string>
     <string name="files_summary_primary">已下载 %1$d 个文件</string>
     <string name="files_summary_secondary">占用 %1$s</string>
     <string name="files_empty_cta">去看看可更新</string>

@@ -51,7 +51,6 @@ fun FileListScreen(
             EmptyState(
                 icon = Icons.Default.FolderOpen,
                 title = stringResource(R.string.files_empty_title),
-                body = stringResource(R.string.files_empty_hint),
                 actionLabel = stringResource(R.string.files_empty_cta),
                 onAction = onOpenUpdatesTab,
                 modifier = Modifier

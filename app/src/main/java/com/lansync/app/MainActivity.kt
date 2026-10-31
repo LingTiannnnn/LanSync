@@ -566,7 +566,6 @@ private fun SyncTabContent(
         onToggleSelected = { viewModel.toggleSelectedUpdate(it) },
         onInstallUpdate = { viewModel.installSelectedUpdate(it) },
         onInstallSelectedUpdates = { viewModel.startBatchUpdate() },
-        onRefreshDevices = { viewModel.refreshDevices() },
         modifier = modifier
     )
 }

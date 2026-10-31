@@ -36,24 +36,23 @@ fun SyncScreen(
     onToggleSelected: (String) -> Unit,
     onInstallUpdate: (UpdateInfo) -> Unit,
     onInstallSelectedUpdates: () -> Unit,
-    onRefreshDevices: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sp = LanSyncTheme.spacing
     var showDiffsOnly by rememberSaveable { mutableStateOf(false) }
 
+    // 未连接空态与远程应用页完全同一套（图标/文案/居中布局），不设刷新入口——恢复连接的路径在设备页
     if (connectedDevices.isEmpty()) {
-        EmptyState(
-            icon = Icons.Default.LinkOff,
-            title = stringResource(R.string.sync_empty_title),
-            body = stringResource(R.string.sync_empty_hint),
-            actionLabel = stringResource(R.string.action_refresh),
-            onAction = onRefreshDevices,
-            modifier = Modifier
-                .fillMaxSize()
-                .then(modifier)
-                .padding(sp.space16),
-        )
+        Box(
+            modifier = Modifier.fillMaxSize().then(modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            EmptyState(
+                icon = Icons.Default.CloudOff,
+                title = stringResource(R.string.remote_empty_title),
+                body = stringResource(R.string.remote_empty_hint),
+            )
+        }
         return
     }
 
@@ -162,6 +161,7 @@ fun SyncScreen(
                             EmptyState(
                                 icon = Icons.Default.Inbox,
                                 title = stringResource(R.string.sync_empty_user),
+                                titleStyle = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.fillMaxWidth().padding(sp.space24),
                             )
                         }
@@ -172,6 +172,7 @@ fun SyncScreen(
                             EmptyState(
                                 icon = Icons.Default.Inbox,
                                 title = stringResource(R.string.sync_empty_behind),
+                                titleStyle = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.fillMaxWidth().padding(sp.space24),
                             )
                         }

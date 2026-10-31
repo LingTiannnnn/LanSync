@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.lansync.app.R
@@ -184,6 +185,8 @@ fun EmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    // 列表内的轻量空态可降档（如 bodyLarge）；页级空态保持默认的大标题
+    titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
 ) {
     val sp = LanSyncTheme.spacing
     Column(
@@ -208,7 +211,7 @@ fun EmptyState(
         Spacer(Modifier.height(sp.space16))
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            style = titleStyle,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
