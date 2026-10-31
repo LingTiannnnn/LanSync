@@ -282,6 +282,10 @@ class DefaultConnectionCoordinator(
         if (alive) {
             failCounts.remove(key)
             connected.find { it.displayKey == key }?.let { cur ->
+                // 已连接的保活 tick 不发布：lastSeenTimeMs 无任何 UI 消费者，
+                // 每 20s 发布一次只会让 UiState 全链路空转（merge 重建 + 整列表 diff）。
+                // RECONNECTING → CONNECTED 的恢复迁移仍走下方发布。
+                if (cur.connectionState == ConnectionState.CONNECTED) return
                 val refreshed = cur.copy(
                     connectionState = ConnectionState.CONNECTED,
                     lastSeenTimeMs = now(), connectionFailure = null

@@ -88,7 +88,7 @@ interface ConnectionCoordinator {
     fun handleIncoming(requestId: String, accepted: Boolean)
 }
 ```
-**边界**：不碰 appList 内容比较（交 UpdateCoordinator）、不碰下载（交 DownloadInstallController）。心跳失败阈值/超时参数**全部取自 `AppConfig`**（禁止硬编码），保持 SPEC.md §7.2 数值不变。
+**边界**：不碰 appList 内容比较（交 UpdateCoordinator）、不碰下载（交 DownloadInstallController）。心跳失败阈值/超时参数**全部取自 `AppConfig`**（禁止硬编码），保持 SPEC.md §7.2 数值不变。心跳保活 tick 在设备**已处于 CONNECTED** 时不发布设备列表（`lastSeenTimeMs` 无 UI 消费者，发布只会触发 UiState 全链路空转重组）；RECONNECTING → CONNECTED 恢复仍照常发布。
 **反向连接接受策略（TT3 已冻结，见 SPEC §7.7）**：新增 `PairingHistoryStore`（本机私有持久化，记录成功配对过的 `instanceId` 集合）作为 `ConnectionCoordinator` 协作者。`IncomingRequest` 事件处理**必须**实现干净语义：① 仅「配对历史命中」的设备自动接受；② 陌生设备一律保持 PENDING → 弹窗，**绝不自动放行**（修复旧漏洞）；③ 用户显式拒绝 → `respondToRequest(false)` 即时回 REJECTED（不再 `removeRequest` 致发起方 30s 超时）；④ 用户显式接受 → 写入配对历史。旧 `autoAcceptKnown` 双缺陷行为**作废**。
 
 ### 3.2 `UpdateCoordinator`
