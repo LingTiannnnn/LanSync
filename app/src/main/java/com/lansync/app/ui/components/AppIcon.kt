@@ -55,7 +55,7 @@ fun AppIcon(
     val iconCache = remember { IconCache.getInstance(context) }
     val targetSize = (side.value * BITMAP_REQUEST_SCALE).toInt().coerceAtLeast(MIN_BITMAP_PX)
 
-    var bitmap by remember(packageName) { mutableStateOf<Bitmap?>(null) }
+    var bitmap by remember(packageName) { mutableStateOf(iconCache.getSync(packageName)) }
     var loadFailed by remember(packageName) { mutableStateOf(false) }
 
     LaunchedEffect(packageName) {

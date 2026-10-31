@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
 /**
  * 应用图标**三级缓存**（data 层，ARCH §3.3；修复 legacy-known-issue **L2 分层倒置**）。
  *
- * L1 内存 `LruCache`(120 条，按字节计数) → L2 磁盘 PNG([AppIconDiskCache]) → L3 `PackageManager` 绘制
+ * L1 内存 `LruCache`(**8 MB**，按字节计数) → L2 磁盘 PNG([AppIconDiskCache]) → L3 `PackageManager` 绘制
  * （`AdaptiveIconDrawable` 取 foreground）。提供 [preload] 供 **data 层**（`LocalAppRepository.ScanResult`
  * 的新增包名）调用——data 不再 `import ui.components.preloadIcon`（消除 L2）。ui 层 `AppIcon` 仅消费 [get]
  * 返回的 `Bitmap`（转 `ImageBitmap`）。
@@ -25,9 +25,9 @@ class IconCache private constructor(
     private val diskCache: AppIconDiskCache
 ) {
 
-    private val memoryCache = object : LruCache<String, Bitmap>(MAX_MEMORY_CACHE_ENTRIES) {
+    private val memoryCache = object : LruCache<String, Bitmap>(MAX_MEMORY_CACHE_BYTES) {
         override fun sizeOf(key: String, value: Bitmap): Int =
-            (value.allocationByteCount / 1024).coerceAtLeast(1)
+            value.allocationByteCount.coerceAtLeast(1)
     }
 
     /** 取图标：内存 → 磁盘 → 绘制并回填两级缓存；失败返回 null。 */
@@ -38,6 +38,9 @@ class IconCache private constructor(
                 ?: drawAndCache(packageName, targetSize)
         }
     }
+
+    /** 同步内存快路径：仅查 L1（主线程安全，不触发磁盘/绘制）。未命中返回 null，调用方走 [get] 异步链路。 */
+    fun getSync(packageName: String): Bitmap? = memoryCache.get(packageName)
 
     /** 预加载一批包名图标（仅内存/磁盘均缺失者），供扫描后 data 层调用。 */
     suspend fun preload(packageNames: List<String>, targetSize: Int = DEFAULT_SIZE) = withContext(Dispatchers.IO) {
@@ -80,7 +83,8 @@ class IconCache private constructor(
     }
 
     companion object {
-        private const val MAX_MEMORY_CACHE_ENTRIES = 120
+        /** L1 内存上限（字节）。96px ARGB_8888 图标约 36KB，8MB ≈ 227 张，溢出走 LRU 淘汰 + 磁盘兜底。 */
+        private const val MAX_MEMORY_CACHE_BYTES = 8 * 1024 * 1024
         private const val DEFAULT_SIZE = 96
 
         @Volatile
