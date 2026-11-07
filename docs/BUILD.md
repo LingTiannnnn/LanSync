@@ -45,7 +45,8 @@ cd "E:/S.H.I.T/LanSync"
 
 ## 4. 其他命令与判定
 
-- Release / R8：`assembleRelease` 主链路可 `--offline`，但 lint 链的 `com.android.tools.lint:lint-gradle:31.13.2` 不在本机离线缓存——首跑要么去掉 `--offline` 联网解析一次，要么如顶部命令带三个 `-x lintVital*` 跳过 lint（只跳 lint，不影响 R8 与打包）。
-- 产物是 `app-release.apk`，挂 **debug 签名**（2026-11-08 裁决：正式 keystore 延后，`build.gradle.kts` release 块已临时接 `signingConfigs.getByName("debug")`）——可直接安装，且与手机上已装的 debug 包同签名、可覆盖升级；换正式 keystore 后与现有安装不同签名，需卸载重装。
-- 体积参考（2026-11 实测）：release ≈ 4.2 MB、debug ≈ 65 MB。release 回到 20 MB+ 就是 keep 规则回退的信号：**禁止**在 `proguard-rules.pro` 写 `-keep class androidx.compose.**` / `io.netty.**` 这类全量 keep（Compose AAR 自带 consumer rules；全量 keep 会连 material-icons-extended 的数千图标类一并保留）。R8 收缩产物的真机冒烟未做（`docs/ROADMAP.md` §4）。
+- **R8 裁切停用（2026-11-08 用户裁决）**：`isMinifyEnabled = false`、`isShrinkResources = false`。起因：v1.2 首发（R8 开、keep-all 已删）启动即闪退——Netty `ReflectiveChannelFactory` 反射实例化 `NioServerSocketChannel` 时无参构造器被 R8 裁掉。keepclassmembers 修复虽已过构建验证，但无 CI、真机测试环慢，R8 配置的回归风险不可控，故整体停用。重新启用前置：真机全链路冒烟通过；`proguard-rules.pro` 保留的底线规则（netty keepclassmembers / serialization DTO keep）不得删。
+- lint 链的 `com.android.tools.lint:lint-gradle:31.13.2` 不在本机离线缓存——离线跑 `assembleRelease` 需如顶部命令带三个 `-x lintVital*`（只跳 lint，不影响打包），或首跑去掉 `--offline` 联网解析一次。
+- 产物 `app-release.apk` 挂 **debug 签名**（2026-11-08 裁决：正式 keystore 延后，`build.gradle.kts` 已临时接 `signingConfigs.getByName("debug")`）——可直接安装，与手机上已装 debug 包同签名、可覆盖升级；换正式 keystore 后需卸载重装。
+- 体积参考（2026-11 实测）：release（未开 R8）≈ 45.4 MB、debug ≈ 65 MB。历史数据：v1.1 误发 debug 包 100.52 MB；R8 开 + keep-all 在位 26.1 MB；R8 开 + keep-all 删 + netty keepclassmembers 5.2 MB——重启用 R8 时以此数字族为基线。
 - 测试结果的权威来源是 `app/build/test-results/testDebugUnitTest/*.xml` 的 failures / errors / skipped 计数；门禁语义见 `docs/TEST-PLAN.md` §7。

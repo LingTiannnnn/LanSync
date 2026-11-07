@@ -1,3 +1,6 @@
+# 当前 release 已停用 R8（isMinifyEnabled=false，2026-11-08 裁决），本文件暂不生效；
+# 内容保留作为重新启用 R8 时的底线规则与历史依据（v1.2 首发闪退根因见「Ktor & Netty」段注释）。
+
 # Kotlin Serialization
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
@@ -22,10 +25,14 @@
 -keep class javax.jmdns.** { *; }
 
 # Ktor & Netty
-# 只放行 dontwarn，不做全量 keep：全量 keep 会把 Netty 数千个类原样保留（release 26MB→4MB 的分差就在这）。
-# Netty 在 R8 下的运行时风险点（反射/Unsafe）需真机冒烟把关，见 docs/ROADMAP.md 验收缺口。
+# 反射风险实测：v1.2 首发在启动时闪退——Netty ReflectiveChannelFactory 用
+# clazz.getConstructor() 反射实例化 NioServerSocketChannel，R8 看不到直接调用者
+# 就把无参构造器裁了。keepclassmembers 只保住「可达类」的成员（反射目标类必然可达），
+# 不可达的数千 Netty 类仍会被剪掉——26.1MB→4.2MB 的体积收益来自删 -keep class，
+# 这条 members 规则是安全的底线，禁止移除。
 -dontwarn io.ktor.**
 -dontwarn io.netty.**
+-keepclassmembers class io.netty.** { *; }
 -dontwarn io.netty.handler.**
 -dontwarn io.netty.util.internal.**
 -dontwarn io.netty.channel.epoll.**

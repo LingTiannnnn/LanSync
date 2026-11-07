@@ -36,8 +36,12 @@ android {
             isDebuggable = true
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // R8 裁切停用（2026-11-08 用户裁决）：v1.2 首发启用 R8 即在启动时闪退
+            // （Netty ReflectiveChannelFactory 反射构造器被裁，见 proguard-rules.pro 注释）。
+            // 无 CI、真机测试环慢，R8 配置回归风险不可控——重新启用前必须真机冒烟，
+            // 且保留 proguard-rules.pro 里的底线规则（netty keepclassmembers 等）。
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

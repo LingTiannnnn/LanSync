@@ -340,7 +340,7 @@ com.lansync.app/
 | lifecycle | 2.8.x |
 | Ktor | 2.3.12（2.3.x 内升级） |
 | DI | Hilt（§4 目标注入图） |
-| R8 / release | kotlinx-serialization DTO keep 已在位；compose/netty keep-all 已移除（体积口径见 `docs/BUILD.md` §4）；剩 R8 收缩产物真机冒烟与 release 签名配置 |
+| R8 / release | **R8 裁切停用**（2026-11-08 裁决，起因与重启用前置见 `docs/BUILD.md` §4）；release 挂 debug 签名（正式 keystore 延后） |
 
 当前版本锁数值只在 `docs/BUILD.md` §3 维护；升级顺序与边界见 `docs/ROADMAP.md` §3。
 
