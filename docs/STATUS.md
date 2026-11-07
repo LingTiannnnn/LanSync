@@ -22,7 +22,7 @@
 
 ## 2. 基线
 
-- **187/187 全绿**：18 个测试文件，用例数按源码实测（`@Test` 计数口径同 `architecture/DocFactsTest`）；文件 × 例数 × 锁定契约的映射见 `docs/TEST-PLAN.md` §10。`assembleDebug` 通过（判定只看输出里的 `BUILD SUCCESSFUL`）。
+- **207/207 全绿**：20 个测试文件，用例数按源码实测（`@Test` 计数口径同 `architecture/DocFactsTest`）；文件 × 例数 × 锁定契约的映射见 `docs/TEST-PLAN.md` §10。`assembleDebug` 通过（判定只看输出里的 `BUILD SUCCESSFUL`）。
 - ⚠️ **跑 `testDebugUnitTest` 不能加 `--offline`**：机器级仓库 `E:\S.H.I.T\Gradle\GradleRepository\caches` 里没有 `junit:junit`、`io.mockk`、`kotlinx-coroutines-test`、`ktor-server-test-host`，离线解析必失败；去掉 `--offline` 让测试依赖走网络解析即可跑通。主源码编译（`assembleDebug`）不受影响，可继续 `--offline`。
 - **DL-6（空 body）经查证不可覆盖**，裁决为"保留防御分支、不写断言"（`docs/TEST-PLAN.md` §4）。
 

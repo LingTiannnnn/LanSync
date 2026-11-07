@@ -40,7 +40,7 @@ class DefaultConnectionCoordinatorTest {
             transport = transport,
             pairingStore = pairing,
             pairingHistory = history,
-            localIdentityProvider = { LocalIdentity("Local", "10.0.0.1", 8080, "inst-local") },
+            localIdentityProvider = { _ -> LocalIdentity("Local", "10.0.0.1", 8080, "inst-local") },
             scope = backgroundScope
         )
         c.start()

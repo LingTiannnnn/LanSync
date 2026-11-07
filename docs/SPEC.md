@@ -114,7 +114,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 |---|---|---|---|---|---|
 | `requestId` | String | 否 | 无 | **是** | 发起方 `UUID.randomUUID()` |
 | `requesterName` | String | 否 | 无 | **是** | 发起方设备名 |
-| `requesterIp` | String | 否 | 无 | **是** | 发起方 IP（`NetworkUtils.getLocalIpAddress()`，见 §6.4） |
+| `requesterIp` | String | 否 | 无 | **是** | 发起方 IP（按对端同网段选址，见 §6.4） |
 | `requesterPort` | Int | 否 | 无 | **是** | 发起方服务端口 |
 | `requesterInstanceId` | String | 否 | `""` | 否 | 发起方持久化 UUID；空则线上省略 |
 | `timestamp` | Long | 否 | 无 | **是** | `System.currentTimeMillis()` |
@@ -350,7 +350,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
   - `instanceId = info.getPropertyString("instanceId")`；**空/null → 忽略**（非 LanSync 设备）。
   - `instanceId == 本机 instanceId` → **忽略自身**。
   - `deviceName`：优先 TXT `deviceName`；空则从实例名 `extractDeviceNameFromServiceName`（`split("_")`，`parts[0]=="LanSync"` 取 `parts[1]`，否则整名）。
-  - IP：`inetAddresses` 中**首个 Inet4Address**，无则 `addresses[0]`。
+  - IP：`inetAddresses` 中与**本机候选同网段**的 Inet4Address 优先（`NetworkUtils.pickReachableRemote`）；无匹配取首个 Inet4；无 Inet4 → 忽略。
 
 > **T3 决议（已冻结）**：**不做字节级 DNS-SD 冻结**，只需**应用层键值契约一致**：TXT 恰含 `deviceName`/`instanceId` 两键，经 JmDNS 库 `getPropertyString(key)` 读写。
 > **无升级项**：已全仓查证（`grep getPropertyString|getPropertyBytes|getPropertyNames|txtRecord`）——TXT 值**全部经 JmDNS 3.5.8 库 API 读取，不存在手写 TXT 字节解析逻辑**，故不触发用户设定的「发现手写 TXT 解析则升级」条件。（`extractDeviceNameFromServiceName` 解析的是**服务实例名**而非 TXT，且仅在 TXT `deviceName` 缺失时兜底；本项目恒发 TXT `deviceName`，该路径实际不触发。）
@@ -361,16 +361,19 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 - 用途：IP/端口变化后仍识别同一设备（端口迁移依据，见 §7.4）；自过滤；`DeviceInfo.identityKey`。
 
 ### 6.4 本机绑定 IP 语义
-- mDNS 绑定地址：`NetworkUtils.getLocalIpAddressViaWifi(context)` = WiFi `connectionInfo.ipAddress`；为 0 时回退首个非环回 Inet4；再回退 `127.0.0.1`。
-- `ConnectRequestPayload.requesterIp` / `displayKey` 的 IP：`NetworkUtils.getLocalIpAddress()` = **首个非环回 Inet4 网卡地址**（不特指 WiFi）。
+- **候选网卡**（`NetworkUtils.listLocalAddresses`）：up + 非环回 + 支持多播 + 有非环回 Inet4，且接口名不命中排除表（蜂窝 `rmnet*`、`ccmni*` 与 VPN 隧道 `tun*`、`tap*` 不收发多播；未知前缀默认放行）。局域网类前缀（wlan/ap/swlan/eth/usb/br）排序优先，仅影响「首个候选」的确定性。
+- **mDNS 绑定**：对每个候选网卡各建一个 `JmDNS` 实例，注册同一逻辑服务（§6.1–6.3 契约不变），各实例在各自接口收发多播；60s 保活循环每轮重枚举候选（接口热插拔自动跟随）。
+- **对端地址选择**（§6.2）：与任一本机候选同网段的 Inet4 优先，无匹配取首个 Inet4。
+- `ConnectRequestPayload.requesterIp` / disconnect·refresh 载荷 `displayKey` 的 IP：按请求目标对端**同网段选址**（`NetworkUtils.pickLocalAddressFor(targetIp)`）；无匹配回退首个候选；无候选兜底空串 / `0.0.0.0`。
 
-> **T6 决议（已冻结）**：**目标场景 = 同一 Wi-Fi 局域网内两台设备**。多网卡/热点/VPN **不承诺支持**，行为**对齐旧版、不做增强**。上述两条取值路径（WiFi 绑定 vs 首个 Inet4）**原样保留**，即使在多网络下可能分歧也不修正——单 Wi-Fi 场景两者一致，满足目标场景。新实现**不得**引入网络选择/路由绑定等增强逻辑。
+> **T6 决议（已重开）**：原 v1.0 冻结口径（仅承诺同一 Wi-Fi 两台设备、禁止网络选择增强）已重开——单地址绑定启发式在热点主人身上选错网卡，热点主人无法发现热点客户端。**新承诺口径：热点场景**（设备作为热点 AP、客户端经 Wi-Fi 连入，全互发现）；其余多网卡场景（USB 网络共享、VPN 并存等）尽力而为、**不承诺**。实现 = 多接口多 JmDNS 实例 + 发现层按 `instanceId` 聚合（§6.5）+ 同网段选址（如上）；工程决议登记于 `docs/DECISIONS.md` §3。
 
 ### 6.5 保活与陈旧清理
-- **60s 周期**（`REFRESH_INTERVAL_MS = 60_000L`）：`jmdns.list(serviceType)` 全量拉取 → 重建 `currentKeys` → `addOrUpdateDevice` → 移除 `deviceMap.keys - currentKeys` 的陈旧项。
-- 事件驱动：`ServiceListener` 的 `serviceAdded`（→ `requestServiceInfo(type,name,true,3000)`）、`serviceRemoved`（按 instanceId 过滤后移除）、`serviceResolved`（→ `addOrUpdateDevice`）。
+- **60s 周期**（`REFRESH_INTERVAL_MS = 60_000L`）：每轮先重枚举候选网卡（新增建实例、消失关实例），再逐实例 `jmdns.list(serviceType)` 全量拉取喂聚合器，最后按本轮观测清理陈旧。
+- 事件驱动：每个实例的 `ServiceListener`——`serviceAdded`（→ `requestServiceInfo(type,name,true,3000)`）、`serviceRemoved`（按 instanceId 过滤后移除该接口观测）、`serviceResolved`（→ 聚合器 upsert）。
+- **聚合**（`DiscoveryMerger`，纯 JVM）：跨接口观测按 `instanceId` 聚合，**每远端发布一条**（与任一本机候选同网段的观测优先，否则首个观测）；某远端仅在**全部**接口都不再观测后才移除；自身 instanceId 过滤。单实例失败只关该实例，不拖垮整体。
 - **多播锁**：`MulticastLock("LanSyncMulticastLock")`，`setReferenceCounted(true)`，start 时 `acquire()`，stop 时 `release()`。无锁收不到多播。
-- 输出：`discoveredDevices: Flow<List<DeviceInfo>>`（`_discoveredDevices` StateFlow，按 `DeviceKey(ip,port)` 去重的**裸发现列表**，`appList=[]`、`connectionState=DISCOVERED`）。
+- 输出：`discoveredDevices: Flow<List<DeviceInfo>>`（`_discoveredDevices` StateFlow，**每远端 instanceId 一条**的裸发现列表，`appList=[]`、`connectionState=DISCOVERED`）。
 
 ---
 
@@ -470,6 +473,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 - 触发：`observeRawDevicesAndManageConnections` 中 `existingByIdentity >= 0 && existingByIdentity != existingByDisplayKey && oldDevice.displayKey != raw.displayKey`。
 - 动作：以 `raw` 为新基，**保留** `connectionState` + `appList`，刷新 `lastSeenTimeMs`；同步迁移 `_connectedDevices`；若迁移前为 CONNECTED/RECONNECTING → 停旧 key 心跳/同步/计数 + 对新 key `startHeartbeat`。
 - `handleIncomingRequest` 侧亦有 `migrateDeviceConnection`（knownDevice.displayKey ≠ 新 displayKey 时）。
+- 同 `instanceId` 的多接口重复观测**已在发现层聚合**（§6.5，每远端至多一条 raw）——多网卡地址抖动不会触发迁移；迁移仅针对真实的 IP/端口变化。
 
 ### 7.6 陈旧设备清理（enriched 列表）
 `_enrichedDevices` 中满足**全部**条件者被移除：`displayKey ∉ currentKeys` 且 `identityKey ∉ rawDevices.identityKeys` 且 `connectionState ∉ {CONNECTED, RECONNECTING, CONNECTION_TIMEOUT}`。
@@ -551,17 +555,18 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 - **有意行为变更（非红线，须显式记录）**：
   - **TT3**：反向连接接受策略改为「仅历史配对成功设备自动接受、陌生设备弹窗、显式拒绝即时回 rejected」（§7.7）。**线上词表不变**，仅内部策略与拒绝时延改善。
   - **D1**：MD5 校验以 `X-MD5`（传输产物）为唯一权威，废弃 `expectedMd5` 兜底（§8.3）。**头名与算法不变**。
+  - **T6 重开**：mDNS 由单地址绑定改为多接口多实例，发现输出由按 `ip:port` 去重改为按 `instanceId` 聚合；`requesterIp`/`displayKey` 改为按对端同网段选址（§6.4/§6.5）。**线上四要素不变**（服务类型/实例名/TXT 双键/60s 保活），路由字节不变。
 
 ---
 
-## 10. TODO 决议记录（全部已冻结）
+## 10. TODO 决议记录（除 T6 已按 §6.4 重开外，均已冻结）
 
 > **与 `docs/DECISIONS.md` 的分工**：本节是 T1–T6 / TT1–TT4 的**查证过程与冻结位置**（协议侧权威记录）；`docs/DECISIONS.md` 是面向操作的裁决登记册。协议查证结论以本节为准，其余决策以 `docs/DECISIONS.md` 为准。
 >
 > 原 6 项 `[TODO]` + TT1/TT3 已逐条答复并经源码/git 查证落实，细节已落回各章节。
 >
 > **可验证性分级**：
-> - **源码 / git 可验证**：T2（`git log -S DeviceInfoResponse` 证实 `version` 恒为默认常量）、T3（全仓仅 `getPropertyString`，无手写 TXT 解析）、T5（客户端不校验 Content-Type）、T6（`NetworkUtils` 两条 IP 取值路径）。
+> - **源码 / git 可验证**：T2（`git log -S DeviceInfoResponse` 证实 `version` 恒为默认常量）、T3（全仓仅 `getPropertyString`，无手写 TXT 解析）、T5（客户端不校验 Content-Type）、T6（`NetworkUtils` 候选网卡过滤与同网段选址逻辑）。
 > - **依赖用户事实 / 设计决策（源码无法证实）**：
 >   - **T1/TT1**：「已分发旧版 APK 实物存在」属**用户事实**，代码无从验证；真机矩阵（`docs/TEST-PLAN.md` §6）据此可执行。
 >   - **TT3**：旧 `handleIncomingRequest(autoAcceptKnown=true)` 的两处缺陷（拒绝已知设备反被自动接受；拒绝陌生设备走 `removeRequest` 致发起方 30s 超时）经复核确为真实代码行为；「有意设计但实现未完成」的定性与「改用持久化配对历史干净语义」的决策属用户判断，已冻结为 §7.7。
@@ -573,7 +578,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 | T3 | TXT 字节级编码 | **不做字节级冻结**，应用层键值一致即可；若有手写 TXT 解析则升级 | 全仓查证：**无手写 TXT 解析**（仅 `getPropertyString`），**无需升级** | §6.2 |
 | T4 | `Build.MODEL` 含下划线的解析表现 | **按 UTF-8 标准实现**，旧代码运行无明显问题 | 沿用库默认 UTF-8，不增强 | §6.2 |
 | T5 | 旧接收端 Content-Type 期望 | 读旧代码 Ktor 配置确认，新版头部以旧版实际兼容写法为准 | 查证：客户端**从不校验** Content-Type；服务端 `.apk`→octet-stream/`.apks`→zip | §4 |
-| T6 | 多网络 IP 分歧 | **仅承诺同一 Wi-Fi 两台设备**；多网卡/热点/VPN 不支持，对齐旧版不增强 | 保留两条 IP 取值路径原样，不引入网络选择增强 | §6.4 |
+| T6 | 多网络 IP 分歧 | **已重开**（原口径：仅同一 Wi-Fi 两台设备，禁止网络选择增强）——新口径**仅承诺热点场景**，其余多网卡尽力而为 | 多接口多 JmDNS 实例 + 发现层按 `instanceId` 聚合 + 同网段选址（实现于 `NetworkUtils`/`JmDNSDeviceDiscovery`/`DiscoveryMerger`） | §6.4 |
 | TT3 | `autoAcceptKnown` 是 bug 还是设计 | **有意设计但实现未完成**；改为干净语义：仅「历史配对成功过」自动接受，陌生设备弹窗，修复陌生设备被自动放行漏洞 | 重新定义接受策略 + 新增持久化配对历史 + 即时 rejected | §7.7 |
 
 **冻结声明**：以上决议构成 SPEC **v1.0** 的一部分。协议字段层面**无遗留 `[TODO]`**（均可源码确认）；仅 T1/TT1、TT3 依赖用户事实/决策，已在上表显式标注待确认。后续若 Phase 6 引入协议版本协商，须以 §2.9 的独立新字段承载，不得复用 `version`。

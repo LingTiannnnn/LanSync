@@ -79,8 +79,13 @@ object LanSyncGraph {
             transport = transport,
             pairingStore = notifyingPairing,
             pairingHistory = pairingHistory,
-            localIdentityProvider = {
-                LocalIdentity(Build.MODEL, NetworkUtils.getLocalIpAddress(), serverRef?.getPort() ?: 0, discovery.getInstanceId())
+            localIdentityProvider = { targetIp ->
+                LocalIdentity(
+                    Build.MODEL,
+                    NetworkUtils.pickLocalAddressFor(targetIp)?.hostAddress.orEmpty(),
+                    serverRef?.getPort() ?: 0,
+                    discovery.getInstanceId()
+                )
             },
             scope = scope
         )

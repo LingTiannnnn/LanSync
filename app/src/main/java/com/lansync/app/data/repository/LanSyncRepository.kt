@@ -117,8 +117,8 @@ class LanSyncRepository(
     }
 
     private suspend fun notifyConnectedDevicesToRefresh() {
-        val localKey = localDisplayKey()
         for (d in connectedDevices.value) {
+            val localKey = localDisplayKey(d.ipAddress)
             runCatching { client.sendRefreshAppListNotification(d.ipAddress, d.port, localKey) }
         }
     }
@@ -153,8 +153,9 @@ class LanSyncRepository(
     fun clearDownloadProgress() = downloadController.clearDownloadProgress()
     fun clearInstallStatus() = downloadController.clearInstallStatus()
 
-    private fun localDisplayKey(): String {
-        val ip = NetworkUtils.getLocalIpAddress().ifEmpty { "0.0.0.0" }
+    /** 通知载荷 displayKey 的本机 IP：按对端同网段选址（SPEC §6.4），无候选兜底 `0.0.0.0`。 */
+    private fun localDisplayKey(targetIp: String): String {
+        val ip = NetworkUtils.pickLocalAddressFor(targetIp)?.hostAddress ?: "0.0.0.0"
         return "$ip:${_serverPort.value}"
     }
 

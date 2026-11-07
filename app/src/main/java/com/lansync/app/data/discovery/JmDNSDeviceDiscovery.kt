@@ -13,25 +13,26 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.IOException
+import java.net.InetAddress
 import java.util.UUID
 import javax.jmdns.JmDNS
+import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceInfo
+import javax.jmdns.ServiceListener
 
 /**
- * [DeviceDiscovery] 的 JmDNS 实现（SPEC §6）——旧 `JmDNSDiscovery` 的「实现重写」。
+ * [DeviceDiscovery] 的 JmDNS 实现（SPEC §6）——T6 重开后的多接口形态。
  *
- * 与旧实现的唯一结构差异（ARCH §6 铁律 1）：**CoroutineScope 由构造注入**，不再类内自建
- * `CoroutineScope(SupervisorJob()+Dispatchers.IO)`，以便测试替换调度器 / 统一生命周期治理。
- * 线上行为严格复现 SPEC §6：
- * - 服务类型 `_lansync._tcp.local.`、实例名 `LanSync_{hostname}_{instanceId}`、weight/priority=0（§6.1）
- * - TXT 恰两键 `deviceName`/`instanceId`，经 JmDNS `getPropertyString` 读写（§6.2，无手写字节解析）
- * - instanceId 持久化 `SharedPreferences("lansync_device")/"device_instance_id"`（§6.3）
- * - 绑定 IP = `NetworkUtils.getLocalIpAddressViaWifi`（§6.4）
- * - 60s 全量 `list()` 保活 + 陈旧清理；ServiceListener added/removed/resolved；MulticastLock（§6.5）
- * - 自过滤：无 instanceId 的非 LanSync 服务、自身 instanceId 均忽略（§6.2）
+ * 线上契约严格不变（§6.1–6.3）：服务类型 `_lansync._tcp.local.`、实例名 `LanSync_{hostname}_{instanceId}`、
+ * TXT 双键 `deviceName`/`instanceId`、60s 保活。实现层（§6.4）：
+ * - 对每个候选网卡（[NetworkUtils.listLocalAddresses]，蜂窝/VPN 前缀已排除）各建一个 `JmDNS` 实例，
+ *   注册同一逻辑服务；各实例在各自接口收发多播——热点主人因此在 AP 网段可被客户端发现；
+ * - 跨接口观测经 [DiscoveryMerger] 按 instanceId 聚合为单条后发布（§6.5），协调层无感；
+ * - 60s 保活循环每轮先重枚举候选接口（热点中途开关/网络切换自动跟随：新增建实例、消失关实例）；
+ * - 逐实例失败隔离：单接口 JmDNS 异常只关该实例，不拖垮整体；零候选不报错（等循环跟进）。
  *
- * 说明：本类依赖 Android/JmDNS/多播，**非 JVM 单测目标**（编译校验 + 真机互操作验收，见 TEST-PLAN §6）。
+ * 说明：本类依赖 Android/JmDNS/多播，**非 JVM 单测目标**（纯逻辑已抽至 DiscoveryMerger；
+ * 编译校验 + 真机互操作验收，见 TEST-PLAN §6）。
  */
 class JmDNSDeviceDiscovery(
     private val context: Context,
@@ -40,20 +41,25 @@ class JmDNSDeviceDiscovery(
     private val serviceName: String = "LanSync"
 ) : DeviceDiscovery {
 
-    private var jmdns: JmDNS? = null
-    private var registeredService: ServiceInfo? = null
+    /** 一个已绑定的 JmDNS 实例：接口 tag（`ifaceName/addr`）→ 实例与其注册的 ServiceInfo。 */
+    private data class BoundInstance(val tag: String, val jmdns: JmDNS, val serviceInfo: ServiceInfo)
+
+    private val instanceId = loadOrGenerateInstanceId()
+    private val merger = DiscoveryMerger(instanceId, ::isRemoteOnLocalSubnet)
+
+    @Volatile
+    private var instances: Map<String, BoundInstance> = emptyMap()
     private var refreshJob: Job? = null
     private var isRunningFlag = false
     private var multicastLock: WifiManager.MulticastLock? = null
+    @Volatile
+    private var servicePort = 0
 
     private val _discoveredDevices = MutableStateFlow<List<DeviceInfo>>(emptyList())
     override val discoveredDevices: Flow<List<DeviceInfo>> = _discoveredDevices.asStateFlow()
 
-    private data class DeviceKey(val ipAddress: String, val port: Int)
-    private val deviceMap = mutableMapOf<DeviceKey, DeviceInfo>()
-
-    private val instanceId = loadOrGenerateInstanceId()
     override fun getInstanceId(): String = instanceId
+    override fun isRunning(): Boolean = isRunningFlag
 
     private fun loadOrGenerateInstanceId(): String {
         val prefs = context.getSharedPreferences("lansync_device", Context.MODE_PRIVATE)
@@ -64,24 +70,25 @@ class JmDNSDeviceDiscovery(
         return newId
     }
 
-    override fun isRunning(): Boolean = isRunningFlag
-
     override suspend fun startDiscovery(port: Int) {
         if (isRunningFlag) {
             FileLogger.w(TAG, "Discovery already running")
             return
         }
         isRunningFlag = true
-        deviceMap.clear()
+        servicePort = port
+        merger.reset()
         _discoveredDevices.value = emptyList()
         try {
             acquireMulticastLock()
-            val localAddress = NetworkUtils.getLocalIpAddressViaWifi(context)
-            val hostname = getDeviceName()
-            jmdns = JmDNS.create(localAddress, hostname)
-            registerService(port, hostname)
-            startListening()
-            FileLogger.i(TAG, "Discovery started on ${localAddress.hostAddress}:$port, instanceId=${instanceId.take(8)}...")
+            ensureInstances()   // 立即绑定首批候选；零候选不报错，保活循环会跟进
+            refreshJob = scope.launch {
+                while (isActive && isRunningFlag) {
+                    refreshCycle()
+                    delay(REFRESH_INTERVAL_MS)   // SPEC §6.5
+                }
+            }
+            FileLogger.i(TAG, "Discovery started on ${instances.keys} port=$port, instanceId=${instanceId.take(8)}...")
         } catch (e: Exception) {
             FileLogger.e(TAG, "Failed to start JmDNS discovery", e)
             stopDiscovery()
@@ -93,15 +100,10 @@ class JmDNSDeviceDiscovery(
         isRunningFlag = false
         refreshJob?.cancel()
         refreshJob = null
-        try {
-            registeredService?.let { jmdns?.unregisterService(it) }
-            jmdns?.close()
-        } catch (e: IOException) {
-            FileLogger.e(TAG, "Error stopping JmDNS", e)
-        }
+        instances.keys.toList().forEach { closeInstance(it, "stopped") }
+        merger.reset()
         multicastLock?.let { if (it.isHeld) it.release() }
         multicastLock = null
-        deviceMap.clear()
         _discoveredDevices.value = emptyList()
         FileLogger.i(TAG, "Discovery stopped")
     }
@@ -114,107 +116,132 @@ class JmDNSDeviceDiscovery(
         }
     }
 
-    private fun registerService(port: Int, hostname: String) {
-        val serviceInfo = ServiceInfo.create(
-            serviceType,
-            "${serviceName}_${hostname}_$instanceId",
-            port, 0, 0,
-            mapOf("deviceName" to hostname, "instanceId" to instanceId)
-        )
-        jmdns?.registerService(serviceInfo)
-        registeredService = serviceInfo
-        FileLogger.i(TAG, "Registered service: ${serviceInfo.name} on port $port")
+    /** 重建实例集与当前候选接口的差集：关闭消失接口的实例，为新增候选建实例（逐实例失败隔离）。 */
+    private fun ensureInstances() {
+        val wanted = try {
+            NetworkUtils.listLocalAddresses().associateBy({ it.tag }, { it })
+        } catch (e: Exception) {
+            FileLogger.w(TAG, "interface enumeration failed", e)
+            return
+        }
+        for (tag in instances.keys - wanted.keys) closeInstance(tag, "interface gone")
+        val hostname = getDeviceName()
+        for ((tag, la) in wanted) {
+            if (instances.containsKey(tag)) continue
+            var jmdns: JmDNS? = null
+            try {
+                jmdns = JmDNS.create(la.address, hostname)
+                val info = newServiceInfo(hostname)
+                jmdns.registerService(info)
+                jmdns.addServiceListener(serviceType, listenerFor(tag))
+                instances += tag to BoundInstance(tag, jmdns, info)
+                FileLogger.i(TAG, "JmDNS bound: $tag (port=$servicePort)")
+            } catch (e: Exception) {
+                FileLogger.w(TAG, "JmDNS bind failed on $tag", e)
+                jmdns?.let { runCatching { it.close() } }
+            }
+        }
     }
 
-    private fun addOrUpdateDevice(info: ServiceInfo): Boolean {
-        val remoteInstanceId = info.getPropertyString("instanceId")
-        if (remoteInstanceId.isNullOrEmpty()) return false          // 非 LanSync 设备
-        if (remoteInstanceId == instanceId) return false             // 自身
+    private fun closeInstance(tag: String, reason: String) {
+        val inst = instances[tag] ?: return
+        instances = instances - tag
+        try {
+            inst.jmdns.unregisterService(inst.serviceInfo)
+        } catch (e: Exception) {
+            FileLogger.w(TAG, "unregister failed on $tag", e)
+        }
+        try {
+            inst.jmdns.close()
+        } catch (e: Exception) {
+            FileLogger.w(TAG, "close failed on $tag", e)
+        }
+        merger.onIfaceClosed(tag)
+        publish()
+        FileLogger.i(TAG, "JmDNS closed: $tag ($reason)")
+    }
 
-        val addresses = info.inetAddresses
-        if (addresses.isEmpty()) return false
-        val ipAddress = addresses.firstOrNull { it is java.net.Inet4Address }?.hostAddress
-            ?: addresses[0].hostAddress ?: ""
-        val port = info.port
-        val key = DeviceKey(ipAddress, port)
+    /** 一轮保活：跟随接口变化 + 逐实例 `list()` 全量对账 + 陈旧清理 + 发布（§6.5）。 */
+    private fun refreshCycle() {
+        ensureInstances()
+        for (inst in instances.values.toList()) {
+            try {
+                val services = inst.jmdns.list(serviceType)
+                val observed = HashSet<String>()
+                for (si in services) {
+                    val remoteInstanceId = si.getPropertyString("instanceId")
+                    if (remoteInstanceId.isNullOrEmpty() || remoteInstanceId == instanceId) continue
+                    val info = buildDeviceInfo(si, remoteInstanceId) ?: continue
+                    observed.add(remoteInstanceId)
+                    merger.onResolved(inst.tag, info)
+                }
+                merger.onRefreshCycleEnd(inst.tag, observed)
+            } catch (e: Exception) {
+                FileLogger.w(TAG, "refresh failed on ${inst.tag}", e)
+            }
+        }
+        publish()
+    }
 
-        val txtDeviceName = info.getPropertyString("deviceName")
+    private fun newServiceInfo(hostname: String): ServiceInfo = ServiceInfo.create(
+        serviceType,
+        "${serviceName}_${hostname}_$instanceId",
+        servicePort, 0, 0,
+        mapOf("deviceName" to hostname, "instanceId" to instanceId)
+    )
+
+    private fun listenerFor(tag: String): ServiceListener = object : ServiceListener {
+        override fun serviceAdded(event: ServiceEvent) {
+            instances[tag]?.jmdns?.requestServiceInfo(event.type, event.name, true, 3000)
+        }
+
+        override fun serviceRemoved(event: ServiceEvent) {
+            val dns = instances[tag]?.jmdns ?: return
+            val info = try {
+                dns.getServiceInfo(event.type, event.name)
+            } catch (e: Exception) {
+                FileLogger.w(TAG, "resolve on remove failed on $tag", e)
+                null
+            } ?: return
+            val remoteInstanceId = info.getPropertyString("instanceId")
+            if (remoteInstanceId.isNullOrEmpty() || remoteInstanceId == instanceId) return
+            merger.onRemoved(tag, remoteInstanceId)
+            publish()
+        }
+
+        override fun serviceResolved(event: ServiceEvent) {
+            val remoteInstanceId = event.info.getPropertyString("instanceId")
+            if (remoteInstanceId.isNullOrEmpty() || remoteInstanceId == instanceId) return
+            val deviceInfo = buildDeviceInfo(event.info, remoteInstanceId) ?: return
+            merger.onResolved(tag, deviceInfo)
+            publish()
+        }
+    }
+
+    /** 由 ServiceInfo 构建观测记录；地址按 §6.2 口径选「同网段优先，否则首个 Inet4」。 */
+    private fun buildDeviceInfo(si: ServiceInfo, remoteInstanceId: String): DeviceInfo? {
+        val address = NetworkUtils.pickReachableRemote(si.inetAddresses.toList()) ?: return null
+        val txtDeviceName = si.getPropertyString("deviceName")
         val deviceName = if (!txtDeviceName.isNullOrEmpty()) txtDeviceName
-        else extractDeviceNameFromServiceName(info.name)
-
-        val newDevice = DeviceInfo(
-            ipAddress = ipAddress, deviceName = deviceName, port = port,
+        else extractDeviceNameFromServiceName(si.name)
+        return DeviceInfo(
+            ipAddress = address.hostAddress ?: return null,
+            deviceName = deviceName, port = si.port,
             instanceId = remoteInstanceId, appList = emptyList()
         )
-        val existing = deviceMap[key]
-        if (existing == null || existing.deviceName != deviceName) {
-            deviceMap[key] = newDevice
-            _discoveredDevices.value = deviceMap.values.toList()
-            FileLogger.i(TAG, "Device discovered: $deviceName ($ipAddress:$port)")
-            return true
-        }
-        return false
     }
 
-    private fun removeDeviceByKey(key: DeviceKey) {
-        if (deviceMap.remove(key) != null) {
-            _discoveredDevices.value = deviceMap.values.toList()
-            FileLogger.i(TAG, "Device removed: $key")
-        }
+    private fun isRemoteOnLocalSubnet(remoteIp: String): Boolean =
+        NetworkUtils.isSameSubnetWithAnyLocal(remoteIp)
+
+    private fun publish() {
+        val snapshot = merger.snapshot()
+        if (snapshot != _discoveredDevices.value) _discoveredDevices.value = snapshot
     }
 
     private fun extractDeviceNameFromServiceName(name: String): String {
         val parts = name.split("_")
         return if (parts.size >= 2 && parts[0] == "LanSync") parts[1] else name
-    }
-
-    private fun startListening() {
-        jmdns?.addServiceListener(serviceType, object : javax.jmdns.ServiceListener {
-            override fun serviceAdded(event: javax.jmdns.ServiceEvent?) {
-                event?.let { jmdns?.requestServiceInfo(it.type, it.name, true, 3000) }
-            }
-
-            override fun serviceRemoved(event: javax.jmdns.ServiceEvent?) {
-                event?.let {
-                    val info = jmdns?.getServiceInfo(it.type, it.name) ?: it.info
-                    val remoteInstanceId = info.getPropertyString("instanceId")
-                    if (remoteInstanceId.isNullOrEmpty() || remoteInstanceId == instanceId) return
-                    val addresses = info.inetAddresses
-                    val ipAddress = addresses.firstOrNull { a -> a is java.net.Inet4Address }?.hostAddress
-                        ?: addresses.firstOrNull()?.hostAddress ?: ""
-                    removeDeviceByKey(DeviceKey(ipAddress, info.port))
-                }
-            }
-
-            override fun serviceResolved(event: javax.jmdns.ServiceEvent?) {
-                event?.info?.let { info -> addOrUpdateDevice(info) }
-            }
-        })
-
-        refreshJob = scope.launch {
-            while (isActive && isRunningFlag) {
-                delay(REFRESH_INTERVAL_MS)
-                jmdns?.let { dns ->
-                    try {
-                        val services = dns.list(serviceType)
-                        val currentKeys = mutableSetOf<DeviceKey>()
-                        for (si in services) {
-                            val remoteInstanceId = si.getPropertyString("instanceId")
-                            if (remoteInstanceId.isNullOrEmpty() || remoteInstanceId == instanceId) continue
-                            val addresses = si.inetAddresses
-                            if (addresses.isEmpty()) continue
-                            val ipAddress = addresses.firstOrNull { it is java.net.Inet4Address }?.hostAddress
-                                ?: addresses[0].hostAddress ?: ""
-                            currentKeys.add(DeviceKey(ipAddress, si.port))
-                            addOrUpdateDevice(si)
-                        }
-                        (deviceMap.keys - currentKeys).forEach { removeDeviceByKey(it) }
-                    } catch (e: Exception) {
-                        FileLogger.w(TAG, "Error refreshing services", e)
-                    }
-                }
-            }
-        }
     }
 
     private fun getDeviceName(): String = try {

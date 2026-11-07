@@ -184,6 +184,12 @@
 - [ ] `adb shell am kill` 后 `START_STICKY` 恢复，`instanceId` 不变，对端身份无缝识别。
 - [ ] 低端 OEM 省电场景：必要时加电池白名单（README 已标注）。
 
+**⑥ 热点三机（T6 重开承诺场景，SPEC §6.4）**
+- [ ] 设备 A 开热点、B/C 连入 → **A 发现 B/C**（FileLogger 确认 A 绑定 AP 接口：`JmDNS bound: <iface>/<ip>` 多条）。
+- [ ] B/C 发现 A，且 B/C 互发现（单接口路径不回归）。
+- [ ] 热点主人发起配对可用：`requesterIp` 为 AP 网段地址（同网段选址）。
+- [ ] A 关热点切回普通 Wi-Fi → 60s 内跟随接口变化（日志出现旧实例 close + 新实例 bound）。
+
 ### 6.3 产物要求
 
 每组合每步记录 `lansync_debug.log` 导出 + 关键截图 + 抓包（mDNS/HTTP）。失败项回填 `docs/SPEC.md` 决议记录或 `docs/ARCHITECTURE.md`。
@@ -227,7 +233,7 @@
 
 ## 10. 当前落地清单
 
-18 个测试文件 / 187 例（用例数以仓库实测为准）。
+20 个测试文件 / 207 例（用例数以仓库实测为准）。
 
 | 测试文件 | 例数 | 锁定 |
 |---|---|---|
@@ -239,6 +245,8 @@
 | `data/server/InMemoryPairingStoreTest` | 9 | §2.2 配对状态机、15s 超时、getStatus 映射、respond 取消 timeout、clearAll |
 | `data/sync/UpdateManagerTest` | 12 | §2.3 `findUpdates` / `deduplicateUpdates` / `calculateSyncDiffs`；输出按 appName 拼音 A–Z 升序（同字母中文先于英文、非字母开头殿后） |
 | `data/AppNameOrderingTest` | 5 | `sortedByAppName` 排序口径：全拼升序、同字母中文先于英文、`#` 段殿后、包名定序、空名归 `#` |
+| `data/NetworkUtilsTest` | 11 | SPEC §6.4 候选网卡过滤（排除蜂窝/VPN 前缀、fail-open、非环回 Inet4、排序）与同网段选址（`sameSubnet` 前缀判定 / `pickAddressFor` / `pickReachableRemote`） |
+| `data/discovery/DiscoveryMergerTest` | 9 | SPEC §6.5 跨接口聚合：每远端 instanceId 一条、同网段观测优先、部分接口消失保留 / 全部消失清理、自身过滤、接口关闭退场 |
 | `data/transfer/DownloadedFileNameTest` | 10 | DL-12 命名 / 反推边界 / 正向匹配 |
 | `data/transfer/DownloadInstallControllerTest` | 9 | 下载与安装进度状态流；取消以 `Cancelled` 收场（清进度、不写 Failed）；失败只暴露 typed `InstallFailure`（FILE_MISSING / DOWNLOAD_FAILED），诊断原文留在 `detail` 不上屏 |
 | `architecture/DocFactsTest` | 9 | CONVENTIONS §6 文档事实门禁：BUILD §3 版本锁表与 SDK/`jvmTarget` 行、STATUS §2 与 §10 测试基线、§10 逐文件例数、§13.1 门面行数与组件文件数、§13.4 `strings.xml` 条数、`.qoder/agents` 镜像数、远端同步表述对照 `.git` 引用；两条检测器自检例（版本/同步表述 + 规模数字提取式）跑内存坏样本，匹配式失效即判红 |
@@ -250,4 +258,4 @@
 | `data/AppConfigTest` | 2 | SPEC §7.2 全部默认参数 |
 | `data/packer/HashUtilsConsistencyTest` | 2 | MD5 一致性（含 nonexistent → null） |
 
-**无 JVM 单测（靠编译 + `assembleDebug` + 真机验收）**：`AppScanner`、`JmDNSDeviceDiscovery`、`IconCache`/`AppIconDiskCache`、`ForegroundSyncService`、`LanSyncRepository`、`LanSyncGraph`、`KtorLanSyncServer`、全部 Compose UI 与 `MainViewModel`。项目无 Robolectric / 无 UI 测试 / 无覆盖率工具；为 Android 耦合类新建测试栈属扩大范围，须先与用户确认。`DesignSystemTest` 审的是 UI **源码文本**（写法与令牌健康度），不渲染 UI、不替代真机目视。
+**无 JVM 单测（靠编译 + `assembleDebug` + 真机验收）**：`AppScanner`、`JmDNSDeviceDiscovery`（纯逻辑已抽 `DiscoveryMerger`，有 JVM 单测）、`IconCache`/`AppIconDiskCache`、`ForegroundSyncService`、`LanSyncRepository`、`LanSyncGraph`、`KtorLanSyncServer`、全部 Compose UI 与 `MainViewModel`。项目无 Robolectric / 无 UI 测试 / 无覆盖率工具；为 Android 耦合类新建测试栈属扩大范围，须先与用户确认。`DesignSystemTest` 审的是 UI **源码文本**（写法与令牌健康度），不渲染 UI、不替代真机目视。

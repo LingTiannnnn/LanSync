@@ -11,11 +11,11 @@ import kotlinx.coroutines.flow.Flow
  * `ConnectionEvent.RawDevicesUpdated`），不依赖具体 JmDNS/Android。
  *
  * 契约（SPEC §6）：服务类型 `_lansync._tcp.local.`、实例名 `LanSync_{host}_{instanceId}`、
- * TXT 双键 `deviceName`/`instanceId`、60s 保活、按 `ip:port` 去重、自过滤。
+ * TXT 双键 `deviceName`/`instanceId`、60s 保活、按 `instanceId` 跨接口聚合、自过滤。
  */
 interface DeviceDiscovery {
 
-    /** 裸发现列表（`appList=[]`、`connectionState=DISCOVERED`，按 `ip:port` 去重）。 */
+    /** 裸发现列表（`appList=[]`、`connectionState=DISCOVERED`，每远端 instanceId 一条）。 */
     val discoveredDevices: Flow<List<DeviceInfo>>
 
     /** 本机持久化 instanceId（身份稳定标识，SPEC §6.3）。 */

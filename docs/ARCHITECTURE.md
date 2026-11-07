@@ -392,7 +392,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `data/transfer/DownloadedFileName.kt` | 产物命名 / 落盘名 / **包名反推的唯一实现** | ✅ (10) |
 | `data/transfer/AppPacker.kt` | 单包字节副本 `.apk` / split zip `.apks`（`base.apk` + `split_N.apk`），输出目录构造注入 | ✅ (6) |
 | `data/transfer/DownloadInstallController.kt` | 下载 / 安装 / 文件管理 + 用户取消（`Cancelled` 结果，不算失败）+ `downloadProgress`/`installStatus` StateFlow | ✅ (9) |
-| `data/discovery/{DeviceDiscovery,JmDNSDeviceDiscovery}.kt` | SPEC §6：服务注册 + TXT 双键 + 60s 保活 + 陈旧清理 + MulticastLock；**scope 构造注入** | ❌ Android/JmDNS 耦合 |
+| `data/discovery/{DeviceDiscovery,JmDNSDeviceDiscovery,DiscoveryMerger}.kt` | SPEC §6：服务注册 + TXT 双键 + 60s 保活 + MulticastLock；**多接口多 JmDNS 实例**（候选网卡过滤见 §6.4）+ `DiscoveryMerger` 按 `instanceId` 跨接口聚合；**scope 构造注入** | ❌ Android/JmDNS 耦合（Merger 纯 JVM ✅ (9)） |
 | `data/connection/ConnectionEvent.kt` | 事件密封接口 + `ConnectAttemptResult` | — |
 | `data/connection/{ConnectionCoordinator,DefaultConnectionCoordinator}.kt` | SPEC §7.4–7.7：**Actor 单点收敛**（单 `Channel` + 单消费协程持全部可变状态）；状态机/心跳/端口迁移/陈旧清理/去重/接受策略 | ✅ (21) 虚拟时间 |
 | `data/connection/{PairingHistoryStore,SharedPrefsPairingHistoryStore}.kt` | 自动接受的**唯一判据**（历史配对 `instanceId`） | ✅ |
@@ -403,7 +403,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `data/sync/UpdateManager.kt` | **纯函数**：`findUpdates`/`deduplicateUpdates`/`calculateSyncDiffs`（不自行 fetch）；后两者输出按 appName 拼音 A–Z 升序（`sortedByAppName`，keyer 注入） | ✅ (12) |
 | `data/sync/UpdateCoordinator.kt` | `combine(localApps, connectedDevices)` → 5s 节流 → `availableUpdates`/`syncDiffs`；`nowMillis` 可注入 | ✅ (4) |
 | `data/cache/IconCache.kt` / `AppIconDiskCache.kt` | data 层三级图标缓存（内存 Lru → 磁盘 PNG → PackageManager 绘制）+ preload + 失败负缓存 | ➖ |
-| `data/repository/LanSyncRepository.kt` | **组合门面 165 行（硬约束 ≤300）**：12 路对外 StateFlow（自有 `serverPort`/`isRunning` 2 路 + 转发协作者 10 路）+ start/stop 生命周期编排 + 纯委托，零业务逻辑 | ➖ 编译 + 门禁 |
+| `data/repository/LanSyncRepository.kt` | **组合门面 166 行（硬约束 ≤300）**：12 路对外 StateFlow（自有 `serverPort`/`isRunning` 2 路 + 转发协作者 10 路）+ start/stop 生命周期编排 + 纯委托，零业务逻辑 | ➖ 编译 + 门禁 |
 | `data/repository/LanSyncGraph.kt` | **手写 DI 组合根**（129 行）：可空 late-bind 引用破 `server ↔ coordinator ↔ pairingStore` 构造环 | ➖ |
 | `service/ForegroundSyncService.kt` | `specialUse` FGS：承载 `repo.start/stop`、常驻通知（端口/连接数 + 停止/打开）、`START_STICKY` | ❌ 真机 |
 | `ui/viewmodel/MainViewModel.kt` | `AndroidViewModel`：`uiState: StateFlow<UiState>` 单一出口；`autoStart` 先灌缓存骨架 | ❌ 无 Robolectric 栈 |
@@ -411,7 +411,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `ui/components/*`（16 文件） | 4 Tab + 共享原语（`CommonComponents`/`AppRow`/`FeedbackBanner`/`StatusVisuals`/`LoadingVisuals`/`IdentityStrip`）+ 覆盖层 + `ui/format`/`ui/string` 取值桥 | ❌ 真机目视（写法由 `DesignSystemTest` 门禁） |
 | `data/AppNameOrdering.kt` | 应用名拼音 A–Z 混排唯一口径 `sortedByAppName`：全拼升序、同字母中文先于英文、非字母开头归 `#` 段殿后、包名定序 | ✅ (5) |
 | `data/IcuAppNameKeyer.kt` | ICU 中文→拼音转写（`android.icu`）+ 生产单例 `DefaultAppNameKeyer`；独立成文件隔离 android.icu，保 `AppNameOrdering` JVM 可加载 | ❌ Android/icu |
-| `data/{AppConfig,HashUtils,NetworkUtils,FileLogger}.kt` | 超时参数唯一来源 / MD5 工具（null 传播）/ IP 选取 / 文件日志 | ✅ AppConfig(2)/HashUtils(6)+一致性(2) |
+| `data/{AppConfig,HashUtils,NetworkUtils,FileLogger}.kt` | 超时参数唯一来源 / MD5 工具（null 传播）/ 网卡候选过滤与同网段选址（SPEC §6.4，纯 JVM）/ 文件日志 | ✅ AppConfig(2)/HashUtils(6)+一致性(2)/NetworkUtils(11) |
 
 ### 13.2 三条端到端主链路
 
@@ -423,7 +423,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
          → 接收方接受 → POST /api/connect/response
          → 发起方 500ms 轮询 GET /api/connect/status（总上限 30s）→ Accepted → 入 connectedDevices
          → 双向 20s GET /api/ping + 首拉 GET /api/applist（5 次 / 3s 重试），此后 120s 周期重拉
-         → IP/端口变化按 instanceId 做端口迁移（停旧起新，同一调度协程内）
+         → IP/端口变化按 instanceId 做端口迁移（停旧起新，同一调度协程内；发现层已按 instanceId 聚合，仅真实 IP/端口变化触发）
 ② 更新   AppScanner 扫 PackageManager → LocalAppRepository（启动灌骨架 + 后台全量校验刷新）
          → combine(localApps, connectedDevices) → 5s 节流
          → UpdateManager.findUpdates / deduplicateUpdates / calculateSyncDiffs（纯函数，不 fetch）

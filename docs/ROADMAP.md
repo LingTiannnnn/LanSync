@@ -2,7 +2,7 @@
 
 ## 1. 阻塞级：真机互操作验收（Phase 6 前置）
 
-逐项清单在 `docs/TEST-PLAN.md` §6。需两台 Android 真机（minSdk 29）同一 Wi-Fi，跑满 新×新 / 新×旧 / 旧×新 / 旧×旧 四组合：FGS 退后台存活与通知可见性、mDNS 发现与自过滤、配对（含 TT3 四场景）、心跳与端口迁移、下载与 split 校验、安装器拉起、SAF 保存、`specialUse` 在 API 34 的实际行为、API 33+ 首次权限弹窗时机；UI 侧三键/手势白条、暗色对比度实测、最大字号、reduce-motion、横屏、业务回归。
+逐项清单在 `docs/TEST-PLAN.md` §6。需两台 Android 真机（minSdk 29）同一 Wi-Fi，跑满 新×新 / 新×旧 / 旧×新 / 旧×旧 四组合：FGS 退后台存活与通知可见性、mDNS 发现与自过滤、配对（含 TT3 四场景）、心跳与端口迁移、下载与 split 校验、安装器拉起、SAF 保存、`specialUse` 在 API 34 的实际行为、API 33+ 首次权限弹窗时机；热点三机场景（T6 重开承诺，TEST-PLAN §6.2 ⑥）验证热点主人与客户端全互发现；UI 侧三键/手势白条、暗色对比度实测、最大字号、reduce-motion、横屏、业务回归。
 
 ## 2. Phase 6：安全加固与协议版本化
 

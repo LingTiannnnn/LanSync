@@ -11,7 +11,7 @@
 | T3 | mDNS TXT 编码 | **不做字节级冻结**，只锁应用层键值契约（`deviceName` / `instanceId`，经 JmDNS `getPropertyString`）。已查证无手写 TXT 解析 |
 | T4 | `Build.MODEL` 编码 | 按 **UTF-8** 标准，沿用库默认，不做转义增强 |
 | T5 | 下载 Content-Type | 客户端**从不校验**；服务端 `.apk`→octet-stream、`.apks`→zip，照此复现 |
-| T6 | 多网络 IP 分歧 | **仅承诺同一 Wi-Fi 两台设备**；两条本机 IP 取值路径原样保留，**禁止**引入网络选择 / 路由绑定等增强逻辑 |
+| T6 | 多网络 IP 分歧 | **已重开**（原口径：仅同一 Wi-Fi 两台设备、禁止网络选择增强）。新口径：**仅承诺热点场景**（设备作为热点 AP、客户端经 Wi-Fi 连入，全互发现），其余多网卡尽力而为；实现载体见 §3「多接口 mDNS 发现」 |
 | TT2 | 旧测试是否曾在 CI 跑通 | 未明确 → 以本机 `testDebugUnitTest` 实跑为绿色基线起点 |
 | TT3 | 反向连接自动接受策略 | 采纳**干净语义**（`docs/SPEC.md` §7.7）：只有持久化配对历史里的 `instanceId` 自动接受，陌生设备保持 PENDING 弹窗，显式拒绝即时 `rejected` |
 | TT4 | 历史手工测试脚本 | 未明确 → 以 `docs/TEST-PLAN.md` §6 golden path 清单为准 |
@@ -48,3 +48,4 @@
 | 真机验收暂缓 | 用户明确跳过该步；⚠️ 它是 Phase 6 前置，启动 Phase 6 前须重新评估缺口 |
 | 工具链升级独立 | Kotlin 2.x / Compose BOM / Ktor / AGP 升级走单独分支，**不与协议或架构改动叠加**，留 Phase 7 |
 | 类名与间接层不做"清理式"改名 | 命名的历史理由与抽象层的作用只在 `docs/ARCHITECTURE.md` §13.5 维护。结论：不要"顺手改名"或删除 `ConnectionTransport` / `LanSyncClientTransport`——改名会打断按章节号引用的注释锚点与测试名，无收益 |
+| 多接口 mDNS 发现（T6 重开载体） | mDNS 对每个候选网卡（`NetworkUtils.listLocalAddresses`：up + 非环回 + 支持多播 + Inet4；排除蜂窝 `rmnet*`/`ccmni*` 与 VPN 隧道 `tun*`/`tap*`，未知前缀放行）各建一个 `JmDNS` 实例，60s 保活循环重枚举跟随接口变化；跨接口观测经 `DiscoveryMerger` 按 `instanceId` 聚合为单条再发布（协调层端口迁移语义不变）；`requesterIp`/`displayKey` 按对端同网段选址（`pickLocalAddressFor`）。承诺口径见 `docs/SPEC.md` §6.4。**重开条件**：厂商接口命名导致排除表误伤真实局域网口（fail-open 失效）或聚合规则误并不同设备 |

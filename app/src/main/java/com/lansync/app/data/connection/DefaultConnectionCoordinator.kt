@@ -33,7 +33,8 @@ class DefaultConnectionCoordinator(
     private val transport: ConnectionTransport,
     private val pairingStore: PairingStore,
     private val pairingHistory: PairingHistoryStore,
-    private val localIdentityProvider: () -> LocalIdentity,
+    /** 本机身份提供者（SPEC §6.4 同网段选址）：入参为请求目标的对端 IP（无目标传 null）。 */
+    private val localIdentityProvider: (targetIp: String?) -> LocalIdentity,
     private val scope: CoroutineScope
 ) : ConnectionCoordinator {
 
@@ -193,7 +194,7 @@ class DefaultConnectionCoordinator(
         publishDevices()
         scope.launch {
             val result = try {
-                val id = localIdentityProvider()
+                val id = localIdentityProvider(device.ipAddress)
                 val reqId = transport.sendConnectRequest(
                     device.ipAddress, device.port, id.deviceName, id.ipAddress, id.port, id.instanceId
                 )
@@ -432,7 +433,7 @@ class DefaultConnectionCoordinator(
     private fun onLocalDisconnect(device: DeviceInfo) {
         val key = device.displayKey
         stopHeartbeat(key); stopSync(key); failCounts.remove(key)
-        val id = localIdentityProvider()
+        val id = localIdentityProvider(device.ipAddress)
         scope.launch {
             try { transport.sendDisconnectNotification(device.ipAddress, device.port, id.displayKey, id.instanceId) }
             catch (e: Exception) { FileLogger.w(TAG, "sendDisconnectNotification failed: ${e.message}") }
