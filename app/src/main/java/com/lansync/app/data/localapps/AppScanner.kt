@@ -49,6 +49,21 @@ class AppScanner(private val context: Context) : InstalledAppScanner {
         results
     }
 
+    override suspend fun scanSinglePackage(packageName: String): AppInfo? = withContext(Dispatchers.IO) {
+        val pm = context.packageManager
+        val packageInfo = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_META_DATA.toLong()))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, PackageManager.GET_META_DATA)
+            }
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        }
+        packageInfo?.let { extractAppInfo(it, pm) }
+    }
+
     private fun extractAppInfo(packageInfo: PackageInfo, pm: PackageManager): AppInfo? {
         val applicationInfo = packageInfo.applicationInfo ?: return null
         val sourcePaths = mutableListOf<String>()

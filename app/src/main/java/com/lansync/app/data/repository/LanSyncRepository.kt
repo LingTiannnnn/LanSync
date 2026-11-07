@@ -8,6 +8,7 @@ import com.lansync.app.data.connection.ConnectionEvent
 import com.lansync.app.data.discovery.DeviceDiscovery
 import com.lansync.app.data.installer.ApkInstaller
 import com.lansync.app.data.localapps.LocalAppRepository
+import com.lansync.app.data.localapps.PackageChangeMonitor
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.UpdateInfo
 import com.lansync.app.data.server.LanSyncServer
@@ -21,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -45,6 +47,8 @@ class LanSyncRepository(
     private val client: LanSyncClient,
     private val packer: AppPacker,
     private val iconCache: IconCache,
+    private val packageMonitor: PackageChangeMonitor,
+    private val packageChangeRescanDebounceMs: Long,
     private val scope: CoroutineScope
 ) {
 
@@ -65,6 +69,8 @@ class LanSyncRepository(
     val installStatus get() = downloadController.installStatus
 
     private var discoveryJob: Job? = null
+    private var monitorJob: Job? = null
+    private var rescanJob: Job? = null
 
     suspend fun start() = withContext(Dispatchers.IO) {
         if (_isRunning.value) return@withContext
@@ -79,12 +85,29 @@ class LanSyncRepository(
                 coordinator.submit(ConnectionEvent.RawDevicesUpdated(raw))
             }
         }
+        // 系统安装/卸载 → 双路径：单包外科更新（装完条目即刻消，秒级）+ 防抖全量重扫兜底（本机列表自愈）
+        packageMonitor.start()
+        monitorJob = scope.launch {
+            packageMonitor.events.collect { ev ->
+                if (localAppRepository.updateSinglePackage(ev.packageName)) notifyConnectedDevicesToRefresh()
+            }
+        }
+        rescanJob = scope.launch {
+            packageMonitor.events.debounce(packageChangeRescanDebounceMs).collect { ev ->
+                // 快照已覆盖该事件（且外科路径已即时修正）→ 不再排队冗余重扫
+                if (ev.atMillis < localAppRepository.lastSnapshotAt) return@collect
+                scanLocalApps()
+            }
+        }
         _isRunning.value = true
         FileLogger.i(TAG, "started: server port=$port")
     }
 
     suspend fun stop() = withContext(Dispatchers.IO) {
         try {
+            monitorJob?.cancel(); monitorJob = null
+            rescanJob?.cancel(); rescanJob = null
+            packageMonitor.stop()
             discoveryJob?.cancel(); discoveryJob = null
             updateCoordinator.stop()
             coordinator.stop()

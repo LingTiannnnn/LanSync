@@ -10,7 +10,8 @@ data class AppConfig(
     val pollIntervalMs: Long = 500L,
     val fetchAppListMaxRetries: Int = 5,
     val fetchAppListRetryDelayMs: Long = 3_000L,
-    val pingTimeoutMs: Long = 3_000L
+    val pingTimeoutMs: Long = 3_000L,
+    val packageChangeRescanDebounceMs: Long = 10_000L
 ) {
     companion object {
         val DEFAULT = AppConfig()

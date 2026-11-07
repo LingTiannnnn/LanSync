@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 本机应用仓库（ARCH §3.3）——旧 `AppRepository` 中「扫描触发 + `_localApps` + `local_apps_cache.json` 读写」职责的重写。
@@ -26,7 +27,8 @@ import java.io.File
 class LocalAppRepository(
     private val scanner: InstalledAppScanner,
     private val cacheFile: File,
-    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val nowMillis: () -> Long = { System.currentTimeMillis() }
 ) {
 
     private val _localApps = MutableStateFlow<List<AppInfo>>(emptyList())
@@ -43,6 +45,14 @@ class LocalAppRepository(
      */
     private val _scanFailure = MutableStateFlow<ScanFailure?>(null)
     val scanFailure: StateFlow<ScanFailure?> = _scanFailure.asStateFlow()
+
+    /** 各包最近一次外科更新时刻（updateSinglePackage 成功时记录）；全量快照合并与兜底重扫的积压吸收判定用。 */
+    private val surgicalUpdatedAt = ConcurrentHashMap<String, Long>()
+
+    /** 最近一次全量扫描快照的时钟时刻；0 = 尚未扫描。防抖重扫据此跳过已被快照覆盖的积压事件。 */
+    @Volatile
+    var lastSnapshotAt: Long = 0L
+        private set
 
     /** 缓存文件是否存在且非空（决定启动是否走「骨架展示」路径）。 */
     fun hasCache(): Boolean = cacheFile.exists() && cacheFile.length() > 0
@@ -65,10 +75,12 @@ class LocalAppRepository(
         _isScanning.value = true
         return try {
             val previousPackages = _localApps.value.map { it.packageName }.toSet()
-            val apps = scanner.scanInstalledApps()
+            val snapshotAt = nowMillis()   // getInstalledPackages 快照取自此时刻
+            val apps = mergeSurgicalUpdates(scanner.scanInstalledApps(), snapshotAt)
             _localApps.value = apps
             val written = writeCache(apps)
             _scanFailure.value = if (written) null else ScanFailure.CACHE_UNWRITABLE
+            lastSnapshotAt = snapshotAt
             val currentPackages = apps.map { it.packageName }.toSet()
             FileLogger.i(TAG, "scanAndRefresh: ${apps.size} apps (+${currentPackages.size - (currentPackages intersect previousPackages).size}/-${(previousPackages - currentPackages).size})")
             ScanResult(
@@ -83,6 +95,56 @@ class LocalAppRepository(
         } finally {
             _isScanning.value = false
         }
+    }
+
+    /**
+     * 全量快照与外科更新的合并：快照取自扫描开始时刻，扫描期间（含并发扫描窗口）被
+     * [updateSinglePackage] 即时修正/移除/新增的包以当前列表为准，防止扫描结尾的整表替换
+     * 回退外科结果；快照时刻之前的变更已包含在快照内，不参与合并。
+     */
+    private fun mergeSurgicalUpdates(scanned: List<AppInfo>, snapshotAt: Long): List<AppInfo> {
+        if (surgicalUpdatedAt.isEmpty()) return scanned
+        val current = _localApps.value.associateBy { it.packageName }
+        val merged = scanned.mapNotNull { s ->
+            val surgicalAt = surgicalUpdatedAt[s.packageName]
+            if (surgicalAt != null && surgicalAt >= snapshotAt) current[s.packageName] else s
+        }.toMutableList()
+        val scannedPkgs = merged.mapTo(HashSet()) { it.packageName }
+        for ((pkg, at) in surgicalUpdatedAt) {
+            if (at >= snapshotAt && pkg !in scannedPkgs) {
+                current[pkg]?.let { merged.add(it); scannedPkgs.add(pkg) }
+            }
+        }
+        return merged
+    }
+
+    /**
+     * 单包外科更新（安装广播即时路径，ARCH §3.3）：用 [scanner] 读取 [packageName] 当前安装态，
+     * 替换/新增/移除对应条目并落盘缓存，不等全量扫描。扫描失败返回 false（防抖全量重扫兜底自愈）。
+     *
+     * [packageName] 为空或本地列表为空时无操作。MD5 按新产物重算（D1 口径不变）。
+     */
+    suspend fun updateSinglePackage(packageName: String): Boolean {
+        if (packageName.isBlank() || _localApps.value.isEmpty()) return false
+        val appInfo = try {
+            scanner.scanSinglePackage(packageName)
+        } catch (e: Exception) {
+            FileLogger.w(TAG, "scanSinglePackage failed for $packageName", e)
+            return false
+        }
+        val current = _localApps.value
+        val idx = current.indexOfFirst { it.packageName == packageName }
+        val newList = when {
+            appInfo == null -> current.filterNot { it.packageName == packageName }
+            idx >= 0 -> current.toMutableList().apply { this[idx] = appInfo }
+            else -> current + appInfo
+        }
+        if (newList == current) return false
+        _localApps.value = newList
+        writeCache(newList)
+        surgicalUpdatedAt[packageName] = nowMillis()
+        FileLogger.i(TAG, "updateSinglePackage: $packageName -> ${appInfo?.versionCode ?: "removed"}")
+        return true
     }
 
     private fun readCache(): List<AppInfo> = try {

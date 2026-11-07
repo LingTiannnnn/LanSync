@@ -15,6 +15,7 @@ class AppConfigTest {
         assertEquals(5_000L, config.updateRecalculationThrottleMs)
         assertEquals(30_000L, config.connectTimeoutMs)
         assertEquals(500L, config.pollIntervalMs)
+        assertEquals(10_000L, config.packageChangeRescanDebounceMs)
     }
 
     @Test

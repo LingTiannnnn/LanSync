@@ -25,10 +25,13 @@ class LocalAppRepositoryTest {
 
     private class FakeScanner(var result: List<AppInfo>) : InstalledAppScanner {
         var calls = 0
+        var single: AppInfo? = null
         override suspend fun scanInstalledApps(): List<AppInfo> {
             calls++
             return result
         }
+
+        override suspend fun scanSinglePackage(packageName: String): AppInfo? = single
     }
 
     private class FlakyScanner(var result: List<AppInfo>) : InstalledAppScanner {
@@ -36,6 +39,11 @@ class LocalAppRepositoryTest {
         override suspend fun scanInstalledApps(): List<AppInfo> {
             if (fail) error("package manager unavailable")
             return result
+        }
+
+        override suspend fun scanSinglePackage(packageName: String): AppInfo? {
+            if (fail) error("package manager unavailable")
+            return null
         }
     }
 
@@ -132,5 +140,98 @@ class LocalAppRepositoryTest {
         assertEquals(0, repo.loadCacheSkeleton()) // 解析失败 → 空
         assertFalse(cacheFile.exists())           // 损坏缓存被删除
         assertTrue(repo.localApps.value.isEmpty())
+    }
+
+    @Test
+    fun `updateSinglePackage replaces entry and writes cache`() = runBlocking {
+        val cacheFile = File(tmp.root, "cache.json")
+        val scanner = FakeScanner(listOf(app("com.a", 1), app("com.b", 2)))
+        val repo = LocalAppRepository(scanner, cacheFile)
+        repo.scanAndRefresh()
+
+        scanner.single = app("com.a", 5)
+        assertTrue(repo.updateSinglePackage("com.a"))
+
+        assertEquals(5L, repo.localApps.value.first { it.packageName == "com.a" }.versionCode)
+        assertEquals(2, repo.localApps.value.size)
+        // 缓存同步落盘：下次骨架直接拿到新版本
+        val repo2 = LocalAppRepository(scanner, cacheFile)
+        repo2.loadCacheSkeleton()
+        assertEquals(5L, repo2.localApps.value.first { it.packageName == "com.a" }.versionCode)
+    }
+
+    @Test
+    fun `updateSinglePackage removes entry when package uninstalled`() = runBlocking {
+        val cacheFile = File(tmp.root, "cache.json")
+        val scanner = FakeScanner(listOf(app("com.a", 1)))
+        val repo = LocalAppRepository(scanner, cacheFile)
+        repo.scanAndRefresh()
+
+        scanner.single = null // 未安装
+        assertTrue(repo.updateSinglePackage("com.a"))
+        assertTrue(repo.localApps.value.isEmpty())
+    }
+
+    @Test
+    fun `updateSinglePackage adds unknown package and skips no-change or blank`() = runBlocking {
+        val cacheFile = File(tmp.root, "cache.json")
+        val scanner = FakeScanner(listOf(app("com.a", 1)))
+        val repo = LocalAppRepository(scanner, cacheFile)
+        repo.scanAndRefresh()
+
+        // 新装包不在列表 → 追加
+        scanner.single = app("com.c", 3)
+        assertTrue(repo.updateSinglePackage("com.c"))
+        assertEquals(2, repo.localApps.value.size)
+        // 相同数据 → 无变化 false
+        assertFalse(repo.updateSinglePackage("com.c"))
+        // 空包名 / 空列表 → 无操作
+        assertFalse(repo.updateSinglePackage(""))
+        val emptyRepo = LocalAppRepository(FakeScanner(emptyList()), File(tmp.root, "cache2.json"))
+        assertFalse(emptyRepo.updateSinglePackage("com.a"))
+    }
+
+    @Test
+    fun `scanAndRefresh merges surgical updates newer than snapshot`() = runBlocking {
+        val cacheFile = File(tmp.root, "cache.json")
+        var clock = 1_000L
+        val scanner = FakeScanner(listOf(app("com.a", 1), app("com.b", 2)))
+        val repo = LocalAppRepository(scanner, cacheFile) { clock }
+        repo.scanAndRefresh()
+
+        // 扫描进行期间的外科更新（时钟 2000）：a 升级、b 卸载、c 新装
+        clock = 2_000L
+        scanner.single = app("com.a", 5)
+        assertTrue(repo.updateSinglePackage("com.a"))
+        scanner.single = null
+        assertTrue(repo.updateSinglePackage("com.b"))
+        scanner.single = app("com.c", 3)
+        assertTrue(repo.updateSinglePackage("com.c"))
+        assertEquals(2, repo.localApps.value.size)
+
+        // 并发扫描的快照取自外科之前(clock 2000 = 快照时刻)，整表替换不得回退外科结果
+        clock = 2_000L
+        scanner.result = listOf(app("com.a", 1), app("com.b", 2))
+        repo.scanAndRefresh()
+        val apps = repo.localApps.value.associateBy { it.packageName }
+        assertEquals(5L, apps.getValue("com.a").versionCode)   // 快照回退被合并层拦下
+        assertFalse(apps.containsKey("com.b"))                 // 外科移除不被快照复活
+        assertEquals(3L, apps.getValue("com.c").versionCode)   // 快照缺失的外科新增被保留
+        assertEquals(2, apps.size)
+    }
+
+    @Test
+    fun `scanAndRefresh without concurrent surgical updates replaces wholesale`() = runBlocking {
+        val cacheFile = File(tmp.root, "cache.json")
+        var clock = 1_000L
+        val scanner = FakeScanner(listOf(app("com.a", 1)))
+        val repo = LocalAppRepository(scanner, cacheFile) { clock }
+        repo.scanAndRefresh()
+
+        // 快照晚于所有外科更新 → 快照内容原样生效（不受合并层影响）
+        clock = 5_000L
+        scanner.result = listOf(app("com.a", 9))
+        repo.scanAndRefresh()
+        assertEquals(9L, repo.localApps.value.single().versionCode)
     }
 }

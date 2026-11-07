@@ -11,4 +11,10 @@ import com.lansync.app.data.model.AppInfo
 interface InstalledAppScanner {
     /** 枚举本机已安装应用并产出 [AppInfo] 列表（含不可提取降级项）。 */
     suspend fun scanInstalledApps(): List<AppInfo>
+
+    /**
+     * 读取 [packageName] 当前安装态产出单个 [AppInfo]（单包外科更新用，含 MD5 计算）；
+     * 包未安装/不可解析返回 null（调用方据此移除条目）。
+     */
+    suspend fun scanSinglePackage(packageName: String): AppInfo?
 }

@@ -16,6 +16,7 @@ import com.lansync.app.data.discovery.JmDNSDeviceDiscovery
 import com.lansync.app.data.installer.ApkInstaller
 import com.lansync.app.data.localapps.AppScanner
 import com.lansync.app.data.localapps.LocalAppRepository
+import com.lansync.app.data.localapps.PackageChangeMonitor
 import com.lansync.app.data.model.AppInfo
 import com.lansync.app.data.server.InMemoryPairingStore
 import com.lansync.app.data.server.KtorLanSyncServer
@@ -65,6 +66,7 @@ object LanSyncGraph {
         val pairingHistory = SharedPrefsPairingHistoryStore(appContext)
         val basePairing = InMemoryPairingStore(Build.MODEL, scope)
         val discovery = JmDNSDeviceDiscovery(appContext, scope)
+        val packageMonitor = PackageChangeMonitor(appContext)
 
         // late-bind 打破环
         var coordinatorRef: ConnectionCoordinator? = null
@@ -129,6 +131,8 @@ object LanSyncGraph {
             client = client,
             packer = packer,
             iconCache = iconCache,
+            packageMonitor = packageMonitor,
+            packageChangeRescanDebounceMs = config.packageChangeRescanDebounceMs,
             scope = scope
         )
     }
