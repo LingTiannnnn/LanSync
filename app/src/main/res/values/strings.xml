@@ -106,7 +106,7 @@
     <!-- ===== 同步 Tab ===== -->
     <string name="sync_device_title">%1$s 的同步对比</string>
     <string name="sync_section_diffs">版本差异</string>
-    <string name="sync_all_synced">应用版本已同步，无差异</string>
+    <string name="sync_all_synced">应用版本已同步</string>
     <string name="sync_empty_user">暂无可更新应用</string>
     <string name="sync_empty_behind">远程设备没有落后于本机的应用</string>
 

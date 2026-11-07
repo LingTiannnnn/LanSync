@@ -185,7 +185,7 @@ fun EmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    // 列表内的轻量空态可降档（如 bodyLarge）；页级空态保持默认的大标题
+    // 列表空态统一小字基准 bodyLarge（同步页全族、远程页「应用列表为空」）；未连接等页级空态保持默认大标题
     titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
 ) {
     val sp = LanSyncTheme.spacing

@@ -121,10 +121,11 @@ fun SyncScreen(
             if (!showDiffsOnly && deviceUpdates.isEmpty() && deviceDiffs.isEmpty() &&
                 currentDevice.appList.isNotEmpty()
             ) {
-                // 「已全同步」是成功态，与空态同一套原语，不再另起一张卡
+                // 「已全同步」是成功态，与空态同一套原语（含同一小字风格），不再另起一张卡
                 EmptyState(
                     icon = Icons.Default.CheckCircle,
                     title = stringResource(R.string.sync_all_synced),
+                    titleStyle = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.fillMaxWidth().padding(sp.space24),
                 )
             } else {

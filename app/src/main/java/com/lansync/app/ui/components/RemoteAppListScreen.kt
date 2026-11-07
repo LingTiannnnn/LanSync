@@ -106,6 +106,7 @@ fun RemoteAppListScreen(
             remoteEntries.isEmpty() -> EmptyState(
                 icon = Icons.Default.SyncProblem,
                 title = stringResource(R.string.remote_empty_applist),
+                titleStyle = MaterialTheme.typography.bodyLarge,
                 actionLabel = stringResource(R.string.action_refresh_applist),
                 onAction = onRefresh,
                 modifier = Modifier
