@@ -42,8 +42,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // WARNING: 生产发布前需配置正式签名密钥！
-            // signingConfig = signingConfigs.getByName("release")
+            // 临时挂 debug 签名（2026-11-08 裁决：正式 keystore 延后）：保证产物可安装，
+            // 且与已装的 debug 签名包同签名可覆盖升级。换正式签名后无法覆盖 debug 签名安装，需卸载重装。
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

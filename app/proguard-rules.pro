@@ -18,25 +18,14 @@
 -dontwarn okio.**
 -keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
 
-# Gson
--keepattributes Signature
--keepattributes *Annotation*
--dontwarn sun.misc.**
--keep class com.google.gson.** { *; }
--keep class * implements com.google.gson.TypeAdapter
--keep class * implements com.google.gson.TypeAdapterFactory
--keep class * implements com.google.gson.JsonSerializer
--keep class * implements com.google.gson.JsonDeserializer
-
 # JmDNS
 -keep class javax.jmdns.** { *; }
 
 # Ktor & Netty
+# 只放行 dontwarn，不做全量 keep：全量 keep 会把 Netty 数千个类原样保留（release 26MB→4MB 的分差就在这）。
+# Netty 在 R8 下的运行时风险点（反射/Unsafe）需真机冒烟把关，见 docs/ROADMAP.md 验收缺口。
 -dontwarn io.ktor.**
--keep class io.ktor.** { *; }
 -dontwarn io.netty.**
--keep class io.netty.** { *; }
--keepclassmembers class io.netty.** { *; }
 -dontwarn io.netty.handler.**
 -dontwarn io.netty.util.internal.**
 -dontwarn io.netty.channel.epoll.**
@@ -58,8 +47,8 @@
 -keep class com.lansync.app.MainActivity { *; }
 
 # AndroidX Compose
+# Compose AAR 自带 consumer rules，全量 keep 会连 material-icons-extended 的数千个图标类一起保留，禁止回退。
 -dontwarn androidx.compose.**
--keep class androidx.compose.** { *; }
 
 # FileProvider
 -keep class androidx.core.content.FileProvider { *; }
