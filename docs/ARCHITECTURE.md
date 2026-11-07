@@ -399,11 +399,12 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `data/connection/ConnectionTransport.kt` | 传输抽象 + `ConnectOutcome`/`LocalIdentity` → coordinator 可用**手写 Fake** 测 | — |
 | `data/connection/LanSyncClientTransport.kt` | 适配器：`LanSyncClient` → `ConnectionTransport` | ➖ |
 | `data/localapps/{InstalledAppScanner,AppScanner}.kt` | PackageManager 扫描；D2：`md5 ?: ""` 且 `isExtractable=true` 为合法态 | ❌ 真机 |
-| `data/localapps/LocalAppRepository.kt` | `local_apps_cache.json` 读写 + `localApps`/`isScanning`/`scanFailure` + 「缓存骨架 + 后台刷新」+ `ScanResult.added/removedPackages` | ✅ (7) |
+| `data/localapps/LocalAppRepository.kt` | `local_apps_cache.json` 读写 + `localApps`/`isScanning`/`scanFailure` + 「缓存骨架 + 后台刷新」+ `ScanResult.added/removedPackages` + `updateSinglePackage` 单包外科更新 + 快照合并（防扫描回退外科结果） | ✅ (12) |
+| `data/localapps/PackageChangeMonitor.kt` | 系统安装广播（ADDED/REPLACED/FULLY_REMOVED）→ 携带 packageName+时刻的事件流；消费方双路径：`updateSinglePackage` 单包外科更新（秒级，装完条目即刻消）+ 防抖 `scanLocalApps` 全量重扫兜底（快照已覆盖的积压事件吸收跳过） | ❌ Android |
 | `data/sync/UpdateManager.kt` | **纯函数**：`findUpdates`/`deduplicateUpdates`/`calculateSyncDiffs`（不自行 fetch）；后两者输出按 appName 拼音 A–Z 升序（`sortedByAppName`，keyer 注入） | ✅ (12) |
-| `data/sync/UpdateCoordinator.kt` | `combine(localApps, connectedDevices)` → 5s 节流 → `availableUpdates`/`syncDiffs`；`nowMillis` 可注入 | ✅ (4) |
+| `data/sync/UpdateCoordinator.kt` | `combine(localApps, connectedDevices)` → **leading+trailing 节流**（窗口内事件尾沿以最新输入补算，断连清空输出）→ `availableUpdates`/`syncDiffs`；`nowMillis` 可注入 | ✅ (6) |
 | `data/cache/IconCache.kt` / `AppIconDiskCache.kt` | data 层三级图标缓存（内存 Lru → 磁盘 PNG → PackageManager 绘制）+ preload + 失败负缓存 | ➖ |
-| `data/repository/LanSyncRepository.kt` | **组合门面 166 行（硬约束 ≤300）**：12 路对外 StateFlow（自有 `serverPort`/`isRunning` 2 路 + 转发协作者 10 路）+ start/stop 生命周期编排 + 纯委托，零业务逻辑 | ➖ 编译 + 门禁 |
+| `data/repository/LanSyncRepository.kt` | **组合门面 189 行（硬约束 ≤300）**：12 路对外 StateFlow（自有 `serverPort`/`isRunning` 2 路 + 转发协作者 10 路）+ start/stop 生命周期编排（含安装广播双路径）+ 纯委托，零业务逻辑 | ➖ 编译 + 门禁 |
 | `data/repository/LanSyncGraph.kt` | **手写 DI 组合根**（129 行）：可空 late-bind 引用破 `server ↔ coordinator ↔ pairingStore` 构造环 | ➖ |
 | `service/ForegroundSyncService.kt` | `specialUse` FGS：承载 `repo.start/stop`、常驻通知（端口/连接数 + 停止/打开）、`START_STICKY` | ❌ 真机 |
 | `ui/viewmodel/MainViewModel.kt` | `AndroidViewModel`：`uiState: StateFlow<UiState>` 单一出口；`autoStart` 先灌缓存骨架 | ❌ 无 Robolectric 栈 |

@@ -233,7 +233,7 @@
 
 ## 10. 当前落地清单
 
-20 个测试文件 / 207 例（用例数以仓库实测为准）。
+20 个测试文件 / 214 例（用例数以仓库实测为准）。
 
 | 测试文件 | 例数 | 锁定 |
 |---|---|---|
@@ -252,10 +252,10 @@
 | `architecture/DocFactsTest` | 9 | CONVENTIONS §6 文档事实门禁：BUILD §3 版本锁表与 SDK/`jvmTarget` 行、STATUS §2 与 §10 测试基线、§10 逐文件例数、§13.1 门面行数与组件文件数、§13.4 `strings.xml` 条数、`.qoder/agents` 镜像数、远端同步表述对照 `.git` 引用；两条检测器自检例（版本/同步表述 + 规模数字提取式）跑内存坏样本，匹配式失效即判红 |
 | `data/transfer/AppPackerTest` | 6 | 单包字节一致与命名、split zip 结构、不可提取/空路径 → null、D1 不等式、`clearCache` |
 | `data/HashUtilsTest` | 6 | §2.4 null 传播三态 |
-| `data/localapps/LocalAppRepositoryTest` | 7 | hasCache、`scanAndRefresh` 写缓存+状态+added、`loadCacheSkeleton` 不触发扫描、跨次 added/removed、损坏缓存自愈；扫描失败 → `SCAN_FAILED` 且保留旧列表、落盘失败 → `CACHE_UNWRITABLE` |
-| `data/sync/UpdateCoordinatorTest` | 4 | combine / 节流 / 立即重算（注入 `nowMillis`） |
+| `data/localapps/LocalAppRepositoryTest` | 12 | hasCache、`scanAndRefresh` 写缓存+状态+added、`loadCacheSkeleton` 不触发扫描、跨次 added/removed、损坏缓存自愈；扫描失败 → `SCAN_FAILED` 且保留旧列表、落盘失败 → `CACHE_UNWRITABLE`；`updateSinglePackage` 单包外科更新（替换+落盘 / 卸载移除 / 新装追加 / 无变化与空输入跳过）；快照合并（并发扫描不回退外科结果 / 无并发时整表替换） |
+| `data/sync/UpdateCoordinatorTest` | 6 | combine 触发 / **leading+trailing 节流**（窗口内事件不丢弃、尾沿以最新输入补算）/ 立即重算 / 断连清空（注入 `nowMillis`）。登记：原「窗口内事件永不触发后续重算」断言已按尾沿补算语义替换（真机假更新冻结缺陷的回归锁） |
 | `architecture/LayeringTest` | 2 | §7 分层门禁 |
 | `data/AppConfigTest` | 2 | SPEC §7.2 全部默认参数 |
 | `data/packer/HashUtilsConsistencyTest` | 2 | MD5 一致性（含 nonexistent → null） |
 
-**无 JVM 单测（靠编译 + `assembleDebug` + 真机验收）**：`AppScanner`、`JmDNSDeviceDiscovery`（纯逻辑已抽 `DiscoveryMerger`，有 JVM 单测）、`IconCache`/`AppIconDiskCache`、`ForegroundSyncService`、`LanSyncRepository`、`LanSyncGraph`、`KtorLanSyncServer`、全部 Compose UI 与 `MainViewModel`。项目无 Robolectric / 无 UI 测试 / 无覆盖率工具；为 Android 耦合类新建测试栈属扩大范围，须先与用户确认。`DesignSystemTest` 审的是 UI **源码文本**（写法与令牌健康度），不渲染 UI、不替代真机目视。
+**无 JVM 单测（靠编译 + `assembleDebug` + 真机验收）**：`AppScanner`、`JmDNSDeviceDiscovery`（纯逻辑已抽 `DiscoveryMerger`，有 JVM 单测）、`PackageChangeMonitor`（重扫/缓存/通知逻辑复用有 JVM 覆盖的 `scanLocalApps` 链路）、`IconCache`/`AppIconDiskCache`、`ForegroundSyncService`、`LanSyncRepository`、`LanSyncGraph`、`KtorLanSyncServer`、全部 Compose UI 与 `MainViewModel`。项目无 Robolectric / 无 UI 测试 / 无覆盖率工具；为 Android 耦合类新建测试栈属扩大范围，须先与用户确认。`DesignSystemTest` 审的是 UI **源码文本**（写法与令牌健康度），不渲染 UI、不替代真机目视。
