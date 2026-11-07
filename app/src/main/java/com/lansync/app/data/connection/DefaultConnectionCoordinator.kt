@@ -221,6 +221,7 @@ class DefaultConnectionCoordinator(
         connectingKeys.remove(device.displayKey)
         when (result) {
             is ConnectAttemptResult.Accepted -> {
+                FileLogger.i(TAG, "connect accepted by ${device.deviceName}")
                 val existingApps = enriched.find { it.displayKey == device.displayKey }?.appList.orEmpty()
                 val conn = device.copy(
                     connectionState = ConnectionState.CONNECTED, appList = existingApps,
@@ -251,6 +252,7 @@ class DefaultConnectionCoordinator(
                     FileLogger.i(TAG, "connect timeout but reverse-connected, treat as success")
                     deferred.complete(true)
                 } else {
+                    FileLogger.w(TAG, "connect timeout for ${device.deviceName} after ${result.waitSeconds}s")
                     updateState(
                         device,
                         ConnectionState.ERROR,
@@ -260,6 +262,7 @@ class DefaultConnectionCoordinator(
                 }
             }
             is ConnectAttemptResult.SendFailed -> {
+                FileLogger.w(TAG, "connect send failed for ${device.deviceName}")
                 updateState(
                     device,
                     ConnectionState.ERROR,
@@ -268,6 +271,7 @@ class DefaultConnectionCoordinator(
                 publishDevices(); deferred.complete(false)
             }
             is ConnectAttemptResult.Failed -> {
+                FileLogger.w(TAG, "connect failed for ${device.deviceName}: ${result.detail.orEmpty()}")
                 updateState(
                     device,
                     ConnectionState.ERROR,
@@ -287,6 +291,7 @@ class DefaultConnectionCoordinator(
                 // 每 20s 发布一次只会让 UiState 全链路空转（merge 重建 + 整列表 diff）。
                 // RECONNECTING → CONNECTED 的恢复迁移仍走下方发布。
                 if (cur.connectionState == ConnectionState.CONNECTED) return
+                FileLogger.i(TAG, "heartbeat recovered for ${cur.deviceName}")
                 val refreshed = cur.copy(
                     connectionState = ConnectionState.CONNECTED,
                     lastSeenTimeMs = now(), connectionFailure = null
@@ -301,6 +306,7 @@ class DefaultConnectionCoordinator(
         val max = config.heartbeatPingMaxFailures
         when {
             fc <= config.heartbeatPingTolerance -> {
+                FileLogger.w(TAG, "heartbeat fail (link unstable) for ${cur.deviceName}: fc=$fc/$max")
                 val u = cur.copy(
                     connectionState = ConnectionState.RECONNECTING,
                     connectionFailure = ConnectionFailure(
@@ -313,6 +319,7 @@ class DefaultConnectionCoordinator(
                 upsertConnected(u); upsertEnriched(u)
             }
             fc < max -> {
+                FileLogger.w(TAG, "heartbeat fail (reconnecting) for ${cur.deviceName}: fc=$fc/$max")
                 val u = cur.copy(
                     connectionState = ConnectionState.RECONNECTING,
                     connectionFailure = ConnectionFailure(
@@ -343,7 +350,10 @@ class DefaultConnectionCoordinator(
     }
 
     private fun onFastReconnectResult(device: DeviceInfo, alive: Boolean) {
-        if (!alive) return
+        if (!alive) {
+            FileLogger.w(TAG, "fast reconnect failed for ${device.deviceName}")
+            return
+        }
         failCounts.remove(device.displayKey)
         val recovered = device.copy(
             connectionState = ConnectionState.CONNECTED, lastSeenTimeMs = now(), connectionFailure = null
