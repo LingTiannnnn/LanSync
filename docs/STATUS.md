@@ -29,7 +29,7 @@
 ## 3. 分支与远端
 
 - **`main` 是唯一开发线**；新工作一律从 `main` 开分支，合回用 `--ff-only`。
-- `main` 领先 `origin/main` 1 个提交（未推送的是文档精简批次），远端顶层没有 `AGENTS.md`、仍是 `PROGRESS.md` / `REPORT.md`，clone 拿到的是精简前的文档集。推送与否待用户定；复核用 `git rev-list --left-right --count origin/main...main` 与 `git ls-tree --name-only origin/main`。
+- `origin/main` 已与 `main` 同步；远端顶层即当前文档集（含 `AGENTS.md`）。复核用 `git rev-list --left-right --count origin/main...main` 与 `git ls-tree --name-only origin/main`。
 - `qoder/UI-Recreate`、`qoder/Quality-Gate` 已纯快进合回 `main`，保留作历史线、不再在其上开发；二者未与远端同步，内容已全在 `main`，是否推/删待用户定。
 - 重构前代码（`AppRepository`/`KtorServer`/`AppListClient`/`ConnectionManager`/旧 `JmDNSDiscovery`/旧 `scanner`/`packer`/`update` 及其测试）只存在于 git 历史，基线快照 `d1a71fc`。
 
@@ -37,7 +37,7 @@
 
 App 运行时走全新栈，**但 Phase 4/5 的运行时行为与 UI 视觉效果全部待真机验证**：FGS 存活、mDNS 发现、配对/心跳/端口迁移、下载校验、安装拉起、暗色对比度、大字号、三键/手势导航白条、横屏、reduce-motion。这些没有设备就无法自动化；**真机互操作矩阵（新×新 / 新×旧 / 旧×新 / 旧×旧）从未执行**，用户已明确暂缓。
 
-JVM 侧没有待跑项：`testDebugUnitTest` 187/187 实测全绿（0 失败 / 0 错误 / 0 跳过），`assembleDebug` 通过。缺口全部集中在真机：需要设备才能把 §4 上面那段清单从"未验"变成结论。
+JVM 侧没有待跑项：`testDebugUnitTest` 实测全绿（0 失败 / 0 错误 / 0 跳过，基线见 §2），`assembleDebug` 通过。缺口全部集中在真机：需要设备才能把 §4 上面那段清单从"未验"变成结论。
 
 ⚠️ 该验收是 Phase 6 的前置：协议版本协商与鉴权会碰互操作红线，无真机兜底不宜动。别把"已交付"当"已验收"。
 
