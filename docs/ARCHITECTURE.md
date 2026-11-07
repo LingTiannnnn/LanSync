@@ -340,7 +340,7 @@ com.lansync.app/
 | lifecycle | 2.8.x |
 | Ktor | 2.3.12（2.3.x 内升级） |
 | DI | Hilt（§4 目标注入图） |
-| R8 / release | 补 `proguard-rules.pro` 对 kotlinx-serialization DTO 的 keep 规则，`assembleRelease` + 真机冒烟验证安装器链路 |
+| R8 / release | kotlinx-serialization DTO keep 已在位；compose/netty keep-all 已移除（体积口径见 `docs/BUILD.md` §4）；剩 R8 收缩产物真机冒烟与 release 签名配置 |
 
 当前版本锁数值只在 `docs/BUILD.md` §3 维护；升级顺序与边界见 `docs/ROADMAP.md` §3。
 

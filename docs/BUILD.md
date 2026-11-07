@@ -4,9 +4,10 @@
 cd "E:/S.H.I.T/LanSync"
 ./gradlew.bat assembleDebug     --offline --no-configuration-cache --console=plain
 ./gradlew.bat testDebugUnitTest              --no-configuration-cache --console=plain   # 不能带 --offline
+./gradlew.bat assembleRelease   --offline --no-configuration-cache --console=plain -x lintVitalRelease -x lintVitalReportRelease -x lintVitalAnalyzeRelease   # lint/签名/体积口径见 §4
 ```
 
-两条命令都用**机器级默认 `GRADLE_USER_HOME`**（不要加覆盖）。实测通过：`assembleDebug` 离线可编译，`testDebugUnitTest` 去掉 `--offline` 后依赖联网解析、全绿。
+三条命令都用**机器级默认 `GRADLE_USER_HOME`**（不要加覆盖）。实测通过：`assembleDebug` 离线可编译；`testDebugUnitTest` 去掉 `--offline` 后依赖联网解析、全绿；`assembleRelease` 口径见 §4（lint / 签名 / 体积的唯一来源）。
 
 ## 1. 四条前提（缺一即失败）
 
@@ -44,5 +45,7 @@ cd "E:/S.H.I.T/LanSync"
 
 ## 4. 其他命令与判定
 
-- Release / R8 链路验证：同样带 `GRADLE_USER_HOME` 前缀跑 `./gradlew.bat assembleRelease`，再装真机冒烟（属 Phase 7，见 `docs/ROADMAP.md` §3）。
+- Release / R8：`assembleRelease` 主链路可 `--offline`，但 lint 链的 `com.android.tools.lint:lint-gradle:31.13.2` 不在本机离线缓存——首跑要么去掉 `--offline` 联网解析一次，要么如顶部命令带三个 `-x lintVital*` 跳过 lint（只跳 lint，不影响 R8 与打包）。
+- 产物是 `app-release.apk`，挂 **debug 签名**（2026-11-08 裁决：正式 keystore 延后，`build.gradle.kts` release 块已临时接 `signingConfigs.getByName("debug")`）——可直接安装，且与手机上已装的 debug 包同签名、可覆盖升级；换正式 keystore 后与现有安装不同签名，需卸载重装。
+- 体积参考（2026-11 实测）：release ≈ 4.2 MB、debug ≈ 65 MB。release 回到 20 MB+ 就是 keep 规则回退的信号：**禁止**在 `proguard-rules.pro` 写 `-keep class androidx.compose.**` / `io.netty.**` 这类全量 keep（Compose AAR 自带 consumer rules；全量 keep 会连 material-icons-extended 的数千图标类一并保留）。R8 收缩产物的真机冒烟未做（`docs/ROADMAP.md` §4）。
 - 测试结果的权威来源是 `app/build/test-results/testDebugUnitTest/*.xml` 的 failures / errors / skipped 计数；门禁语义见 `docs/TEST-PLAN.md` §7。
