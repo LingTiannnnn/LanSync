@@ -385,7 +385,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `data/model/LanSyncError.kt` | `LanSyncErrorCode` 枚举 + `LanSyncErrorDto(code,message)` | ✅ 随路由测 |
 | `data/server/ServerContracts.kt` | `LanSyncServer` / `ServerApiDelegate` / `PairingStore` 契约接口 | — |
 | `data/server/LanSyncRouting.kt` | `lanSyncModule` 10 路由 + `LanSyncJson` + `sendPackedFile` 三响应头 | ✅ `LanSyncRoutingTest`(33) |
-| `data/server/KtorLanSyncServer.kt` | Netty 引擎、`port=0` 动态分配、`resolvedConnectors()` 取实际端口 | ➖ 编译校验 |
+| `data/server/KtorLanSyncServer.kt` | CIO 引擎（纯 Kotlin/coroutines，无需 netty 反射面）、`port=0` 动态分配、`resolvedConnectors()` 取实际端口 | ➖ 编译校验 |
 | `data/server/InMemoryPairingStore.kt` | 接收方配对子状态机（PENDING/ACCEPTED/REJECTED/TIMEOUT，15s） | ✅ (9) |
 | `data/server/NotifyingPairingStore.kt` | 适配器：`receiveRequest` → coordinator `IncomingRequestReceived` | ➖ |
 | `data/transfer/LanSyncClient.kt` | OkHttp 客户端：连接请求/轮询/响应/列表/设备信息/ping/disconnect/refresh + 下载与 `X-MD5` 校验（`Call` 级可取消，中断即删半成品）+ 下载文件管理 | ✅ (18) |
@@ -409,8 +409,8 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 | `service/ForegroundSyncService.kt` | `specialUse` FGS：承载 `repo.start/stop`、常驻通知（端口/连接数 + 停止/打开）、`START_STICKY` | ❌ 真机 |
 | `ui/viewmodel/MainViewModel.kt` | `AndroidViewModel`：`uiState: StateFlow<UiState>` 单一出口；`autoStart` 先灌缓存骨架 | ❌ 无 Robolectric 栈 |
 | `ui/theme/{Color,Theme,Spacing,Shape,Typography,Elevation,Motion}.kt` | 设计系统（§13.4） | — |
-| `ui/components/*`（16 文件） | 4 Tab + 共享原语（`CommonComponents`/`AppRow`/`FeedbackBanner`/`StatusVisuals`/`LoadingVisuals`/`IdentityStrip`）+ 覆盖层 + `ui/format`/`ui/string` 取值桥 | ❌ 真机目视（写法由 `DesignSystemTest` 门禁） |
-| `data/AppNameOrdering.kt` | 应用名拼音 A–Z 混排唯一口径 `sortedByAppName`：全拼升序、同字母中文先于英文、非字母开头归 `#` 段殿后、包名定序 | ✅ (5) |
+| `ui/components/*`（17 文件） | 4 Tab + 共享原语（`CommonComponents`/`AppRow`/`AlphabetIndexBar`/`FeedbackBanner`/`StatusVisuals`/`LoadingVisuals`/`IdentityStrip`）+ 覆盖层 + `ui/format`/`ui/string` 取值桥 + `ui/icons`（LanSyncIcons 本地图标补集，配 icons-core，见 BUILD §4） | ❌ 真机目视（写法由 `DesignSystemTest` 门禁） |
+| `data/AppNameOrdering.kt` | 应用名拼音 A–Z 混排唯一口径 `sortedByAppName`：全拼升序、同字母中文先于英文、非字母开头归 `#` 段殿后、包名定序；字母索引轨道段位 `appNameIndexSections`/`railPositionFor`（与排序同 keyer，远程应用页侧边条唯一调用方） | ✅ (9) |
 | `data/IcuAppNameKeyer.kt` | ICU 中文→拼音转写（`android.icu`）+ 生产单例 `DefaultAppNameKeyer`；独立成文件隔离 android.icu，保 `AppNameOrdering` JVM 可加载 | ❌ Android/icu |
 | `data/{AppConfig,HashUtils,NetworkUtils,FileLogger}.kt` | 超时参数唯一来源 / MD5 工具（null 传播）/ 网卡候选过滤与同网段选址（SPEC §6.4，纯 JVM）/ 文件日志 | ✅ AppConfig(2)/HashUtils(6)+一致性(2)/NetworkUtils(11) |
 
@@ -452,7 +452,7 @@ ViewModel（MainViewModel：单 combine 归约 UiState，派发）
 - **品牌图标**：自适应图标三件套（`mipmap-anydpi-v26/` —— 两个入口共用同一前景/单色层）。前景 `drawable/ic_launcher_foreground` 是 108dp 视图，用**一组 `group`** 把 256 单位设计画布上的 16×16 像素网格映射过来：标志「方波 S」是一根方波导线、首尾各接一只反向像素箭头，同时读作像素 S（Sync）、双向传输与局域网数字信号；52.6dp 见方，外接圆半径 31dp 落在 66dp 安全区圆内（余量 2dp）。前景是单色白剪影，单色层 `drawable/ic_launcher_monochrome`（Android 13+ 主题图标）取同一几何。通知小图标是**独立 drawable** `drawable/ic_notification`（24dp 画布内标志 18dp，同一剪影），不复用启动器 drawable —— 通知栏只接受单色 alpha 剪影。像素母版、预览图与可重跑生成器在 `design/icon/`（`python design/icon/final.py` 一键重出全部资源与图稿；底色与 `Color.kt` 同源自 `#00696B`）。
 - **令牌入口**（唯一，七个文件）：`LanSyncTheme.spacing`（`LanSyncSpacing`：4dp 基栅格 + icon/appIcon/deviceIcon/描边/控件与列表尺寸，经 `LocalSpacing`）、`LanSyncTheme.containers`（`LocalContainers` 四档 surfaceContainer 兼容层）、`LanSyncTheme.elevation`（`LanSyncElevation`：`flat` 0 / `banner` 6 / `overlay` 8，阴影不得借用间距；列表行卡与设备卡一律平面——空间感由 `spacing.hairline` 描边 + `outlineVariant` 承担，不贴阴影）、`LanSyncTheme.motion`（`LanSyncMotion`：时长/自动消失/手势位移，系统"移除动画"时时长退化；组合外用 `LanSyncTiming`）、`LanSyncShapes`（8/12/16/24/28，圆角只走 `MaterialTheme.shapes`）、`Typography.kt`（M3 比例 + `LanSyncMonoText` 等宽数值样式）、`Theme.kt`（组装）。`LanSyncMetrics` 已并入 `LanSyncSpacing`；只登记有调用点的令牌，死值由 `DesignSystemTest` 判红。
 - **连接状态视觉唯一映射**在 `ui/components/StatusVisuals.kt`：一律取 M3 容器配对，不用 `color.copy(alpha = …)` 自造淡底 —— CONNECTED=secondaryContainer/onSecondaryContainer、CONNECTING 与 RECONNECTING=tertiaryContainer/onTertiaryContainer、ERROR 与 TIMEOUT=errorContainer/onErrorContainer、DISCOVERED/DISCONNECTED=containers.high/onSurfaceVariant；图标/状态条配色用同角色的 `accent`。次要文字一律 `onSurfaceVariant`（`outline` 是 3:1 非文本角色，做 11–12sp 正文只有 3.8:1）。
-- **文案唯一来源** `res/values/strings.xml`（137 条，参数用 `%1$d`/`%1$s`）；组件经 `stringResource(id, args)`，VM/Service 经 `getString(id, args)`。`cd_` 前缀只作无障碍描述，可见动作用 `action_`。
+- **文案唯一来源** `res/values/strings.xml`（138 条，参数用 `%1$d`/`%1$s`）；组件经 `stringResource(id, args)`，VM/Service 经 `getString(id, args)`。`cd_` 前缀只作无障碍描述，可见动作用 `action_`。
 - **加载态词汇单入口** `ui/components/LoadingVisuals.kt`：`LanSyncSpinner(size/strokeWidth/color 均有令牌默认)` 与 `LanSyncProgressBar(progress=null 表示跑马灯)`；裸 Material3 指示器只允许出现在该文件（`DesignSystemTest` 阻断）。宽度留给调用方，覆盖层的 `0.7f` 比例作为登记过的例外写在 `DownloadProgressDialog.kt`。
 - **失败原因走 typed 模型**：`data` 层只产出机器可读类别 —— `DeviceInfo.connectionFailure: ConnectionFailure?`（`kind` + `retry`/`retryTotal`/`waitSeconds`）、`InstallStatus.Failed.failure: InstallFailure`、`InstallationResult.Error.failure`、`LocalAppRepository.scanFailure: ScanFailure?`、`SaveDialogState.Error.reason: SaveFailure`。诊断原文（`e.message`、对端回复文本）只进 `FileLogger`，**永不上屏**。UI 侧唯一的映射点是 `ui/string/FailureText.kt`（类别 → 资源 id，组合期与 `Context` 两种入口），`DesignSystemTest` 因此在 `ui/**` + `MainActivity` 上零豁免地禁止内联中文字面量。
 - **edge-to-edge**：`MainActivity.onCreate` 调 `enableEdgeToEdge()`；`NavigationBar` 用 `containers.default` + `WindowInsets.navigationBars`；内容容器加 `imePadding()`；只按 luminance 设系统栏图标亮暗。

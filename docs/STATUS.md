@@ -16,6 +16,7 @@
 | 增量④ | 文档事实门禁（`architecture/DocFactsTest`：版本锁表 / 测试基线 / `.qoder/agents` 镜像 / 远端同步表述对照仓库实测） | ✅ | **154 例** |
 | 增量⑤ | UI 设计系统补齐（elevation/motion 令牌、状态色容器配对、行/徽标/反馈/批量条/加载态原语收敛、失败原因 typed 化、设计系统门禁 `architecture/DesignSystemTest`） | ✅ 代码级 | **178 例**；assembleDebug 通过；**真机视觉验收未做** |
 | 增量⑥ | Release 治理（体积根因排查、R8 试启用→首发闪退→**裁决停用**、gson 死规则清理、release 临时挂 debug 签名、BUILD.md 口径重写） | ✅ 代码级 | 214 例不变；assembleRelease 通过（未开 R8 ≈45 MB）；正式 keystore 延后（`docs/ROADMAP.md` §4） |
+| 增量⑦ | 远程页 A-Z+# 字母索引条（段位推导与排序同 keyer）+ R8 蒸馏复启（`-dontoptimize`）+ 体积治理（icons-core + 26 本地图标 + 服务端引擎 Netty→CIO，45.4→4.7 MB；v1.3 / versionCode 4） | ✅ 真机验收 | **218 例**；assembleDebug + assembleRelease 通过；v1.3 真机全链路（服务器启动 + 连接 + 同步 + 拉取安装 + 图标目视）通过 |
 | Phase 6 | 安全加固与协议版本化 | ⏳ 待启动 | **前置：真机互操作验收** |
 | Phase 7 | 工具链升级 / UI 拆分 | ⏳ 待启动 | 独立分支，不叠加协议改动 |
 
@@ -23,8 +24,8 @@
 
 ## 2. 基线
 
-- **214/214 全绿**：20 个测试文件，用例数按源码实测（`@Test` 计数口径同 `architecture/DocFactsTest`）；文件 × 例数 × 锁定契约的映射见 `docs/TEST-PLAN.md` §10。`assembleDebug` 通过（判定只看输出里的 `BUILD SUCCESSFUL`）。
-- **assembleRelease 通过**：R8 裁切已停用（2026-11-08 裁决，v1.2 首发闪退），离线跑需带三个 `-x lintVital*`；产物挂 debug 签名（正式 keystore 延后）；体积口径见 `docs/BUILD.md` §4。
+- **218/218 全绿**：20 个测试文件，用例数按源码实测（`@Test` 计数口径同 `architecture/DocFactsTest`）；文件 × 例数 × 锁定契约的映射见 `docs/TEST-PLAN.md` §10。`assembleDebug` 通过（判定只看输出里的 `BUILD SUCCESSFUL`）。
+- **assembleRelease 通过（R8 蒸馏 + 体积治理，v1.3）**：R8 用 `-dontoptimize` 单 dex 产物；服务端引擎 Netty → **CIO**（R8 对 netty 的两处反射面——Channel 构造器与 `TypeParameterMatcher` 泛型签名——keep 规则均无法可靠防护，引擎整体移除，口径见 `docs/BUILD.md` §4）；产物 ≈4.7 MB、挂 debug 签名（正式 keystore 延后）；构建含新依赖时需联网解析一次，离线跑需带三个 `-x lintVital*`。v1.3 真机全链路（服务器启动 + 连接 + 双向同步 + 拉取安装 + 图标目视）已验收通过。
 - ⚠️ **跑 `testDebugUnitTest` 不能加 `--offline`**：机器级仓库 `E:\S.H.I.T\Gradle\GradleRepository\caches` 里没有 `junit:junit`、`io.mockk`、`kotlinx-coroutines-test`、`ktor-server-test-host`，离线解析必失败；去掉 `--offline` 让测试依赖走网络解析即可跑通。主源码编译（`assembleDebug`）不受影响，可继续 `--offline`。
 - **DL-6（空 body）经查证不可覆盖**，裁决为"保留防御分支、不写断言"（`docs/TEST-PLAN.md` §4）。
 
@@ -37,7 +38,7 @@
 
 ## 4. 验收缺口
 
-App 运行时走全新栈，**但 Phase 4/5 的运行时行为与 UI 视觉效果全部待真机验证**：FGS 存活、mDNS 发现、配对/心跳/端口迁移、下载校验、安装拉起、暗色对比度、大字号、三键/手势导航白条、横屏、reduce-motion。这些没有设备就无法自动化；**真机互操作矩阵（新×新 / 新×旧 / 旧×新 / 旧×旧）从未执行**，用户已明确暂缓。release 链路另有 R8 收缩冒烟与签名两个缺口，已挂起（`docs/ROADMAP.md` §4）。
+App 运行时走全新栈，**但 Phase 4/5 的运行时行为与 UI 视觉效果全部待真机验证**：FGS 存活、mDNS 发现、配对/心跳/端口迁移、下载校验、安装拉起、暗色对比度、大字号、三键/手势导航白条、横屏、reduce-motion。这些没有设备就无法自动化；**真机互操作矩阵（新×新 / 新×旧 / 旧×新 / 旧×旧）从未执行**，用户已明确暂缓。release 链路缺口：正式 keystore（延后），见 `docs/ROADMAP.md` §4。
 
 JVM 侧没有待跑项：`testDebugUnitTest` 实测全绿（0 失败 / 0 错误 / 0 跳过，基线见 §2），`assembleDebug` 通过。缺口全部集中在真机：需要设备才能把 §4 上面那段清单从"未验"变成结论。
 

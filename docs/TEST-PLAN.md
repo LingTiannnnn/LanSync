@@ -42,7 +42,7 @@
 ### 2.3 UpdateManager / Models / HashUtils 必覆盖断言
 
 - **`UpdateManagerTest`**：`findUpdates` 只收 remote > local、跳过任一侧为系统应用、跳过本地缺失包；`deduplicateUpdates` 同包名取最高 `versionCode`、**平级取 `deviceName` 字母序更小者**（SPEC §3.2）、空输入返回空；`calculateSyncDiffs` 只收「远程落后」（双端都有且本地更高，远程更高/同版本/单侧存在均排除）且跳过系统应用；两者输出按 appName 拼音 A–Z 升序（同字母中文先于英文、非字母开头殿后，映射 Fake keyer 驱动）。
-- **`AppNameOrderingTest`**：`sortedByAppName` 排序口径——全拼升序、同字母中文先于英文、`#` 段殿后、包名定序、空名归 `#`；ICU 转写本体不在此测（Android 耦合，真机目视）。
+- **`AppNameOrderingTest`**：`sortedByAppName` 排序口径——全拼升序、同字母中文先于英文、`#` 段殿后、包名定序、空名归 `#`；字母索引轨道段位——`appNameIndexSections` 首现下标与缺段 -1、`railPositionFor` 反查与越界钳位（与排序同 keyer）；ICU 转写本体不在此测（Android 耦合，真机目视）。
 - **`ModelsTest` 的 `encodeDefaults=false` 字节快照**（SPEC §1.2.1，必测）：`DeviceInfoResponse(deviceName="X")` **不含** `version`；`GenericStatusResponse()` 序列化为 `{}`、`GenericStatusResponse(status="pong")` 为 `{"status":"pong"}`；`AppInfo(isSystemApp=false, isSplitApk=false)` **不含**这两字段（=true 时含）；`ConnectStatusResponse(status="rejected", accepted=false)` **不含** `accepted`。除单测外，路由测试同样保留这些断言。
 - **`HashUtilsTest` 的 null 语义**（SPEC §8.2）：空列表 → null；任一路径不可读 → null；全部不可读 → null。**绝不返回空文件的摘要**（`d41d8cd9…` 幽灵指纹是缺陷，不得作为断言目标）。
 
@@ -233,7 +233,7 @@
 
 ## 10. 当前落地清单
 
-20 个测试文件 / 214 例（用例数以仓库实测为准）。
+20 个测试文件 / 218 例（用例数以仓库实测为准）。
 
 | 测试文件 | 例数 | 锁定 |
 |---|---|---|
@@ -244,7 +244,7 @@
 | `data/model/ModelsTest` | 13 | DTO roundtrip + `encodeDefaults=false` 字节快照 |
 | `data/server/InMemoryPairingStoreTest` | 9 | §2.2 配对状态机、15s 超时、getStatus 映射、respond 取消 timeout、clearAll |
 | `data/sync/UpdateManagerTest` | 12 | §2.3 `findUpdates` / `deduplicateUpdates` / `calculateSyncDiffs`；输出按 appName 拼音 A–Z 升序（同字母中文先于英文、非字母开头殿后） |
-| `data/AppNameOrderingTest` | 5 | `sortedByAppName` 排序口径：全拼升序、同字母中文先于英文、`#` 段殿后、包名定序、空名归 `#` |
+| `data/AppNameOrderingTest` | 9 | `sortedByAppName` 排序口径：全拼升序、同字母中文先于英文、`#` 段殿后、包名定序、空名归 `#`；字母索引轨道：首现段位、缺段 -1、反查与钳位 |
 | `data/NetworkUtilsTest` | 11 | SPEC §6.4 候选网卡过滤（排除蜂窝/VPN 前缀、fail-open、非环回 Inet4、排序）与同网段选址（`sameSubnet` 前缀判定 / `pickAddressFor` / `pickReachableRemote`） |
 | `data/discovery/DiscoveryMergerTest` | 9 | SPEC §6.5 跨接口聚合：每远端 instanceId 一条、同网段观测优先、部分接口消失保留 / 全部消失清理、自身过滤、接口关闭退场 |
 | `data/transfer/DownloadedFileNameTest` | 10 | DL-12 命名 / 反推边界 / 正向匹配 |

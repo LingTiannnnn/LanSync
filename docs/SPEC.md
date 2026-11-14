@@ -290,7 +290,7 @@ kotlinx.serialization 默认 **不序列化等于默认值的可选字段**。�
 > `sendZipFile` 的 `md5` 入参（= `app.md5`，原始拼接摘要）**仅用于日志对比**，**不写入任何响应头**。上线的 `X-MD5` 恒为产物实时哈希。这是 §8「以传输产物为准」决策的现状依据。
 
 ### 5.2 端口分配
-- 服务端 `embeddedServer(Netty, port = 0)` → OS 动态分配；实际端口 = `resolvedConnectors().first().port`，写入 `_serverPort`。
+- 服务端 `embeddedServer(CIO, port = 0)` → OS 动态分配；实际端口 = `resolvedConnectors().first().port`，写入 `_serverPort`。
 - 该端口同时用于：mDNS 服务注册（§6）、`ConnectRequestPayload.requesterPort`、`displayKey`。
 
 ### 5.3 下载文件命名约定（冻结）
