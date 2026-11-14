@@ -1,8 +1,15 @@
-# 当前 release 已停用 R8（isMinifyEnabled=false，2026-11-08 裁决），本文件暂不生效；
-# 内容保留作为重新启用 R8 时的底线规则与历史依据（v1.2 首发闪退根因见「Ktor & Netty」段注释）。
+# R8 蒸馏已启用（2026-11-15 二次裁决，isMinifyEnabled=true + -dontoptimize 单 dex）：
+# 非 R8 多 dex 产物的 mergeDex 结果在设备端不可信（类在 dex 里却 ClassNotFoundException），
+# R8 单 dex 是唯一经设备验证可正常启动服务器的 release 形态。改任何 keep 规则后必须
+# 真机全链路冒烟再发版。
 
 # Kotlin Serialization
 -keepattributes *Annotation*, InnerClasses
+# ⛔ 必须保留泛型签名：netty 的 MessageToMessageDecoder/Encoder 构造函数用
+# TypeParameterMatcher 泛型反射（读 getGenericSuperclass() 找类型参数），
+# 缺 Signature 属性会在每个新连接装配 HttpServerCodec 时抛
+# IllegalStateException: unknown type parameter 'I' → 通道立即关闭 → 客户端 Connection reset。
+-keepattributes Signature, EnclosingMethod
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
 -keepclasseswithmembers class kotlinx.serialization.json.** {
@@ -25,11 +32,24 @@
 -keep class javax.jmdns.** { *; }
 
 # Ktor & Netty
-# 反射风险实测：v1.2 首发在启动时闪退——Netty ReflectiveChannelFactory 用
-# clazz.getConstructor() 反射实例化 NioServerSocketChannel，R8 看不到直接调用者
-# 就把无参构造器裁了。keepclassmembers 只保住「可达类」的成员（反射目标类必然可达），
-# 不可达的数千 Netty 类仍会被剪掉——26.1MB→4.2MB 的体积收益来自删 -keep class，
-# 这条 members 规则是安全的底线，禁止移除。
+# v1.2 首发闪退根因（mapping.txt 反查留档）：当时 netty 零 keep 规则，ReflectiveChannelFactory
+# 用 clazz.getConstructor() 反射实例化 NioServerSocketChannel，构造器没有直接调用者被 R8 裁掉
+# → 启动建服务器即抛 NoSuchMethodException。v1.3 连接被 RST 的根因（slf4j 桥抓到的
+# exceptionCaught）：泛型签名缺失，见上「Signature」注释。修复分两层：
+# 1. -keep 钉住 Channel 实现的类身份 + 无参构造器（根因修复）：keepclassmembers 挡不住 R8
+#    横向类合并（合并会连类带构造器一起消掉），必须 -keep；
+# 2. members 底线规则保住可达 Netty 类的全部成员，覆盖其余反射路径。
+# 不可达的数千 Netty 类仍会被剪掉——体积收益来自删 -keep class io.netty.**（全量 keep 26.1MB
+# vs 两层规则 5.2MB），禁止回退全量 keep；以上两层规则也禁止移除。
+-keep class * extends io.netty.channel.Channel {
+    public <init>();
+}
+# TypeParameterMatcher 反射源（v1.3 连接 RST 根因）：MessageToMessageEncoder/Decoder 的
+# 构造函数调 TypeParameterMatcher.find(this, Xxx.class, "I")，要求 Xxx.class.getTypeParameters()
+# 返回 <I>——即这两个类的泛型签名必须进 dex。R8 的 -keepattributes 只对被 -keep 命中的类生效，
+# 单纯写 -keepattributes Signature 无效；必须 -keep 这两个类。
+-keep class io.netty.handler.codec.MessageToMessageEncoder { *; }
+-keep class io.netty.handler.codec.MessageToMessageDecoder { *; }
 -dontwarn io.ktor.**
 -dontwarn io.netty.**
 -keepclassmembers class io.netty.** { *; }
@@ -48,6 +68,10 @@
 
 # Keep data model classes used in serialization
 -keep class com.lansync.app.data.model.** { *; }
+
+# SLF4J 自建绑定：slf4j 以 Class.forName("org.slf4j.impl.StaticLoggerBinder") 发现，
+# 类名不可混淆；把 netty/ktor 日志转发进 FileLogger（见 org/slf4j/impl/StaticLoggerBinder.kt）
+-keep class org.slf4j.impl.StaticLoggerBinder { *; }
 
 # Application entry points
 -keep class com.lansync.app.LanSyncApplication { *; }
