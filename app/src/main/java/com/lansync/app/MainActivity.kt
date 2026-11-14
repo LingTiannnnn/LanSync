@@ -32,12 +32,12 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.WifiTethering
+import com.lansync.app.ui.icons.Cloud
+import com.lansync.app.ui.icons.CloudOff
+import com.lansync.app.ui.icons.Folder
+import com.lansync.app.ui.icons.Sync
+import com.lansync.app.ui.icons.WifiTethering
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton

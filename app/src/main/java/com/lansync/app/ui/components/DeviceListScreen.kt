@@ -6,6 +6,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.lansync.app.ui.icons.Link
+import com.lansync.app.ui.icons.LinkOff
+import com.lansync.app.ui.icons.PhoneAndroid
+import com.lansync.app.ui.icons.Radar
+import com.lansync.app.ui.icons.WifiOff
+import com.lansync.app.ui.icons.WifiTethering
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment

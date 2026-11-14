@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.filled.Downloading
-import androidx.compose.material.icons.filled.InstallMobile
+import com.lansync.app.ui.icons.Downloading
+import com.lansync.app.ui.icons.Error
+import com.lansync.app.ui.icons.InstallMobile
+import com.lansync.app.ui.icons.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme

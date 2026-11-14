@@ -8,6 +8,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.lansync.app.ui.icons.CloudOff
+import com.lansync.app.ui.icons.CompareArrows
+import com.lansync.app.ui.icons.Download
+import com.lansync.app.ui.icons.Inbox
+import com.lansync.app.ui.icons.Link
+import com.lansync.app.ui.icons.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
