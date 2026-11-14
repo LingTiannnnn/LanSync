@@ -39,6 +39,7 @@
     <string name="action_deselect_all">取消全选</string>
     <string name="action_refresh">刷新</string>
     <string name="action_refresh_applist">刷新应用列表</string>
+    <string name="cd_index_rail">字母索引</string>
     <string name="cd_refresh">刷新</string>
     <string name="cd_refresh_files">刷新文件</string>
     <string name="cd_select_app">选择 %1$s</string>

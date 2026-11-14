@@ -3,21 +3,34 @@ package com.lansync.app.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.lansync.app.ui.icons.CloudDownload
+import com.lansync.app.ui.icons.CloudOff
+import com.lansync.app.ui.icons.Inbox
+import com.lansync.app.ui.icons.SyncProblem
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.lansync.app.R
+import com.lansync.app.data.DefaultAppNameKeyer
+import com.lansync.app.data.appNameIndexSections
+import com.lansync.app.data.railPositionFor
 import com.lansync.app.data.model.ConnectionState
 import com.lansync.app.data.model.DeviceInfo
 import com.lansync.app.data.model.RemoteAppEntry
 import com.lansync.app.ui.format.formattedFileSize
 import com.lansync.app.ui.theme.LanSyncTheme
+import kotlinx.coroutines.launch
 
 private const val ITEM_TYPE_REMOTE = "remote_app_item"
+
+/** 索引条显示阈值：约一屏 72dp 行起才摆轨道，短列表不摆装饰性控件。 */
+private const val RAIL_MIN_ITEMS = 10
 
 enum class AppCategory { USER, SYSTEM }
 
@@ -126,22 +139,63 @@ fun RemoteAppListScreen(
             )
 
             else -> {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = sp.space16, vertical = sp.space8),
-                    verticalArrangement = Arrangement.spacedBy(sp.space8)
-                ) {
-                    items(
-                        items = filteredApps,
-                        key = { "remote_${it.app.packageName}" },
-                        contentType = { ITEM_TYPE_REMOTE }
-                    ) { entry ->
-                        RemoteAppItem(
-                            entry = entry,
-                            isSelected = entry.app.packageName in selectedPackages,
-                            onToggleSelected = onToggleSelected,
-                            onPull = { onPullApp(entry) }
+                val listState = rememberLazyListState()
+                val railSections = remember(filteredApps) {
+                    filteredApps.appNameIndexSections(DefaultAppNameKeyer) { it.app.appName }
+                }
+                // 列表静止时的轨道反亮（仅结果变化才触发重组）；拖动中由 scrubPos 接管
+                val scrollRailPos by remember(railSections) {
+                    derivedStateOf { railPositionFor(railSections, listState.firstVisibleItemIndex) }
+                }
+                var scrubPos by remember { mutableIntStateOf(-1) }
+                val scope = rememberCoroutineScope()
+
+                LaunchedEffect(category) { listState.scrollToItem(0) }
+
+                val showRail = filteredApps.size >= RAIL_MIN_ITEMS
+                Box(modifier = Modifier.weight(1f)) {
+                    LazyColumn(
+                        state = listState,
+                        // 显示轨道时行尾只留出走条宽度：卡片右缘贴轨道左缘，与轨道到屏幕右缘的留空对称
+                        contentPadding = PaddingValues(
+                            start = sp.space16,
+                            top = sp.space8,
+                            end = if (showRail) sp.indexRailWidth else sp.space16,
+                            bottom = sp.space8,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(sp.space8)
+                    ) {
+                        items(
+                            items = filteredApps,
+                            key = { "remote_${it.app.packageName}" },
+                            contentType = { ITEM_TYPE_REMOTE }
+                        ) { entry ->
+                            RemoteAppItem(
+                                entry = entry,
+                                isSelected = entry.app.packageName in selectedPackages,
+                                onToggleSelected = onToggleSelected,
+                                onPull = { onPullApp(entry) }
+                            )
+                        }
+                    }
+
+                    if (showRail) {
+                        AlphabetIndexBar(
+                            sections = railSections,
+                            currentPos = if (scrubPos >= 0) scrubPos else scrollRailPos,
+                            onSeek = { pos ->
+                                scrubPos = pos
+                                scope.launch { listState.scrollToItem(railSections[pos]) }
+                            },
+                            onScrubEnd = { scrubPos = -1 },
+                            modifier = Modifier.align(Alignment.CenterEnd),
                         )
+                        if (scrubPos >= 0) {
+                            IndexScrubBubble(
+                                label = indexRailLetters[scrubPos],
+                                modifier = Modifier.align(Alignment.Center),
+                            )
+                        }
                     }
                 }
 

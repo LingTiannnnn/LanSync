@@ -48,4 +48,42 @@ class AppNameOrderingTest {
     fun `empty name sorts into hash bucket`() {
         assertEquals(listOf("微信", ""), sort(listOf("", "微信")))
     }
+
+    // ---- 字母索引轨道（appNameIndexSections / railPositionFor）----
+
+    @Test
+    fun `index sections record first occurrence per pinyin initial`() {
+        val sorted = sort(listOf("微信", "阿里云盘", "安兔兔", "爱奇艺", "360卫士"))
+        // 排序结果：爱奇艺(0) 阿里云盘(1) 安兔兔(2) 微信(3) 360卫士(4)
+        val sections = sorted.appNameIndexSections(keyer, { it })
+        assertEquals(27, sections.size)
+        assertEquals(0, sections[0])           // a 段首项 = 爱奇艺
+        assertEquals(3, sections['w' - 'a'])   // 中文按拼音首字母落段
+        assertEquals(4, sections[26])          // 非字母开头归 # 段
+        assertEquals(-1, sections['x' - 'a'])  // 缺段
+    }
+
+    @Test
+    fun `index sections all missing on empty list`() {
+        assertEquals(List(27) { -1 }, emptyList<String>().appNameIndexSections(keyer, { it }))
+    }
+
+    @Test
+    fun `rail position resolves visible item to its section`() {
+        val sorted = sort(listOf("微信", "360卫士", "爱奇艺"))
+        // 排序结果：爱奇艺(0) 微信(1) 360卫士(2)
+        val sections = sorted.appNameIndexSections(keyer, { it })
+        assertEquals(0, railPositionFor(sections, 0))    // 爱奇艺 → a 段
+        assertEquals('w' - 'a', railPositionFor(sections, 1))
+        assertEquals(26, railPositionFor(sections, 2))   // 360卫士 → # 段
+        assertEquals(26, railPositionFor(sections, 99))  // 越界钳到最后一段
+    }
+
+    @Test
+    fun `rail position clamps before first section and returns none when empty`() {
+        val sections = listOf("微信").appNameIndexSections(keyer, { it })
+        assertEquals('w' - 'a', railPositionFor(sections, 0))
+        assertEquals('w' - 'a', railPositionFor(sections, -1))  // 早于首段钳到首段
+        assertEquals(-1, railPositionFor(List(27) { -1 }, 0))   // 无任何段
+    }
 }

@@ -62,6 +62,7 @@ data class LanSyncSpacing(
     val deviceCardMin: Dp = 84.dp,
     val topBarIndicator: Dp = 18.dp,
     val chipIcon: Dp = 16.dp,
+    val indexRailWidth: Dp = 24.dp,
 )
 
 /** 默认令牌实例（编译期常量语义，运行期不可变）。 */
